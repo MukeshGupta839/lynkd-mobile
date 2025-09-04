@@ -11,6 +11,10 @@ module.exports = {
         8.5: "2.125rem",
         13: "3.125rem",
       },
+      fontSize: {
+        xxs: ['10px', { lineHeight: '12px' }],
+        tab: 12,
+      },
       fontFamily: {
         "worksans-200": ["WorkSans_200ExtraLight"],
         "worksans-300": ["WorkSans_300Light"],
@@ -28,6 +32,9 @@ module.exports = {
       },
       letterSpacing: {
         "ultra-wide": "30px",
+      },
+      rotate: {
+        '-45': '-45deg',
       },
     },
   },
