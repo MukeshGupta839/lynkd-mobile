@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Image, Platform, TouchableOpacity, View } from "react-native";
 
 type Props = BottomTabBarProps & {
@@ -10,7 +10,29 @@ type Props = BottomTabBarProps & {
 };
 
 // map file/route names -> icons
-const iconFor = (name: string, focused: boolean) => {
+const iconFor = (
+  name: string,
+  focused: boolean,
+  isShopActive: boolean = false
+) => {
+  // When shop is active, change the icons for certain tabs
+  if (isShopActive) {
+    switch (name) {
+      case "index":
+      case "shop":
+        return focused ? "home" : "home-outline"; // Shop shows as home
+      case "categories":
+        return focused ? "grid" : "grid-outline"; // Categories icon
+      case "cart":
+        return focused ? "cart" : "cart-outline"; // Cart icon instead of categories
+      case "profile":
+        return focused ? "person-circle-outline" : "person-circle-outline";
+      default:
+        return focused ? "ellipse" : "ellipse-outline";
+    }
+  }
+
+  // Normal state icons
   switch (name) {
     case "index":
     case "home":
@@ -21,6 +43,10 @@ const iconFor = (name: string, focused: boolean) => {
       return focused ? "bag" : "bag-outline";
     case "chat":
       return focused ? "chatbox" : "chatbox-outline";
+    case "cart":
+      return undefined; // Cart should not show in normal state
+    case "categories":
+      return undefined; // Categories should not show in normal state
     case "profile":
       return focused ? "person-circle-outline" : "person-circle-outline";
     default:
@@ -35,6 +61,29 @@ export default function CustomTabBar({
   hidden,
   avatarUri,
 }: Props) {
+  // State to track if we're in shop context (must be before any early returns)
+  const [wasInShopContext, setWasInShopContext] = useState(false);
+
+  // Check if shop tab is currently active (including shop-related screens)
+  const currentRoute = state.routes[state.index];
+  const isDirectlyInShop =
+    currentRoute?.name === "shop" ||
+    currentRoute?.name === "categories" ||
+    currentRoute?.name === "cart";
+
+  // Update shop context state
+  useEffect(() => {
+    if (isDirectlyInShop) {
+      setWasInShopContext(true);
+    } else if (currentRoute?.name !== "profile") {
+      // Reset shop context when navigating to non-shop, non-profile tabs
+      setWasInShopContext(false);
+    }
+  }, [currentRoute?.name, isDirectlyInShop]);
+
+  const isShopActive =
+    isDirectlyInShop || (currentRoute?.name === "profile" && wasInShopContext);
+
   if (hidden) return null;
 
   const routesLeft = state.routes.filter((r) => r.name !== "profile");
@@ -42,6 +91,70 @@ export default function CustomTabBar({
 
   const onPress = (route: (typeof state.routes)[number], index: number) => {
     const isFocused = state.index === index;
+
+    // Special handling when shop is active
+    if (isShopActive) {
+      // Handle navigation based on the modified icons
+      if (route.name === "categories") {
+        // Categories tab navigation
+        const event = navigation.emit({
+          type: "tabPress",
+          target: route.key,
+          canPreventDefault: true,
+        });
+        if (!event.defaultPrevented) {
+          navigation.navigate("categories");
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+            () => {}
+          );
+        }
+        return;
+      }
+      if (route.name === "cart") {
+        // Cart tab navigation
+        const event = navigation.emit({
+          type: "tabPress",
+          target: route.key,
+          canPreventDefault: true,
+        });
+        if (!event.defaultPrevented) {
+          navigation.navigate("cart");
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+            () => {}
+          );
+        }
+        return;
+      }
+      if (route.name === "posts") {
+        // Posts tab now acts as home when shop is active
+        navigation.navigate("index");
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        return;
+      }
+      if (route.name === "chat") {
+        // Chat tab now acts as cart when shop is active
+        // You can navigate to a cart screen or handle cart functionality here
+        console.log("Navigate to cart");
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        return;
+      }
+      if (route.name === "shop") {
+        // Shop tab navigation - always navigate to shop when clicked
+        const event = navigation.emit({
+          type: "tabPress",
+          target: route.key,
+          canPreventDefault: true,
+        });
+        if (!event.defaultPrevented) {
+          navigation.navigate("shop");
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+            () => {}
+          );
+        }
+        return;
+      }
+    }
+
     const event = navigation.emit({
       type: "tabPress",
       target: route.key,
@@ -60,12 +173,52 @@ export default function CustomTabBar({
     >
       {/* Left pill with all tabs except Profile */}
       <View className="flex-1 h-14 bg-black rounded-l-none rounded-2xl flex-row items-center justify-around mr-2 px-2">
+        {/* Show back button when shop is active */}
+        {isShopActive && (
+          <TouchableOpacity
+            onPress={() => {
+              navigation.navigate("index"); // Navigate back to home
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                () => {}
+              );
+            }}
+            activeOpacity={0.85}
+            className="w-14 h-14 rounded-full items-center justify-center"
+            accessibilityRole="button"
+            accessibilityLabel="Back to home"
+          >
+            <Ionicons name="arrow-back" size={25} color="#fff" />
+          </TouchableOpacity>
+        )}
+
         {routesLeft.map((route) => {
           const index = state.routes.indexOf(route);
           const isFocused = state.index === index;
           const testId =
             (descriptors[route.key].options as { tabBarTestID?: string })
               .tabBarTestID ?? `tab-${route.name}`;
+
+          // When shop is active, only show shop (as home), categories, and cart
+          if (isShopActive) {
+            if (
+              route.name !== "shop" &&
+              route.name !== "categories" &&
+              route.name !== "cart"
+            ) {
+              return null;
+            }
+          } else {
+            // Normal state - hide cart tab and index/home tab when shop is active and back button is shown
+            if (route.name === "cart" || route.name === "categories") {
+              return null; // Hide cart tab in normal state
+            }
+            if (
+              isShopActive &&
+              (route.name === "index" || route.name === "home")
+            ) {
+              return null;
+            }
+          }
 
           return (
             <TouchableOpacity
@@ -81,7 +234,7 @@ export default function CustomTabBar({
               testID={testId}
             >
               <Ionicons
-                name={iconFor(route.name, isFocused)}
+                name={iconFor(route.name, isFocused, isShopActive)}
                 size={25}
                 color={isFocused ? "#fff" : "#ccc"}
               />
@@ -109,7 +262,7 @@ export default function CustomTabBar({
                   />
                 ) : (
                   <Ionicons
-                    name={iconFor("profile", isFocused)}
+                    name={iconFor("profile", isFocused, isShopActive)}
                     size={40}
                     color={isFocused ? "#fff" : "#ccc"}
                   />

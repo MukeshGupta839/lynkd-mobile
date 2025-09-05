@@ -52,6 +52,28 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="categories"
+        options={{
+          title: "Categories",
+          tabBarIcon: ({ color, focused }) => {
+            // choose filled vs outline
+            const iconName = focused ? "grid" : "grid-outline";
+            return <Ionicons name={iconName} size={28} color={color} />;
+          },
+        }}
+      />
+      <Tabs.Screen
+        name="cart"
+        options={{
+          title: "Cart",
+          tabBarIcon: ({ color, focused }) => {
+            // choose filled vs outline
+            const iconName = focused ? "cart" : "cart-outline";
+            return <Ionicons name={iconName} size={28} color={color} />;
+          },
+        }}
+      />
+      <Tabs.Screen
         name="chat"
         options={{
           title: "Chat",

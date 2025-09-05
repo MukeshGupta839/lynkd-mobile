@@ -1,12 +1,31 @@
+import { useRouter } from "expo-router";
 import React from "react";
-import { Text, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 
-const profile = () => {
+const Profile = () => {
+  const router = useRouter();
+
+  const handlePress = () => {
+    router.push({
+      pathname: "/(profiles)",
+      params: {
+        user: "1", // Current user ID
+        username: "current_user",
+      },
+    });
+  };
+
   return (
-    <View>
-      <Text>profile</Text>
+    <View className="flex-1 justify-center items-center">
+      <Text className="text-lg mb-4">Profile Tab</Text>
+      <TouchableOpacity
+        className="bg-blue-500 px-4 py-2 rounded"
+        onPress={handlePress}
+      >
+        <Text className="text-white">Go to Profile</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
-export default profile;
+export default Profile;

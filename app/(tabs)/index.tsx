@@ -1,12 +1,16 @@
+import BlockUserPopup from "@/components/BlockUserPopup";
 import CreatePostHeader from "@/components/CreatePostHeader";
 import { MultiImageCollage } from "@/components/MultiImageCollage";
 import { MultiImageViewer } from "@/components/MultiImageViewer";
+import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
+import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
 import { POSTS } from "@/data/data";
 import { SimpleLineIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -20,6 +24,7 @@ import {
   StatusBar,
   Text,
   TouchableOpacity,
+  Vibration,
   View,
   ViewToken,
 } from "react-native";
@@ -220,7 +225,15 @@ const FacebookImageViewer = ({
 };
 
 // ----- Facebook-style Image Component -----
-const FacebookStyleImage = ({ uri, style }: { uri: string; style?: any }) => {
+const FacebookStyleImage = ({
+  uri,
+  style,
+  onLongPress,
+}: {
+  uri: string;
+  style?: any;
+  onLongPress?: () => void;
+}) => {
   const [imageSize, setImageSize] = useState<{
     width: number;
     height: number;
@@ -287,6 +300,8 @@ const FacebookStyleImage = ({ uri, style }: { uri: string; style?: any }) => {
     <>
       <TouchableOpacity
         onPress={() => setShowViewer(true)}
+        onLongPress={onLongPress}
+        delayLongPress={500}
         activeOpacity={0.95}
         className="overflow-hidden bg-[#f0f0f0] w-full"
         style={[
@@ -400,10 +415,12 @@ const PostMedia = ({
   media,
   isVisible,
   postId,
+  onLongPress,
 }: {
   media?: { type: "image"; uri: string } | { type: "images"; uris: string[] };
   isVisible: boolean;
   postId: string;
+  onLongPress?: () => void;
 }) => {
   const [showMultiViewer, setShowMultiViewer] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -419,7 +436,11 @@ const PostMedia = ({
   if (media.type === "image") {
     return (
       <View style={{ marginBottom: 8 }}>
-        <FacebookStyleImage uri={media.uri} style={{ marginBottom: 0 }} />
+        <FacebookStyleImage
+          uri={media.uri}
+          style={{ marginBottom: 0 }}
+          onLongPress={onLongPress}
+        />
       </View>
     );
   }
@@ -434,6 +455,7 @@ const PostMedia = ({
             setSelectedImageIndex(index);
             setShowMultiViewer(true);
           }}
+          onLongPress={onLongPress}
         />
 
         <MultiImageViewer
@@ -457,180 +479,216 @@ const PostMedia = ({
 };
 
 // ----- Post card -----
-const PostCard = ({ item, isVisible }: { item: any; isVisible: boolean }) => {
+const PostCard = ({
+  item,
+  isVisible,
+  onLongPress,
+}: {
+  item: any;
+  isVisible: boolean;
+  onLongPress?: (item: any) => void;
+}) => {
+  const router = useRouter();
+
+  const handleUserPress = () => {
+    router.push({
+      pathname: "/(profiles)" as any,
+      params: {
+        user: item.user_id as number,
+        username: item.username,
+      },
+    });
+  };
+
   return (
-    <View className="px-3 mt-2 bg-[#F3F4F8]">
-      <View
-        style={{
-          borderRadius: 16,
-          elevation: Platform.OS === "android" ? 2 : 0, // Reduced elevation
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.12,
-          shadowRadius: 8,
-        }}
-      >
+    <TouchableOpacity
+      activeOpacity={1}
+      onLongPress={() => onLongPress?.(item)}
+      delayLongPress={500}
+    >
+      <View className="px-3 mt-2 bg-[#F3F4F8]">
         <View
-          className="bg-white py-3"
           style={{
             borderRadius: 16,
-            overflow: "hidden",
+            elevation: Platform.OS === "android" ? 2 : 0,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.12,
+            shadowRadius: 8,
           }}
         >
-          {/* Header */}
-          <View className="flex-row px-3 items-center mb-2">
-            {/* LEFT group takes remaining space, but doesn't overgrow */}
-            <View className="flex-row items-center flex-1 mr-2">
-              <Image
-                source={{ uri: item.userProfilePic }}
-                className="w-8 h-8 rounded-full mr-2"
-              />
-              {/* REMOVE flex-1 here */}
-              <View /* className="flex-1" */>
-                <View className="flex-row items-center">
-                  <Text className="font-semibold text-sm">{item.username}</Text>
-                  {item.is_creator && (
-                    <Octicons
-                      name="verified"
-                      size={14}
-                      color="#000"
-                      style={{ marginLeft: 4 }}
-                    />
-                  )}
-                </View>
-              </View>
-            </View>
-
-            {/* RIGHT button: fixed size, don’t let it shrink */}
-            {item.affiliated && item.affiliation && (
+          <View
+            className="bg-white py-3"
+            style={{
+              borderRadius: 16,
+              overflow: "hidden",
+            }}
+          >
+            {/* Header */}
+            <View className="flex-row px-3 items-center mb-2">
+              {/* LEFT group takes remaining space, but doesn't overgrow */}
               <TouchableOpacity
-                className="w-11 h-11 rounded-lg items-center justify-center ml-2"
-                style={{ flexShrink: 0 }} // tailwind: shrink-0 (if available)
-                onPress={() => {
-                  /* ... */
-                }}
+                className="flex-row items-center flex-1 mr-2"
+                onPress={handleUserPress}
+                activeOpacity={0.7}
               >
-                <SimpleLineIcons name="handbag" size={20} color="#000" />
+                <Image
+                  source={{ uri: item.userProfilePic }}
+                  className="w-13 h-13 rounded-full mr-2"
+                />
+                {/* REMOVE flex-1 here */}
+                <View /* className="flex-1" */>
+                  <View className="flex-row items-center">
+                    <Text className="font-semibold text-lg">
+                      {item.username}
+                    </Text>
+                    {item.is_creator && (
+                      <Octicons
+                        name="verified"
+                        size={14}
+                        color="#000"
+                        style={{ marginLeft: 4 }}
+                      />
+                    )}
+                  </View>
+                </View>
               </TouchableOpacity>
-            )}
-          </View>
 
-          {/* Media Display */}
-          <PostMedia
-            media={item.media}
-            isVisible={isVisible}
-            postId={item.id}
-          />
-
-          {/* Caption */}
-          <Text className="text-sm px-3 mb-2">{item.caption}</Text>
-
-          {/* Affiliation */}
-          {item.affiliated && item.affiliation && (
-            <View className="px-3">
-              <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
-                <View
-                  className="basis-1/4 self-stretch relative"
-                  style={{
-                    borderTopLeftRadius: 6,
-                    borderBottomLeftRadius: 6,
-                    overflow: "hidden",
+              {/* RIGHT button: fixed size, don’t let it shrink */}
+              {item.affiliated && item.affiliation && (
+                <TouchableOpacity
+                  className="w-11 h-11 rounded-lg items-center justify-center ml-2"
+                  style={{ flexShrink: 0 }} // tailwind: shrink-0 (if available)
+                  onPress={() => {
+                    /* ... */
                   }}
                 >
-                  <Image
-                    source={{ uri: item.affiliation.productImage }}
-                    // Fill the wrapper's full height & width
+                  <SimpleLineIcons name="handbag" size={20} color="#000" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Media Display */}
+            <PostMedia
+              media={item.media}
+              isVisible={isVisible}
+              postId={item.id}
+              onLongPress={() => onLongPress?.(item)}
+            />
+
+            {/* Caption */}
+            <Text className="text-sm px-3 mb-2">{item.caption}</Text>
+
+            {/* Affiliation */}
+            {item.affiliated && item.affiliation && (
+              <View className="px-3">
+                <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
+                  <View
+                    className="basis-1/4 self-stretch relative"
                     style={{
-                      position: "absolute",
-                      top: 0,
-                      right: 0,
-                      bottom: 0,
-                      left: 0,
+                      borderTopLeftRadius: 6,
+                      borderBottomLeftRadius: 6,
+                      overflow: "hidden",
                     }}
-                    resizeMode="cover"
-                    onError={(e) => {
-                      console.log("Product image error:", e.nativeEvent.error);
-                      console.log(
-                        "Product image URI:",
-                        item.affiliation.productImage
-                      );
-                    }}
-                    onLoad={() =>
-                      console.log(
-                        "Product image loaded:",
-                        item.affiliation.productImage
-                      )
-                    }
-                  />
-                </View>
-                <View className="flex-1 justify-between p-3">
-                  <View className="flex-row items-center mb-2">
+                  >
                     <Image
-                      source={{ uri: item.affiliation.brandLogo }}
-                      className="w-11 h-11 rounded-full mr-2"
-                      resizeMode="contain"
+                      source={{ uri: item.affiliation.productImage }}
+                      // Fill the wrapper's full height & width
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        left: 0,
+                      }}
+                      resizeMode="cover"
                       onError={(e) => {
-                        console.log("Brand logo error:", e.nativeEvent.error);
                         console.log(
-                          "Brand logo URI:",
-                          item.affiliation.brandLogo
+                          "Product image error:",
+                          e.nativeEvent.error
+                        );
+                        console.log(
+                          "Product image URI:",
+                          item.affiliation.productImage
                         );
                       }}
                       onLoad={() =>
                         console.log(
-                          "Brand logo loaded:",
-                          item.affiliation.brandLogo
+                          "Product image loaded:",
+                          item.affiliation.productImage
                         )
                       }
                     />
-                    <View className="flex-1">
-                      <Text className="font-semibold text-sm text-gray-800">
-                        {item.affiliation.brandName}
+                  </View>
+                  <View className="flex-1 justify-between p-3">
+                    <View className="flex-row items-center mb-2">
+                      <Image
+                        source={{ uri: item.affiliation.brandLogo }}
+                        className="w-11 h-11 rounded-full mr-2"
+                        resizeMode="contain"
+                        onError={(e) => {
+                          console.log("Brand logo error:", e.nativeEvent.error);
+                          console.log(
+                            "Brand logo URI:",
+                            item.affiliation.brandLogo
+                          );
+                        }}
+                        onLoad={() =>
+                          console.log(
+                            "Brand logo loaded:",
+                            item.affiliation.brandLogo
+                          )
+                        }
+                      />
+                      <View className="flex-1">
+                        <Text className="font-semibold text-sm text-gray-800">
+                          {item.affiliation.brandName}
+                        </Text>
+                        <Text className="font-medium text-sm text-black">
+                          {item.affiliation.productName}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text className="text-sm text-gray-600 mb-2 leading-4">
+                      {item.affiliation.productDescription}
+                    </Text>
+                    <View className="flex-row items-center">
+                      <Text className="text-sm text-gray-400 line-through mr-2">
+                        ₹{item.affiliation.productRegularPrice}
                       </Text>
-                      <Text className="font-medium text-sm text-black">
-                        {item.affiliation.productName}
+                      <Text className="text-sm font-bold text-green-600">
+                        ₹{item.affiliation.productSalePrice}
                       </Text>
                     </View>
                   </View>
-                  <Text className="text-sm text-gray-600 mb-2 leading-4">
-                    {item.affiliation.productDescription}
-                  </Text>
-                  <View className="flex-row items-center">
-                    <Text className="text-sm text-gray-400 line-through mr-2">
-                      ₹{item.affiliation.productRegularPrice}
-                    </Text>
-                    <Text className="text-sm font-bold text-green-600">
-                      ₹{item.affiliation.productSalePrice}
-                    </Text>
-                  </View>
                 </View>
               </View>
-            </View>
-          )}
+            )}
 
-          {/* Actions */}
-          <View className="flex-row items-center justify-between mt-3 px-3">
-            <View className="flex-row items-center gap-x-4">
-              <TouchableOpacity className="flex-row items-center">
-                <Ionicons name="heart-outline" size={20} color="#000" />
-                <Text className="ml-1 text-sm font-medium">
-                  {item.likes_count}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity className="flex-row items-center">
-                <Octicons name="comment" size={18} color="#000" />
-                <Text className="ml-1 text-sm font-medium">
-                  {item.comments_count}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity>
-                <Ionicons name="paper-plane-outline" size={20} color="#000" />
-              </TouchableOpacity>
+            {/* Actions */}
+            <View className="flex-row items-center justify-between mt-3 px-3">
+              <View className="flex-row items-center gap-x-4">
+                <TouchableOpacity className="flex-row items-center">
+                  <Ionicons name="heart-outline" size={20} color="#000" />
+                  <Text className="ml-1 text-sm font-medium">
+                    {item.likes_count}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity className="flex-row items-center">
+                  <Octicons name="comment" size={18} color="#000" />
+                  <Text className="ml-1 text-sm font-medium">
+                    {item.comments_count}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity>
+                  <Ionicons name="paper-plane-outline" size={20} color="#000" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -667,9 +725,19 @@ const NotificationBell = ({
 export default function ConsumerHomeUI() {
   const insets = useSafeAreaInsets();
   const NAV_BAR_CONTENT_HEIGHT = 56;
-  const TOP_BAR_HEIGHT = insets.top + NAV_BAR_CONTENT_HEIGHT;
+  const TOP_BAR_HEIGHT = insets.top - 10 + NAV_BAR_CONTENT_HEIGHT;
   const flatListRef = useRef<FlatList>(null);
   const [visibleItems, setVisibleItems] = useState<string[]>([]);
+
+  // Post options state
+  const [postOptionsVisible, setPostOptionsVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [blockUser, setBlockUser] = useState(false);
+  const [focusedPost, setFocusedPost] = useState<any>(null);
+  const [followedUsers, setFollowedUsers] = useState<string[]>([]);
+
+  // Mock user data - replace with your actual user context
+  const user = { id: "1", username: "current_user" };
 
   // Header animation state
   const [headerHidden, setHeaderHidden] = useState(false);
@@ -780,6 +848,42 @@ export default function ConsumerHomeUI() {
     waitForInteraction: false,
   }).current;
 
+  // Post options helper functions
+  const toggleFollow = useCallback(
+    async (userId: string) => {
+      const isFollowing = followedUsers.includes(userId);
+      try {
+        Vibration.vibrate(100);
+        console.log(isFollowing ? "Unfollowing" : "Following", userId);
+        // Add your follow/unfollow API call here
+
+        setFollowedUsers((prev) =>
+          isFollowing ? prev.filter((id) => id !== userId) : [...prev, userId]
+        );
+      } catch (error) {
+        console.error(`Error toggling follow for user ${userId}:`, error);
+      }
+    },
+    [followedUsers]
+  );
+
+  const deletePost = useCallback(async (postId: string) => {
+    try {
+      console.log("Deleting post:", postId);
+      // Add your delete post API call here
+      setPostOptionsVisible(false);
+    } catch (error) {
+      console.error("Error deleting post:", error);
+    }
+  }, []);
+
+  const handleLongPress = useCallback((item: any) => {
+    Vibration.vibrate(100);
+    console.log("Long press on post:", item.id);
+    setFocusedPost(item);
+    setPostOptionsVisible(true);
+  }, []);
+
   const tabBarHeight = useBottomTabBarHeight();
   const footerSpacing = tabBarHeight;
 
@@ -801,7 +905,7 @@ export default function ConsumerHomeUI() {
         }}
       >
         {/* Safe-area padding so that logo+search sits below notch/status bar */}
-        <View style={{ paddingTop: insets.top, backgroundColor: "white" }}>
+        <View style={{ paddingTop: insets.top - 10, backgroundColor: "white" }}>
           <View
             style={{
               height: NAV_BAR_CONTENT_HEIGHT,
@@ -852,7 +956,11 @@ export default function ConsumerHomeUI() {
           backgroundColor: "#F3F4F8",
         }}
         renderItem={({ item }) => (
-          <PostCard item={item} isVisible={visibleItems.includes(item.id)} />
+          <PostCard
+            item={item}
+            isVisible={visibleItems.includes(item.id)}
+            onLongPress={handleLongPress}
+          />
         )}
         refreshControl={
           <RefreshControl
@@ -872,6 +980,35 @@ export default function ConsumerHomeUI() {
         windowSize={3}
         initialNumToRender={2}
         onEndReachedThreshold={0.5}
+      />
+
+      {/* Post Options Bottom Sheet */}
+      <PostOptionsBottomSheet
+        show={postOptionsVisible}
+        setShow={setPostOptionsVisible}
+        setBlockUser={setBlockUser}
+        setReportVisible={setReportVisible}
+        setFocusedPost={setFocusedPost}
+        toggleFollow={() => toggleFollow(focusedPost?.user_id || "")}
+        isFollowing={followedUsers.includes(focusedPost?.user_id || "")}
+        focusedPost={focusedPost}
+        deleteAction={deletePost}
+        user={user}
+      />
+
+      {/* Report Post Bottom Sheet */}
+      <ReportPostBottomSheet
+        show={reportVisible}
+        setShow={setReportVisible}
+        postId={focusedPost?.id || ""}
+        userId={user.id}
+      />
+
+      {/* Block User Popup */}
+      <BlockUserPopup
+        show={blockUser}
+        setShow={setBlockUser}
+        post={focusedPost}
       />
     </View>
   );

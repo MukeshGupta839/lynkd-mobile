@@ -18,13 +18,24 @@ type TileProps = {
   h: number;
   radius?: number;
   onPress?: () => void;
+  onLongPress?: () => void;
   overlayCount?: number; // show +N if provided and > 0
 };
 
-const Tile = ({ uri, w, h, radius = 0, onPress, overlayCount }: TileProps) => (
+const Tile = ({
+  uri,
+  w,
+  h,
+  radius = 0,
+  onPress,
+  onLongPress,
+  overlayCount,
+}: TileProps) => (
   <TouchableOpacity
     activeOpacity={0.9}
     onPress={onPress}
+    onLongPress={onLongPress}
+    delayLongPress={500}
     style={{ width: w, height: h, borderRadius: radius, overflow: "hidden" }}
   >
     <Image
@@ -53,9 +64,11 @@ const Tile = ({ uri, w, h, radius = 0, onPress, overlayCount }: TileProps) => (
 export const MultiImageCollage = ({
   images,
   onPressImage,
+  onLongPress,
 }: {
   images: string[];
   onPressImage?: (index: number) => void;
+  onLongPress?: () => void;
 }) => {
   if (!images?.length) return null;
 
@@ -74,7 +87,13 @@ export const MultiImageCollage = ({
           overflow: "hidden",
         }}
       >
-        <Tile uri={images[0]} w={W} h={H} onPress={() => onPressImage?.(0)} />
+        <Tile
+          uri={images[0]}
+          w={W}
+          h={H}
+          onPress={() => onPressImage?.(0)}
+          onLongPress={onLongPress}
+        />
       </View>
     );
   }
@@ -96,6 +115,7 @@ export const MultiImageCollage = ({
           w={W}
           h={rowH}
           onPress={() => onPressImage?.(0)}
+          onLongPress={onLongPress}
         />
         <View style={{ height: GAP }} />
         <Tile
@@ -103,6 +123,7 @@ export const MultiImageCollage = ({
           w={W}
           h={rowH}
           onPress={() => onPressImage?.(1)}
+          onLongPress={onLongPress}
         />
       </View>
     );
@@ -121,7 +142,13 @@ export const MultiImageCollage = ({
       }}
     >
       {/* Top hero */}
-      <Tile uri={images[0]} w={W} h={heroH} onPress={() => onPressImage?.(0)} />
+      <Tile
+        uri={images[0]}
+        w={W}
+        h={heroH}
+        onPress={() => onPressImage?.(0)}
+        onLongPress={onLongPress}
+      />
 
       {/* gap between rows */}
       <View style={{ height: GAP }} />
@@ -133,6 +160,7 @@ export const MultiImageCollage = ({
           w={colW}
           h={rowH}
           onPress={() => onPressImage?.(1)}
+          onLongPress={onLongPress}
         />
         <View style={{ width: GAP }} />
         <Tile
@@ -140,6 +168,7 @@ export const MultiImageCollage = ({
           w={colW}
           h={rowH}
           onPress={() => onPressImage?.(2)}
+          onLongPress={onLongPress}
           overlayCount={extra > 0 ? extra : 0}
         />
       </View>

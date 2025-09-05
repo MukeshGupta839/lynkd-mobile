@@ -1,6 +1,7 @@
 export const POSTS = [
   {
     id: "p1",
+    user_id: 12,
     username: "alex_harma",
     is_creator: true,
     userProfilePic: "https://randomuser.me/api/portraits/men/32.jpg",
@@ -28,6 +29,7 @@ export const POSTS = [
   },
   {
     id: "p2",
+    user_id: 11,
     username: "alex_harma",
     is_creator: true,
     userProfilePic: "https://randomuser.me/api/portraits/men/32.jpg",
@@ -42,6 +44,7 @@ export const POSTS = [
   },
   {
     id: "3",
+    user_id: 10,
     username: "Nike modal",
     is_creator: true,
     userProfilePic:
@@ -57,6 +60,7 @@ export const POSTS = [
   },
   {
     id: "4",
+    user_id: 10,
     username: "Nike modal",
     is_creator: true,
     userProfilePic:
