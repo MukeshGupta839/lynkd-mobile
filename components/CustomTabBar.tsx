@@ -19,8 +19,8 @@ const iconFor = (
   if (isShopActive) {
     switch (name) {
       case "index":
-      case "shop":
-        return focused ? "home" : "home-outline"; // Shop shows as home
+      case "e-commerce":
+        return focused ? "home" : "home-outline"; // E-commerce shows as home
       case "categories":
         return focused ? "grid" : "grid-outline"; // Categories icon
       case "cart":
@@ -39,7 +39,7 @@ const iconFor = (
       return focused ? "home" : "home-outline";
     case "posts":
       return focused ? "play" : "play-outline";
-    case "shop":
+    case "e-commerce":
       return focused ? "bag" : "bag-outline";
     case "chat":
       return focused ? "chatbox" : "chatbox-outline";
@@ -61,28 +61,29 @@ export default function CustomTabBar({
   hidden,
   avatarUri,
 }: Props) {
-  // State to track if we're in shop context (must be before any early returns)
-  const [wasInShopContext, setWasInShopContext] = useState(false);
+  // State to track if we're in e-commerce context (must be before any early returns)
+  const [wasInEcommerceContext, setWasInEcommerceContext] = useState(false);
 
-  // Check if shop tab is currently active (including shop-related screens)
+  // Check if e-commerce tab is currently active (including e-commerce-related screens)
   const currentRoute = state.routes[state.index];
-  const isDirectlyInShop =
-    currentRoute?.name === "shop" ||
+  const isDirectlyInEcommerce =
+    currentRoute?.name === "e-commerce" ||
     currentRoute?.name === "categories" ||
     currentRoute?.name === "cart";
 
-  // Update shop context state
+  // Update e-commerce context state
   useEffect(() => {
-    if (isDirectlyInShop) {
-      setWasInShopContext(true);
+    if (isDirectlyInEcommerce) {
+      setWasInEcommerceContext(true);
     } else if (currentRoute?.name !== "profile") {
-      // Reset shop context when navigating to non-shop, non-profile tabs
-      setWasInShopContext(false);
+      // Reset e-commerce context when navigating to non-e-commerce, non-profile tabs
+      setWasInEcommerceContext(false);
     }
-  }, [currentRoute?.name, isDirectlyInShop]);
+  }, [currentRoute?.name, isDirectlyInEcommerce]);
 
   const isShopActive =
-    isDirectlyInShop || (currentRoute?.name === "profile" && wasInShopContext);
+    isDirectlyInEcommerce ||
+    (currentRoute?.name === "profile" && wasInEcommerceContext);
 
   if (hidden) return null;
 
@@ -92,7 +93,7 @@ export default function CustomTabBar({
   const onPress = (route: (typeof state.routes)[number], index: number) => {
     const isFocused = state.index === index;
 
-    // Special handling when shop is active
+    // Special handling when e-commerce is active
     if (isShopActive) {
       // Handle navigation based on the modified icons
       if (route.name === "categories") {
@@ -126,27 +127,27 @@ export default function CustomTabBar({
         return;
       }
       if (route.name === "posts") {
-        // Posts tab now acts as home when shop is active
+        // Posts tab now acts as home when e-commerce is active
         navigation.navigate("index");
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         return;
       }
       if (route.name === "chat") {
-        // Chat tab now acts as cart when shop is active
+        // Chat tab now acts as cart when e-commerce is active
         // You can navigate to a cart screen or handle cart functionality here
         console.log("Navigate to cart");
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         return;
       }
-      if (route.name === "shop") {
-        // Shop tab navigation - always navigate to shop when clicked
+      if (route.name === "e-commerce") {
+        // E-commerce tab navigation - always navigate to e-commerce when clicked
         const event = navigation.emit({
           type: "tabPress",
           target: route.key,
           canPreventDefault: true,
         });
         if (!event.defaultPrevented) {
-          navigation.navigate("shop");
+          navigation.navigate("e-commerce");
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
             () => {}
           );
@@ -173,7 +174,7 @@ export default function CustomTabBar({
     >
       {/* Left pill with all tabs except Profile */}
       <View className="flex-1 h-14 bg-black rounded-l-none rounded-2xl flex-row items-center justify-around mr-2 px-2">
-        {/* Show back button when shop is active */}
+        {/* Show back button when e-commerce is active */}
         {isShopActive && (
           <TouchableOpacity
             onPress={() => {
@@ -198,17 +199,17 @@ export default function CustomTabBar({
             (descriptors[route.key].options as { tabBarTestID?: string })
               .tabBarTestID ?? `tab-${route.name}`;
 
-          // When shop is active, only show shop (as home), categories, and cart
+          // When e-commerce is active, only show e-commerce (as home), categories, and cart
           if (isShopActive) {
             if (
-              route.name !== "shop" &&
+              route.name !== "e-commerce" &&
               route.name !== "categories" &&
               route.name !== "cart"
             ) {
               return null;
             }
           } else {
-            // Normal state - hide cart tab and index/home tab when shop is active and back button is shown
+            // Normal state - hide cart tab and index/home tab when e-commerce is active and back button is shown
             if (route.name === "cart" || route.name === "categories") {
               return null; // Hide cart tab in normal state
             }
