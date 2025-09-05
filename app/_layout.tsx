@@ -37,6 +37,27 @@ export default function RootLayout() {
           {/* <Stack.Screen name="(auth)" options={{ headerShown: false }} /> */}
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(profiles)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="Address/select-address"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Address/AddAddress"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="Searchscreen" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="Product/Productview"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Product/ReviewOrder"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Product/payments"
+            options={{ headerShown: false }}
+          />
           <Stack.Screen name="+not-found" />
         </Stack>
         {/* </KeyboardProvider> */}
