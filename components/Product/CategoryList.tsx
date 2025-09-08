@@ -4,59 +4,170 @@ import {
   BookOpen,
   Brush,
   CookingPot,
-  Dumbbell,
   Lamp,
   LayoutGrid,
   MonitorSmartphone,
   Smartphone,
 } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { FlatList, Text, TouchableOpacity, View } from "react-native";
 
 type Orientation = "horizontal" | "vertical";
 
-const categories = [
+const CATS = [
   { name: "All", icon: LayoutGrid },
   { name: "Mobiles", icon: Smartphone },
   { name: "Electronics", icon: MonitorSmartphone },
   { name: "Appliances", icon: CookingPot },
   { name: "Beauty", icon: Brush },
   { name: "Home", icon: Lamp },
-  { name: "Book", icon: BookOpen },
-  { name: "GYM", icon: Dumbbell },
+  { name: "Books", icon: BookOpen },
 ];
 
-// Reusable gradient shell so we don’t repeat <LinearGradient>
-function GradientTile({
-  colors,
-  borderClass,
-  children,
-}: {
-  colors: [string, string];
-  borderClass: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View className="w-full h-full rounded-2xl overflow-hidden">
-      <LinearGradient
-        colors={colors}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        className={`w-full h-full items-center justify-center rounded-2xl border ${borderClass}`}
+const Tile = React.memo(
+  ({
+    name,
+    Icon,
+    active,
+    onPress,
+    isVertical = false,
+    isFirst = false,
+  }: {
+    name: string;
+    Icon: any;
+    active: boolean;
+    onPress: () => void;
+    isVertical?: boolean;
+    isFirst?: boolean;
+    isLast?: boolean;
+  }) => {
+    const stroke = active ? "#26FF91" : "#7C8797";
+    const tileMargin = [
+      !isVertical && "mr-3",
+      !isVertical && isFirst && "ml-3",
+      isVertical && "mb-3",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return (
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={onPress}
+        className={tileMargin}
       >
-        {children}
-      </LinearGradient>
-    </View>
-  );
-}
+        <View className="items-center">
+          {/* OUTER HALO when active (behind the card) */}
+          {/* CARD */}
+          <View className={`relative w-16 h-16 rounded-10 overflow-hidden`}>
+            {/* Base background – gradient for BOTH states */}
+            <LinearGradient
+              colors={
+                active
+                  ? ["#BEFBE0", "#FFFFFF"] // mint -> white
+                  : ["#FFFFFF", "#F6F8FB"] // soft card gradient (inactive)
+              }
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={{ position: "absolute", inset: 0 }}
+            />
 
-// ✅ Clean DuoIcon (no duplicate rendering)
-function DuoIcon({ Icon, active }: { Icon: any; active: boolean }) {
-  if (!active) {
-    return <Icon size={24} color="#6B7280" strokeWidth={2} />;
+            {/* glossy top strip (inactive) */}
+            {!active && (
+              <LinearGradient
+                colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0)"]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 0.5 }}
+                style={{
+                  position: "absolute",
+                  top: 0, // <— no 1px inset
+                  left: 0,
+                  right: 0,
+                  height: 18,
+                  borderTopLeftRadius: 10,
+                  borderTopRightRadius: 10,
+                }}
+              />
+            )}
+
+            {/* left glossy streak (inactive) */}
+            {!active && (
+              <LinearGradient
+                colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0)"]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  width: 18,
+                }}
+              />
+            )}
+
+            {/* right glossy streak (inactive) */}
+            {!active && (
+              <LinearGradient
+                colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0)"]}
+                start={{ x: 1, y: 0.1 }}
+                end={{ x: 0, y: 0.1 }}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  width: 0.5,
+                  borderTopRightRadius: 8,
+                  borderBottomRightRadius: 8,
+                }}
+              />
+            )}
+
+            {/* bottom glossy strip (inactive) */}
+            {!active && (
+              <LinearGradient
+                colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0)"]}
+                start={{ x: 0.5, y: 1 }} // from bottom
+                end={{ x: 0.5, y: 0 }} // fade upward
+                style={{
+                  position: "absolute",
+                  bottom: 0, // anchor to bottom instead of top
+                  left: 0,
+                  right: 0,
+                  height: 1,
+                  borderBottomLeftRadius: 8,
+                  borderBottomRightRadius: 8,
+                }}
+              />
+            )}
+
+            {/* CONTENT */}
+            <View className="flex-1 items-center justify-center px-1 pb-1.5">
+              <Icon size={22} color={stroke} strokeWidth={active ? 2.5 : 2} />
+              <Text
+                numberOfLines={1}
+                className={`mt-1 font-worksans-400 ${
+                  active ? "text-emerald-600" : "text-gray-500"
+                }`}
+                style={{ fontSize: 8 }}
+              >
+                {name}
+              </Text>
+            </View>
+
+            {/* UNDERLINE (INSIDE the card) */}
+            <View
+              pointerEvents="none"
+              className={`${active ? "bg-[#26FF91]" : "bg-transparent"} absolute left-3 right-3 bottom-0 h-1.5 rounded-t-full`}
+            />
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   }
-  return <Icon size={24} color="#16A34A" strokeWidth={2.5} />;
-}
+);
+
+Tile.displayName = "Tile";
 
 export default function CategoryList({
   orientation = "horizontal",
@@ -72,67 +183,65 @@ export default function CategoryList({
 
   const isVertical = orientation === "vertical";
 
-  const INACTIVE_COLORS: [string, string] = ["#F8F8F8", "#FFFFFF"];
-  const ACTIVE_COLORS: [string, string] = ["#A7F3D0", "#FFFFFF"];
+  const handlePress = useCallback((name: string) => {
+    setActive(name);
+  }, []);
 
-  const Tile = ({ name, Icon }: { name: string; Icon: any }) => {
-    const isActive = active === name;
+  const renderItem = useCallback(
+    ({ item, index }: { item: (typeof CATS)[0]; index: number }) => (
+      <Tile
+        name={item.name}
+        Icon={item.icon}
+        active={active === item.name}
+        onPress={() => handlePress(item.name)}
+        isVertical={isVertical}
+        isFirst={index === 0}
+      />
+    ),
+    [active, handlePress, isVertical]
+  );
 
-    const box = isVertical
-      ? "w-full aspect-[26/25] mb-3 items-center justify-center"
-      : "w-[12%] aspect-[26/29] mr-3 mt-4 items-center justify-center";
-
-    return (
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() => setActive(name)}
-        className={box}
-      >
-        {isActive ? (
-          <GradientTile colors={ACTIVE_COLORS} borderClass="border-green-200">
-            <DuoIcon Icon={Icon} active />
-            <Text
-              className="mt-1 text-xxs  leading-snug text-center font-medium text-green-600"
-              numberOfLines={1}
-            >
-              {name}
-            </Text>
-            {/* proportional underline */}
-            <View className="absolute bottom-0 w-1/2 h-1 bg-green-500 rounded-t-xl" />
-          </GradientTile>
-        ) : (
-          <GradientTile colors={INACTIVE_COLORS} borderClass="border-gray-200">
-            <DuoIcon Icon={Icon} active={false} />
-            <Text
-              className="mt-1 text-xxs leading-snug text-center font-medium text-gray-500"
-              numberOfLines={1}
-            >
-              {name}
-            </Text>
-          </GradientTile>
-        )}
-      </TouchableOpacity>
-    );
-  };
+  const keyExtractor = useCallback((item: (typeof CATS)[0]) => item.name, []);
 
   return (
     <View className={className}>
       {isVertical ? (
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View className="flex-col items-stretch">
-            {categories.map((c) => (
-              <Tile key={c.name} name={c.name} Icon={c.icon} />
-            ))}
-          </View>
-        </ScrollView>
+        <FlatList
+          data={CATS}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{
+            paddingTop: 4,
+            paddingBottom: 4,
+            justifyContent: "center",
+            alignItems: "center",
+            flexGrow: 1,
+          }}
+          style={{ paddingTop: 4 }}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={7}
+          initialNumToRender={7}
+        />
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View className="flex-row items-center">
-            {categories.map((c) => (
-              <Tile key={c.name} name={c.name} Icon={c.icon} />
-            ))}
-          </View>
-        </ScrollView>
+        <FlatList
+          data={CATS}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+          decelerationRate="fast"
+          contentContainerStyle={{
+            paddingTop: 4,
+            paddingBottom: 8,
+          }}
+          style={{ paddingTop: 4 }}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={7}
+          initialNumToRender={7}
+        />
       )}
     </View>
   );

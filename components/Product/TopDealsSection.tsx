@@ -1,57 +1,124 @@
 // components/Product/CategoryPopularPhones.tsx
-import { LinearGradient } from "expo-linear-gradient";
-import { MoveRight } from "lucide-react-native";
-import { Image, ScrollView, Text, View } from "react-native";
 import type { DealItem } from "@/constants/Deal";
 import { popularPhones } from "@/constants/Deal";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useCallback } from "react";
+import { FlatList, Image, Text, View } from "react-native";
+import RightArrow from "../../assets/svg/arrow-right.svg";
 
 /* Small card used only on Categories */
-const CategoryPhoneCard = ({
-  name,
-  price,
-  des,
-  image,
-  colors,
-  imageBgClass = "bg-[#FFFFFF33]",
-}: DealItem) => {
-  return (
-    <View className="items-center">
-      <View className="w-full aspect-[127/148] rounded-xl bg-white shadow-md overflow-hidden items-center">
-        <LinearGradient
-          colors={colors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          className="w-full h-[69%] items-center justify-center rounded-t-xl"
+const CategoryPhoneCard = React.memo(
+  ({
+    name,
+    price,
+    des,
+    image,
+    colors,
+    imageBgClass = "bg-[#FFFFFF33]",
+  }: DealItem) => {
+    return (
+      <View className="items-center relative min-h-28">
+        <View
+          className="w-full rounded-xl bg-white items-center"
+          style={{
+            height: 148,
+            width: "100%",
+            // Android shadow
+            elevation: 4,
+            // iOS shadow (only bottom, no top)
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 5 }, // push shadow down
+            shadowOpacity: 0.1,
+            shadowRadius: 3,
+          }}
         >
-          <View className={`w-[88%] h-[88%] rounded-lg items-center justify-center overflow-hidden ${imageBgClass}`}>
-            <Image source={image} className="w-[90%] h-[90%]" resizeMode="contain" />
+          <LinearGradient
+            colors={colors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={{
+              width: "100%",
+              height: 102, // 69% of 148
+              borderTopLeftRadius: 12,
+              borderTopRightRadius: 12,
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+            }}
+          >
+            <View
+              className={`rounded-lg items-center justify-center ${imageBgClass}`}
+              style={{
+                width: "88%",
+                height: "88%",
+                overflow: "hidden",
+              }}
+            >
+              <Image
+                source={image}
+                style={{
+                  width: "90%",
+                  height: "90%",
+                }}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* rating pill placeholder */}
+            <View
+              className="bg-white/90 rounded-md px-1.5 py-[1px] flex-row items-center"
+              style={{
+                position: "absolute",
+                bottom: 6,
+                left: 6,
+              }}
+            >
+              <View className="w-1.5 h-1.5 rounded-full bg-yellow-400 mr-1" />
+              <Text className="text-[10px] font-semibold">4.4</Text>
+              <Text className="text-[10px] text-gray-500 ml-0.5">(1.1k)</Text>
+            </View>
+          </LinearGradient>
+
+          {/* name */}
+          <View
+            className="w-[90%] items-center justify-center"
+            style={{
+              flex: 1,
+              paddingTop: 4,
+              paddingBottom: 12,
+            }}
+          >
+            <Text
+              className="text-xs font-medium text-black text-center"
+              numberOfLines={1}
+              style={{ lineHeight: 16 }}
+            >
+              {name}
+            </Text>
           </View>
+        </View>
 
-          {/* rating pill placeholder, positioned near bottom like your spec */}
-          <View className="absolute bottom-[6%] left-[6%] bg-white/90 rounded-md px-1.5 py-[1px] flex-row items-center">
-            <View className="w-1.5 h-1.5 rounded-full bg-yellow-400 mr-1" />
-            <Text className="text-[10px] font-semibold">4.4</Text>
-            <Text className="text-[10px] text-gray-500 ml-0.5">(1.1k)</Text>
-          </View>
-        </LinearGradient>
-
-        {/* name */}
-        <Text className="w-[90%] text-xs font-medium text-black text-center mt-1" numberOfLines={1}>
-          {name}
-        </Text>
+        {/* bottom badge */}
+        <View
+          className="bg-[#26FF91] px-2.5 py-1 rounded-full shadow-md absolute -bottom-3 self-center z-10"
+          style={{
+            elevation: 10,
+          }}
+        >
+          <Text className="text-black font-bold italic text-xs">
+            {des} {price}
+          </Text>
+        </View>
       </View>
+    );
+  }
+);
 
-      {/* bottom badge */}
-      <View className="-mt-3 z-10 bg-[#26FF91] px-2.5 py-1 rounded-full shadow-md self-center">
-        <Text className="text-black font-bold italic text-xs">{des} {price}</Text>
-      </View>
-    </View>
-  );
-};
+CategoryPhoneCard.displayName = "CategoryPhoneCard";
 
 type Props = {
   title?: string;
-  data?: DealItem[]; 
+  data?: DealItem[];
 };
 
 export default function CategoryPopularPhones({
@@ -61,29 +128,53 @@ export default function CategoryPopularPhones({
   // ✅ never map on undefined
   const items: DealItem[] = Array.isArray(data) ? data : popularPhones;
 
+  const renderItem = useCallback(
+    ({ item, index }: { item: DealItem; index: number }) => (
+      <View
+        className="w-32 shrink-0"
+        style={{
+          marginRight: index !== items.length - 1 ? 14 : 0,
+          marginBottom: 20,
+          marginLeft: index === 0 ? 12 : 0, // First item spacing
+        }}
+      >
+        <CategoryPhoneCard {...item} />
+      </View>
+    ),
+    [items.length]
+  );
+
+  const keyExtractor = useCallback(
+    (item: DealItem, index: number) => item.id?.toString() ?? index.toString(),
+    []
+  );
+
   return (
     <View className="bg-white">
       {/* header */}
-      <View className="flex-row items-center justify-between px-4 py-3">
-        <Text className="text-base font-bold text-black">{title}</Text>
-        <View className="w-10 h-8 rounded-full bg-black items-center justify-center">
-          <MoveRight size={16} color="white" />
+      <View className="flex-row items-center justify-between px-3 py-3">
+        <Text className="text-lg font-bold text-black">{title}</Text>
+        <View className="w-10 h-6 rounded-full bg-black items-center justify-center">
+          <RightArrow width={22} height={22} />
         </View>
       </View>
 
       {/* carousel */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View className="w-screen flex-row items-start px-4 pb-6">
-          {items.map((item, i) => (
-            <View
-              key={item.id ?? i}
-              className={`w-[34%] ${i !== items.length - 1 ? "mr-3.5" : ""} shrink-0`}
-            >
-              <CategoryPhoneCard {...item} />
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+      <FlatList
+        data={items}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingBottom: 16,
+          paddingRight: 12,
+        }}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        initialNumToRender={5}
+        windowSize={10}
+      />
     </View>
   );
 }

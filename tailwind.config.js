@@ -11,8 +11,11 @@ module.exports = {
         8.5: "2.125rem",
         13: "3.125rem",
       },
+      borderRadius: {
+        10: "0.625rem",
+      },
       fontSize: {
-        xxs: ['10px', { lineHeight: '12px' }],
+        xxs: ["10px", { lineHeight: "12px" }],
         tab: 12,
       },
       fontFamily: {
@@ -34,7 +37,7 @@ module.exports = {
         "ultra-wide": "30px",
       },
       rotate: {
-        '-45': '-45deg',
+        "-45": "-45deg",
       },
     },
   },

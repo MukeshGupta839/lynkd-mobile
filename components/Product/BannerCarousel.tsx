@@ -1,157 +1,393 @@
-import { LinearGradient } from "expo-linear-gradient";
-import { Zap } from "lucide-react-native";
-import { useState } from "react";
-import { Dimensions, Image, Text, View } from "react-native";
-import Carousel from "react-native-reanimated-carousel";
+import { PromoSlide } from "@/constants/Banner";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Dimensions,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-export type PromoSlide = {
-  id: number | string;
-  title: string;
-  descriptionParts: { text: string; className?: string }[];
-  spec: string;
-  price: string;
-  image: any;
-  gradient: [string, string] | [string, string, string];
-};
+// Slide component wrapped in React.memo for optimization
+const Slide = React.memo(
+  ({
+    data,
+    width,
+    height,
+    onPress,
+  }: {
+    data: PromoSlide;
+    width: number;
+    height: number;
+    onPress?: () => void;
+  }) => {
+    return (
+      <TouchableOpacity
+        style={{
+          width,
+          height,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#f8f9fa", // Light background to see bounds
+        }}
+        onPress={onPress}
+        activeOpacity={0.9}
+      >
+        <Image
+          source={data.image}
+          style={{
+            width: width - 8, // Small margin for better visual
+            height: height,
+            borderRadius: 12,
+          }}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
+    );
+  }
+);
 
-const fallback: PromoSlide = {
-  id: 1,
-  title: "IPHONE 16",
-  descriptionParts: [
-    { text: "Hello, ", className: "text-white" },
-    { text: "Apple Intelligence.", className: "text-green-300" },
-  ],
-  spec: "A18 Chip. Superfast. Super Stable",
-  price: "From ₹63,999*",
-  image: require("../../assets/images/Product/iphone.png"),
-  gradient: ["#60a5fa", "#6366f1", "#8b5cf6"],
-};
+Slide.displayName = "Slide";
 
 type LayoutPreset = {
-  widthPctOfScreen: number;   // fallback width if containerWidthPx not provided
-  cardAspect: number;         // w/h
+  widthPctOfScreen: number; // fallback width if containerWidthPx not provided
+  cardAspect: number; // w/h
   containerAlignClass: string;
-  slideMarginClass: string;   // <-- back (fixes Home spacing)
-  homeTextPadRightClass?: string;
-  textWidthClass?: string;    // no inline style
-  imgClass: string;
-  titleSize: string;
-  descSize: string;
-  priceSize: string;
 };
 
 const PRESETS: Record<"home" | "categories", LayoutPreset> = {
   home: {
     widthPctOfScreen: 1.0,
-    cardAspect: 1 / 0.38,
+    cardAspect: 1 / 0.38, // Wide banner for home
     containerAlignClass: "items-center",
-    slideMarginClass: "mx-4",
-    homeTextPadRightClass: "pr-[35%]",
-    imgClass: "absolute top-[27%] left-[70%] w-[34%] h-[90%]",
-    // << sizes you requested
-    titleSize: "text-xl",
-    descSize: "text-xs",
-    priceSize: "text-sm",
   },
   categories: {
-    widthPctOfScreen: 0.70,       // ~290 on ~412px
-    cardAspect: 290 / 150,
-    containerAlignClass: "items-start",
-    slideMarginClass: "",         // we add page padding outside
-    textWidthClass: "w-[45%]",    // ~134/301
-    imgClass: "absolute top-[8%] right-[3%] w-[45%] h-[90%]",
-    // << sizes you requested
-    titleSize: "text-xs",
-    descSize: "text-xxs",
-    priceSize: "text-sm",
+    widthPctOfScreen: 0.95,
+    cardAspect: 2.1, // Better aspect ratio for categories: 2.5:1
+    containerAlignClass: "items-center",
   },
+};
+
+type PromoBannerCarouselProps = {
+  variant: "home" | "categories";
+  data: PromoSlide[];
+  containerWidthPx?: number;
+  cardPercentOfContainer?: number;
+  containerClassName?: string;
+  onSlidePress?: (slide: PromoSlide, index: number) => void;
 };
 
 export default function PromoBannerCarousel({
   variant,
-  slides = [fallback, fallback, fallback],
-  containerWidthPx,            // optional: categories passes measured width
+  data,
+  containerWidthPx,
   cardPercentOfContainer = 1,
-  containerClassName = "",     // e.g., "mr-4" so banner ends with page padding
-}: {
-  variant: "home" | "categories";
-  slides?: PromoSlide[];
-  containerWidthPx?: number;
-  cardPercentOfContainer?: number;
-  containerClassName?: string;
-}) {
-  const [idx, setIdx] = useState(0);
+  containerClassName = "",
+  onSlidePress,
+}: PromoBannerCarouselProps) {
+  const [index, setIndex] = useState(0);
+  const indexRef = useRef(index);
+  indexRef.current = index;
+
+  // Track user interaction to prevent auto-play conflicts
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
+  const userInteractionTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+
   const sw = Dimensions.get("window").width;
   const L = PRESETS[variant];
 
+  // Use provided data and create infinite loop data
+  const originalSlides = data;
+  // Create infinite scroll by tripling the data: [...data, ...data, ...data]
+  const slides = [...originalSlides, ...originalSlides, ...originalSlides];
+  const originalLength = originalSlides.length;
+  const startIndex = originalLength; // Start from the middle set
+
+  // Calculate responsive dimensions
   const baseW = containerWidthPx ?? sw * L.widthPctOfScreen;
-  const cardW = Math.round(baseW * cardPercentOfContainer);
+  const cardW = Math.round(baseW + 18 * cardPercentOfContainer);
   const cardH = Math.round(cardW / L.cardAspect);
+
+  // Ensure minimum dimensions for proper display
+  const minHeight = 150;
+  const finalCardH = Math.max(cardH, minHeight);
+
+  // FlatList ref and initial scroll setup
+  const flatListRef = useRef<FlatList>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Track current scroll position for auto-play
+  const currentScrollIndex = useRef(startIndex);
+
+  // Initialize the carousel at the middle position for infinite scroll
+  useEffect(() => {
+    if (!isInitialized && flatListRef.current && slides.length > 0) {
+      // Set initial position to middle set without animation
+      // Use longer timeout for better initialization on all platforms
+      const initDelay = 200; // Consistent delay for both platforms
+
+      const timer = setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: startIndex,
+          animated: false,
+        });
+        setIsInitialized(true);
+      }, initDelay);
+
+      return () => clearTimeout(timer);
+    }
+  }, [startIndex, slides.length, isInitialized]);
+
+  // Optimized scroll handler with infinite scroll logic
+  const onScroll = useCallback(
+    (event: any) => {
+      const slideSize = event.nativeEvent.layoutMeasurement.width;
+      const currentIndex = event.nativeEvent.contentOffset.x / slideSize;
+      const roundIndex = Math.round(currentIndex);
+
+      const distance = Math.abs(roundIndex - currentIndex);
+      // Increase threshold to reduce oversensitivity - only update when we're closer to a slide
+      const isNoMansLand = 0.2 < distance; // Changed from 0.4 to 0.2 for better control
+
+      if (roundIndex !== indexRef.current && !isNoMansLand) {
+        // Calculate the display index (relative to original data)
+        // We need to map the tripled array index back to original index
+        let displayIndex;
+
+        if (roundIndex < originalLength) {
+          // First set (0 to originalLength-1)
+          displayIndex = roundIndex;
+        } else if (roundIndex < originalLength * 2) {
+          // Middle set (originalLength to 2*originalLength-1)
+          displayIndex = roundIndex - originalLength;
+        } else {
+          // Third set (2*originalLength to 3*originalLength-1)
+          displayIndex = roundIndex - originalLength * 2;
+        }
+
+        // Ensure displayIndex is within bounds
+        displayIndex = Math.max(0, Math.min(displayIndex, originalLength - 1));
+
+        setIndex(displayIndex);
+      }
+    },
+    [originalLength]
+  );
+
+  // Handle infinite scroll reset with better boundary detection
+  const onMomentumScrollEnd = useCallback(
+    (event: any) => {
+      const slideSize = event.nativeEvent.layoutMeasurement.width;
+      const currentIndex = event.nativeEvent.contentOffset.x / slideSize;
+      const roundIndex = Math.round(currentIndex);
+
+      // Update current scroll position tracker
+      currentScrollIndex.current = roundIndex;
+
+      // Reset user interaction after momentum ends
+      setIsUserInteracting(false);
+
+      // Add delay to prevent disappearing items (especially important for Android)
+      const resetPosition = () => {
+        // More precise boundary detection for seamless infinite scroll
+        if (roundIndex < originalLength) {
+          // We're in the first set, jump to equivalent position in middle set
+          const equivalentIndex = roundIndex + originalLength;
+          currentScrollIndex.current = equivalentIndex;
+
+          try {
+            flatListRef.current?.scrollToIndex({
+              index: equivalentIndex,
+              animated: false,
+            });
+          } catch {
+            // Fallback if scrollToIndex fails
+            flatListRef.current?.scrollToOffset({
+              offset: equivalentIndex * cardW,
+              animated: false,
+            });
+          }
+        } else if (roundIndex >= originalLength * 2) {
+          // We're in the third set, jump to equivalent position in middle set
+          const equivalentIndex = roundIndex - originalLength;
+          currentScrollIndex.current = equivalentIndex;
+
+          try {
+            flatListRef.current?.scrollToIndex({
+              index: equivalentIndex,
+              animated: false,
+            });
+          } catch {
+            // Fallback if scrollToIndex fails
+            flatListRef.current?.scrollToOffset({
+              offset: equivalentIndex * cardW,
+              animated: false,
+            });
+          }
+        }
+      };
+
+      // Use setTimeout for both platforms to prevent visual glitches
+      setTimeout(resetPosition, 50);
+    },
+    [originalLength, cardW]
+  );
+
+  // Handle scroll begin to pause auto-play
+  const onScrollBeginDrag = useCallback(() => {
+    setIsUserInteracting(true);
+    // Clear any existing timeout
+    if (userInteractionTimeoutRef.current) {
+      clearTimeout(userInteractionTimeoutRef.current);
+    }
+  }, []);
+
+  // Handle scroll end to ensure single-item snapping
+  const onScrollEndDrag = useCallback(
+    (event: any) => {
+      const slideSize = event.nativeEvent.layoutMeasurement.width;
+      const currentOffset = event.nativeEvent.contentOffset.x;
+      const currentIndex = Math.round(currentOffset / slideSize);
+
+      // Force snap to the nearest single item
+      setTimeout(() => {
+        try {
+          flatListRef.current?.scrollToIndex({
+            index: currentIndex,
+            animated: true,
+          });
+        } catch {
+          flatListRef.current?.scrollToOffset({
+            offset: currentIndex * cardW,
+            animated: true,
+          });
+        }
+      }, 10);
+    },
+    [cardW]
+  );
+
+  // FlatList optimization props (modified for better touch handling)
+  const flatListOptimizationProps = {
+    initialNumToRender: 5, // Increase for Android to prevent disappearing items
+    maxToRenderPerBatch: 5, // Increase batch size for smoother Android performance
+    removeClippedSubviews: false, // Always false to prevent disappearing items on both platforms
+    scrollEventThrottle: 32, // Balanced responsiveness without oversensitivity
+    windowSize: 7, // Larger window for Android compatibility
+    updateCellsBatchingPeriod: 100, // Consistent timing for both platforms
+    keyExtractor: useCallback(
+      (item: PromoSlide, itemIndex: number) => `${item.id}-${itemIndex}`,
+      []
+    ),
+    getItemLayout: useCallback(
+      (_: any, itemIndex: number) => ({
+        length: cardW,
+        offset: itemIndex * cardW,
+        index: itemIndex,
+      }),
+      [cardW]
+    ),
+  };
+
+  // Auto-play functionality (updated for seamless infinite scroll with user interaction handling)
+  useEffect(() => {
+    if (!isInitialized || originalSlides.length <= 1 || isUserInteracting)
+      return;
+
+    const timer = setInterval(() => {
+      // Only auto-play if user is not actively interacting
+      if (!isUserInteracting) {
+        currentScrollIndex.current += 1;
+
+        try {
+          flatListRef.current?.scrollToIndex({
+            index: currentScrollIndex.current,
+            animated: true,
+          });
+        } catch {
+          // Fallback to scrollToOffset if scrollToIndex fails
+          flatListRef.current?.scrollToOffset({
+            offset: currentScrollIndex.current * cardW,
+            animated: true,
+          });
+        }
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [isInitialized, originalSlides.length, cardW, isUserInteracting]); // Render item with useCallback for optimization
+  const renderItem = useCallback(
+    ({ item, index: itemIndex }: { item: PromoSlide; index: number }) => {
+      const originalIndex = itemIndex % originalLength;
+      return (
+        <Slide
+          data={item}
+          width={cardW}
+          height={finalCardH}
+          onPress={() => onSlidePress?.(item, originalIndex)}
+        />
+      );
+    },
+    [cardW, finalCardH, onSlidePress, originalLength]
+  );
 
   return (
     <View className={`w-full ${L.containerAlignClass} ${containerClassName}`}>
-      <Carousel
-        loop
-        autoPlay
-        width={cardW}
-        height={cardH}
-        data={slides}
-        onSnapToItem={setIdx}
-        scrollAnimationDuration={1200}
-        renderItem={({ item }) => (
-          <View className={`rounded-[20px] overflow-hidden ${L.slideMarginClass}`}>
-            <LinearGradient
-              colors={item.gradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              className="w-full h-full rounded-[20px] px-4 py-3 relative"
-            >
-              {/* LEFT column: top text + bottom price (never overlaps) */}
-              <View
-                className={`h-full justify-between ${variant === "home" ? (L.homeTextPadRightClass ?? "") : ""} ${L.textWidthClass ?? ""}`}
-              >
-                <View>
-                  <View className="self-start transform -skew-x-12 bg-[#26FF91] rounded-xl px-3 py-1 mb-3">
-                    <View className="transform skew-x-12 flex-row items-center">
-                      <Text className="text-black font-extrabold italic text-base mr-1">
-                        Flash Sale
-                      </Text>
-                      <Zap size={16} color="black" fill="black" />
-                    </View>
-                  </View>
-
-                  <Text className={`text-white font-extrabold ${L.titleSize} mb-1`}>
-                    {item.title}
-                  </Text>
-
-                  <Text className={`${L.descSize} mb-1`}>
-                    {item.descriptionParts.map((p, i) => (
-                      <Text key={i} className={p.className}>
-                        {p.text}
-                      </Text>
-                    ))}
-                  </Text>
-
-                  <Text className="text-white text-xxs">{item.spec}</Text>
-                </View>
-
-                <Text className={`text-white font-bold ${L.priceSize} mt-2`}>
-                  {item.price}
-                </Text>
-              </View>
-
-              {/* RIGHT image */}
-              <Image source={item.image} resizeMode="contain" className={L.imgClass} />
-            </LinearGradient>
-          </View>
-        )}
-      />
+      <View
+        style={{
+          width: cardW, // Use exact card width instead of 100%
+          height: finalCardH,
+          alignSelf: "center",
+          overflow: "hidden", // Prevent showing parts of adjacent banners
+        }}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={slides}
+          style={{
+            flex: 1,
+            width: cardW, // Ensure FlatList width matches container
+          }}
+          contentContainerStyle={{
+            alignItems: "center",
+          }}
+          renderItem={renderItem}
+          pagingEnabled={true}
+          horizontal={true}
+          showsHorizontalScrollIndicator={false}
+          onScroll={onScroll}
+          onMomentumScrollEnd={onMomentumScrollEnd}
+          onScrollBeginDrag={onScrollBeginDrag} // Handle user interaction start
+          onScrollEndDrag={onScrollEndDrag} // Handle single-item snapping
+          scrollEnabled={true}
+          decelerationRate="fast" // Change to "fast" for better single-item snapping
+          snapToAlignment="center" // Back to center for better control
+          snapToInterval={cardW}
+          disableIntervalMomentum={true} // Enable for better single-item control
+          bounces={false} // Disable bounce for cleaner infinite scroll
+          // Enhanced touch handling
+          keyboardShouldPersistTaps="never"
+          directionalLockEnabled={true} // Lock to horizontal direction
+          scrollsToTop={false} // Prevent accidental scroll to top
+          // Props to prevent visual glitches
+          persistentScrollbar={false}
+          {...flatListOptimizationProps}
+        />
+      </View>
 
       <View className="flex-row justify-center mt-3 w-full">
-        {slides.map((_, i) => (
+        {originalSlides.map((_, i) => (
           <View
             key={i}
-            className={`h-2 w-2 rounded-full mx-1 ${i === idx ? "bg-black" : "bg-black/30"}`}
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              marginHorizontal: 4,
+              backgroundColor: i === index ? "#000000" : "rgba(0, 0, 0, 0.3)",
+            }}
           />
         ))}
       </View>

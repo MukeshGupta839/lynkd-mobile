@@ -6,9 +6,9 @@ type Props = {
   placeholder?: string;
   onChangeText?: (t: string) => void;
   onSubmitEditing?: () => void;
-  className?: string;          // extra classes for the outer container
-  innerClassName?: string;     // extra classes for inner row
-  readOnly?: boolean;          // NEW: dummy mode toggle
+  className?: string; // extra classes for the outer container
+  innerClassName?: string; // extra classes for inner row
+  readOnly?: boolean; // NEW: dummy mode toggle
 };
 
 export default function SearchBar({
@@ -23,9 +23,7 @@ export default function SearchBar({
   return (
     <View
       className={[
-        "w-full self-center",
-        "aspect-[380/50]",
-        "bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden",
+        "w-full h-13 self-center bg-white border border-gray-200 overflow-hidden",
         className,
       ].join(" ")}
     >
@@ -37,7 +35,7 @@ export default function SearchBar({
       >
         {readOnly ? (
           // 👇 Dummy version
-          <Text className="flex-1 mr-2 text-sm leading-none text-gray-400">
+          <Text className="flex-1 mr-2 text-lg text-gray-400">
             {placeholder}
           </Text>
         ) : (
