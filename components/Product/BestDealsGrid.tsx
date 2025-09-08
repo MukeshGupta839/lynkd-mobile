@@ -27,7 +27,7 @@ function DealCard({
   textColor = "text-black",
 }: DealItem) {
   return (
-    <View>
+    <View className="flex-1 justify-center items-center">
       <View className="w-full relative items-center justify-center">
         {badgeText && (
           <View

@@ -47,7 +47,7 @@ interface UserDetails {
   }[];
 }
 
-export default function Profile() {
+const Profile = () => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -430,6 +430,15 @@ export default function Profile() {
                     source={{ uri: dateImages[0].media_url }}
                     className="w-full h-full"
                     resizeMode="cover"
+                    onError={(error) => {
+                      console.log(
+                        "renderGridLayout image load error:",
+                        error.nativeEvent.error
+                      );
+                    }}
+                    onLoad={() => {
+                      console.log("renderGridLayout image loaded successfully");
+                    }}
                   />
                 </TouchableOpacity>
               )}
@@ -459,6 +468,17 @@ export default function Profile() {
                         source={{ uri: image.media_url }}
                         className="w-full h-full"
                         resizeMode="cover"
+                        onError={(error) => {
+                          console.log(
+                            "renderGridLayout image load error:",
+                            error.nativeEvent.error
+                          );
+                        }}
+                        onLoad={() => {
+                          console.log(
+                            "renderGridLayout image loaded successfully"
+                          );
+                        }}
                       />
                     </TouchableOpacity>
                   ))}
@@ -487,7 +507,10 @@ export default function Profile() {
                   >
                     <Image
                       source={{ uri: dateImages[0].media_url }}
-                      className="w-full h-full"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                      }}
                       resizeMode="cover"
                     />
                   </TouchableOpacity>
@@ -513,7 +536,10 @@ export default function Profile() {
                       >
                         <Image
                           source={{ uri: image.media_url }}
-                          className="w-full h-full"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                          }}
                           resizeMode="cover"
                         />
                       </TouchableOpacity>
@@ -541,7 +567,10 @@ export default function Profile() {
                   >
                     <Image
                       source={{ uri: dateImages[0].media_url }}
-                      className="w-full h-full"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                      }}
                       resizeMode="cover"
                     />
                   </TouchableOpacity>
@@ -568,7 +597,10 @@ export default function Profile() {
                       >
                         <Image
                           source={{ uri: image.media_url }}
-                          className="w-full h-full"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                          }}
                           resizeMode="cover"
                         />
                         {/* Show overlay on last image if there are more */}
@@ -845,6 +877,12 @@ export default function Profile() {
             }}
             className="w-full h-full"
             resizeMode="cover"
+            onError={(error) => {
+              console.log("Banner image load error:", error.nativeEvent.error);
+            }}
+            onLoad={() => {
+              console.log("Banner image loaded successfully");
+            }}
           />
 
           <View
@@ -1138,4 +1176,6 @@ export default function Profile() {
       </ScrollView>
     </View>
   );
-}
+};
+
+export default Profile;
