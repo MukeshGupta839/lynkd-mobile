@@ -15,11 +15,11 @@ import { popularPhones } from "@/constants/Deal";
 import { popularBrands } from "@/constants/popularBrand";
 import { useRouter } from "expo-router";
 
-export default function CategoriesScreen() {
+const CategoriesScreen = () => {
   const router = useRouter();
   const [contentW, setContentW] = useState(0);
 
-  const bannerData: PromoSlide[] = [
+  const CategoriesBannerData: PromoSlide[] = [
     {
       id: 1,
       image: require("../../assets/images/categoriesBannerAds.png"),
@@ -78,7 +78,7 @@ export default function CategoriesScreen() {
               {contentW > 0 && (
                 <Banner
                   variant="categories"
-                  data={bannerData}
+                  data={CategoriesBannerData}
                   containerWidthPx={contentW} // Use full width, no margin subtraction
                   cardPercentOfContainer={1.0}
                   onSlidePress={() => router.push("/Product/Productview")}
@@ -136,4 +136,6 @@ export default function CategoriesScreen() {
       </View>
     </View>
   );
-}
+};
+
+export default CategoriesScreen;

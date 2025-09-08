@@ -4,7 +4,7 @@ import { MultiImageCollage } from "@/components/MultiImageCollage";
 import { MultiImageViewer } from "@/components/MultiImageViewer";
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
-import { POSTS } from "@/data/data";
+import { POSTS } from "@/constants/HomeData";
 import { SimpleLineIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";

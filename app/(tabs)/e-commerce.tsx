@@ -42,7 +42,7 @@ function GradientWrapper({
   );
 }
 
-export default function Home() {
+const ProductHome = () => {
   const router = useRouter();
 
   return (
@@ -98,4 +98,6 @@ export default function Home() {
       </View>
     </View>
   );
-}
+};
+
+export default ProductHome;
