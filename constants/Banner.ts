@@ -18,3 +18,18 @@ export const homeBannerData: PromoSlide[] = [
     image: require("../assets/images/BannerAds.png"),
   },
 ];
+
+export const CategoriesBannerData: PromoSlide[] = [
+  {
+    id: 1,
+    image: require("../assets/images/categoriesBannerAds.png"),
+  },
+  {
+    id: 2,
+    image: require("../assets/images/categoriesBannerAds.png"),
+  },
+  {
+    id: 3,
+    image: require("../assets/images/categoriesBannerAds.png"),
+  },
+];
