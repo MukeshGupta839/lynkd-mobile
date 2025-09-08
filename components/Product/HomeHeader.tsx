@@ -37,7 +37,7 @@ export default function HomeHeader() {
         </TouchableOpacity>
 
         <TouchableOpacity activeOpacity={0.9} className="ml-auto shrink-0 ">
-          <View className="w-full items-end ">
+          <View className="w-full items-end">
             <View className="w-[37%] aspect-square rounded-full bg-[#EDE8FD4D] items-center justify-center shadow-md relative">
               <MaterialCommunityIcons name="bell" size={32} color="#0f0f2d" />
 

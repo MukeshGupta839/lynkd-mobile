@@ -3,8 +3,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
-import { Modal, ScrollView, Text, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type UpiMethod = "gpay" | "phonepe" | "paytm" | "manual";
 
@@ -29,7 +36,9 @@ export default function Payments() {
         active ? "border-black" : "border-gray-300"
       }`}
     >
-      {active ? <View className="w-[55%] aspect-square rounded-full bg-black" /> : null}
+      {active ? (
+        <View className="w-[55%] aspect-square rounded-full bg-black" />
+      ) : null}
     </View>
   );
 
@@ -83,8 +92,16 @@ export default function Payments() {
 
           <View className="rounded-xl border border-gray-200 overflow-hidden">
             {[
-              { key: "gpay", label: "Google Pay", icon: "logo-google" as const },
-              { key: "phonepe", label: "PhonePe", icon: "phone-portrait-outline" as const },
+              {
+                key: "gpay",
+                label: "Google Pay",
+                icon: "logo-google" as const,
+              },
+              {
+                key: "phonepe",
+                label: "PhonePe",
+                icon: "phone-portrait-outline" as const,
+              },
               { key: "paytm", label: "Paytm", icon: "logo-paypal" as const },
             ].map((m, i, arr) => (
               <View key={m.key}>
@@ -127,29 +144,40 @@ export default function Payments() {
 
         {/* Cards (edge-to-edge) */}
         <View className="bg-white mt-3 rounded-2xl px-[5%] py-3">
-          <Text className="text-sm font-semibold mb-2">Credit & Debit Cards</Text>
+          <Text className="text-sm font-semibold mb-2">
+            Credit & Debit Cards
+          </Text>
           <TouchableOpacity className="flex-row items-center px-3 py-3 rounded-xl border border-gray-200">
             <View className="w-[9%] aspect-square rounded-md bg-gray-100 items-center justify-center mr-2">
               <Ionicons name="add" size={16} color="#000" />
             </View>
             <View className="flex-1">
               <Text className="text-sm">Add New Card</Text>
-              <Text className="text-[11px] text-gray-500">Save and Pay via Cards</Text>
+              <Text className="text-[11px] text-gray-500">
+                Save and Pay via Cards
+              </Text>
             </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
       {/* --- Bottom total card (matches 430x71) & paints home-indicator --- */}
-      <View className="absolute inset-x-0 bottom-0" style={{ zIndex: 50, elevation: 50 }}>
+      <View
+        className="absolute inset-x-0 bottom-0"
+        style={{ zIndex: 50, elevation: 50 }}
+      >
         <View
           className="bg-white w-full rounded-t-xxs border-t border-black/10 aspect-[6.056]"
           style={{ paddingBottom: insets.bottom }}
         >
           <View className="flex-1 flex-row items-center justify-between px-[5%] pt-2 ">
             <View>
-              <Text className="text-[1.25rem] font-semibold">{INR(amount)}</Text>
-              <Text className="text-[0.75rem] text-gray-400 line-through opacity-70">20,0000</Text>
+              <Text className="text-[1.25rem] font-semibold">
+                {INR(amount)}
+              </Text>
+              <Text className="text-[0.75rem] text-gray-400 line-through opacity-70">
+                20,0000
+              </Text>
             </View>
 
             {/* Pay Now button: 187x54 → width 43.5% of card, height via aspect */}
@@ -162,59 +190,63 @@ export default function Payments() {
             </TouchableOpacity>
           </View>
         </View>
-        </View>
+      </View>
 
+      {/* ✅ SUCCESS MODAL */}
+      <Modal
+        visible={showSuccess}
+        transparent
+        animationType="fade"
+        presentationStyle="overFullScreen" // iOS: draw over everything
+        statusBarTranslucent // ANDROID: cover the status bar area
+        onRequestClose={() => setShowSuccess(false)}
+      >
+        {/* Dim background that closes on tap */}
+        <TouchableWithoutFeedback onPress={() => setShowSuccess(false)}>
+          <View className="flex-1 bg-black/40">
+            {/* Center area; keep overlay full-screen, only space the CARD with insets */}
+            <View className="flex-1 items-center justify-center">
+              {/* Tap-catcher to keep taps inside card from closing */}
+              <TouchableWithoutFeedback>
+                <View
+                  className="w-[80%] bg-white rounded-2xl p-6 space-y-6"
+                  style={{
+                    // keep nice breathing room from notch & home indicator
+                    marginTop: insets.top,
+                    marginBottom: insets.bottom,
+                  }}
+                >
+                  <View className="items-center space-y-3">
+                    <View className="w-16 aspect-square rounded-full bg-green-100 items-center justify-center">
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={42}
+                        color="#22c55e"
+                      />
+                    </View>
+                    <Text className="text-base mt-2 text-center">
+                      Congratulations!
+                    </Text>
+                    <Text className="text-xs text-gray-600 mt-1 text-center">
+                      Your order has been placed.
+                    </Text>
+                  </View>
 
-{/* ✅ SUCCESS MODAL */}
-<Modal
-  visible={showSuccess}
-  transparent
-  animationType="fade"
-  presentationStyle="overFullScreen"     // iOS: draw over everything
-  statusBarTranslucent                    // ANDROID: cover the status bar area
-  onRequestClose={() => setShowSuccess(false)}
->
-  {/* Dim background that closes on tap */}
-  <TouchableWithoutFeedback onPress={() => setShowSuccess(false)}>
-    <View className="flex-1 bg-black/40">
-      {/* Center area; keep overlay full-screen, only space the CARD with insets */}
-      <View className="flex-1 items-center justify-center">
-        {/* Tap-catcher to keep taps inside card from closing */}
-        <TouchableWithoutFeedback>
-          <View
-            className="w-[80%] bg-white rounded-2xl p-6 space-y-6"
-            style={{
-              // keep nice breathing room from notch & home indicator
-              marginTop: insets.top,
-              marginBottom: insets.bottom,
-            }}
-          >
-            <View className="items-center space-y-3">
-              <View className="w-16 aspect-square rounded-full bg-green-100 items-center justify-center">
-                <Ionicons name="checkmark-circle" size={42} color="#22c55e" />
-              </View>
-              <Text className="text-base mt-2 text-center">Congratulations!</Text>
-              <Text className="text-xs text-gray-600 mt-1 text-center">
-                Your order has been placed.
-              </Text>
+                  <TouchableOpacity
+                    className="w-full bg-[#26FF91] rounded-xl py-4 items-center mt-6 justify-center"
+                    onPress={() => {
+                      setShowSuccess(false);
+                      router.push("/(tabs)/product");
+                    }}
+                  >
+                    <Text className="text-sm font-semibold">Purchase More</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
             </View>
-
-            <TouchableOpacity
-              className="w-full bg-[#26FF91] rounded-xl py-4 items-center mt-6 justify-center"
-              onPress={() => {
-                setShowSuccess(false);
-                router.push("/(tabs)/e-commerce");
-              }}
-            >
-              <Text className="text-sm font-semibold">Purchase More</Text>
-            </TouchableOpacity>
           </View>
         </TouchableWithoutFeedback>
-      </View>
-    </View>
-  </TouchableWithoutFeedback>
-</Modal>
-
+      </Modal>
     </View>
   );
 }

@@ -41,9 +41,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="e-commerce"
+        name="product"
         options={{
-          title: "E-commerce",
+          title: "Product",
           tabBarIcon: ({ color, focused }) => {
             // choose filled vs outline
             const iconName = focused ? "bag" : "bag-outline";
