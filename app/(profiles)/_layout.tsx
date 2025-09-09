@@ -4,7 +4,7 @@ export default function ProfileLayout() {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="profile-posts" options={{ headerShown: false }} />
+      <Stack.Screen name="profilePosts" options={{ headerShown: false }} />
     </Stack>
   );
 }

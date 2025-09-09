@@ -190,18 +190,22 @@ const TextPost: React.FC<TextPostProps> = ({
                   );
                 }
                 return part;
-              })}{" "}
-            {item?.post_hashtags &&
-              neededHashtags.map((tag: string) => (
+              })}
+            {""}
+          </Text>
+          {item?.post_hashtags?.length ? (
+            <Text className="text-blue-600">
+              {neededHashtags.map((tag: string, i: number) => (
                 <Text
                   key={tag}
-                  className="text-blue-600"
                   onPress={() => console.log("Navigate to hashtag:", "#" + tag)}
                 >
-                  #{tag + " "}
+                  #{tag}
+                  {i < neededHashtags.length - 1 ? " " : ""}
                 </Text>
               ))}
-          </Text>
+            </Text>
+          ) : null}
         </TouchableOpacity>
 
         {/* Affiliated Product Card */}

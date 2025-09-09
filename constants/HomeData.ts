@@ -26,6 +26,7 @@ export const POSTS = [
       productRegularPrice: 14990,
       productSalePrice: 12990,
     },
+    post_hashtags: ["coffee", "creativity", "inspiration", "morning", "energy"],
   },
   {
     id: "p2",
@@ -41,6 +42,7 @@ export const POSTS = [
       type: "image",
       uri: "https://media.gettyimages.com/id/2160799152/photo/hamburg-germany-cristiano-ronaldo-of-portugal-looks-dejected-following-the-teams-defeat-in.jpg?s=612x612&w=gi&k=20&c=ffUaAF9km23q47SkX57MtxQIy2no1KrCIeGpihNbR1s=",
     },
+    post_hashtags: ["coffee", "creativity", "inspiration", "morning", "energy"],
   },
   {
     id: "3",
@@ -57,16 +59,16 @@ export const POSTS = [
       type: "image",
       uri: "https://images.unsplash.com/photo-1533422902779-aff35862e462?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
+    post_hashtags: ["coffee", "creativity", "inspiration", "morning", "energy"],
   },
   {
     id: "4",
     user_id: 10,
-    username: "Nike modal",
+    username: "Joe Doe",
     is_creator: true,
     userProfilePic:
       "https://static.nike.com/a/images/c_limit,w_592,f_auto/t_product_v1/3e264b2f-9e5f-4c08-acf3-2f95037551a8/FCB+M+NK+DFADV+JSY+SS+MATCH+3R.png",
-    caption:
-      "Weekend drip with the new #AirMax — comfy and clean. Check this out: https://nike.example",
+    caption: "Exploring the city vibes #UrbanLife @mukesh",
     likes_count: 128,
     comments_count: 22,
     media: {
@@ -79,6 +81,7 @@ export const POSTS = [
         "https://images.unsplash.com/photo-1533422902779-aff35862e462?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
       ],
     },
+    post_hashtags: ["coffee", "creativity", "inspiration", "morning", "energy"],
   },
   {
     id: "p10",

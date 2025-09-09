@@ -1,8 +1,15 @@
+import { tabBarHiddenSV } from "@/lib/tabBarVisibility";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useState } from "react";
 import { Image, Platform, TouchableOpacity, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = BottomTabBarProps & {
   hidden?: boolean;
@@ -54,6 +61,8 @@ const iconFor = (
   }
 };
 
+const HEIGHT = 56; // your bar height
+
 export default function CustomTabBar({
   state,
   descriptors,
@@ -84,6 +93,29 @@ export default function CustomTabBar({
   const isShopActive =
     isDirectlyInProduct ||
     (currentRoute?.name === "profile" && wasInProductContext);
+
+  const insets = useSafeAreaInsets();
+
+  // derive “am I on index tab?” as a shared value so worklets can read it
+  const isIndexSV = useSharedValue(state.routes[state.index]?.name === "index");
+  const offscreenSV = useSharedValue(HEIGHT + insets.bottom);
+
+  useEffect(() => {
+    isIndexSV.value = state.routes[state.index]?.name === "index";
+  }, [state.index, state.routes, isIndexSV]);
+
+  useEffect(() => {
+    offscreenSV.value = HEIGHT + insets.bottom;
+  }, [insets.bottom, offscreenSV]);
+
+  // slide down when (isIndex && tabBarHiddenSV)
+  const slideStyle = useAnimatedStyle(() => {
+    const shouldHide = isIndexSV.value && tabBarHiddenSV.value;
+    const ty = withTiming(shouldHide ? offscreenSV.value : 0, {
+      duration: 180,
+    });
+    return { transform: [{ translateY: ty }] };
+  });
 
   if (hidden) return null;
 
@@ -167,111 +199,122 @@ export default function CustomTabBar({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
   };
-
   return (
-    <View
-      className={`absolute left-0 right-0 bottom-0 flex-row ${Platform.OS === "ios" ? " -pb-safe-offset-3" : "pb-safe"}`}
+    <Animated.View
+      style={[
+        {
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+        },
+        slideStyle,
+      ]}
     >
-      {/* Left pill with all tabs except Profile */}
-      <View className="flex-1 h-14 bg-black rounded-l-none rounded-2xl flex-row items-center justify-around mr-2 px-2">
-        {/* Show back button when product is active */}
-        {isShopActive && (
-          <TouchableOpacity
-            onPress={() => {
-              navigation.navigate("index"); // Navigate back to home
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-                () => {}
-              );
-            }}
-            activeOpacity={0.85}
-            className="w-14 h-14 rounded-full items-center justify-center"
-            accessibilityRole="button"
-            accessibilityLabel="Back to home"
-          >
-            <Ionicons name="arrow-back" size={25} color="#fff" />
-          </TouchableOpacity>
-        )}
-
-        {routesLeft.map((route) => {
-          const index = state.routes.indexOf(route);
-          const isFocused = state.index === index;
-          const testId =
-            (descriptors[route.key].options as { tabBarTestID?: string })
-              .tabBarTestID ?? `tab-${route.name}`;
-
-          // When product is active, only show product (as home), categories, and cart
-          if (isShopActive) {
-            if (
-              route.name !== "product" &&
-              route.name !== "categories" &&
-              route.name !== "cart"
-            ) {
-              return null;
-            }
-          } else {
-            // Normal state - hide cart tab and index/home tab when product is active and back button is shown
-            if (route.name === "cart" || route.name === "categories") {
-              return null; // Hide cart tab in normal state
-            }
-            if (
-              isShopActive &&
-              (route.name === "index" || route.name === "home")
-            ) {
-              return null;
-            }
-          }
-
-          return (
+      <View
+        className={`absolute left-0 right-0 bottom-0 flex-row ${Platform.OS === "ios" ? " -pb-safe-offset-3" : "pb-safe"}`}
+      >
+        {/* Left pill with all tabs except Profile */}
+        <View className="flex-1 h-14 bg-black rounded-l-none rounded-2xl flex-row items-center justify-around mr-2 px-2">
+          {/* Show back button when product is active */}
+          {isShopActive && (
             <TouchableOpacity
-              key={route.key}
-              onPress={() => onPress(route, index)}
+              onPress={() => {
+                navigation.navigate("index"); // Navigate back to home
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                  () => {}
+                );
+              }}
               activeOpacity={0.85}
               className="w-14 h-14 rounded-full items-center justify-center"
               accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
-              accessibilityLabel={
-                descriptors[route.key].options.tabBarAccessibilityLabel
-              }
-              testID={testId}
+              accessibilityLabel="Back to home"
             >
-              <Ionicons
-                name={iconFor(route.name, isFocused, isShopActive)}
-                size={25}
-                color={isFocused ? "#fff" : "#ccc"}
-              />
+              <Ionicons name="arrow-back" size={25} color="#fff" />
             </TouchableOpacity>
-          );
-        })}
-      </View>
+          )}
 
-      {/* Right avatar bubble = Profile tab */}
-      {profileRoute
-        ? (() => {
-            const index = state.routes.indexOf(profileRoute);
+          {routesLeft.map((route) => {
+            const index = state.routes.indexOf(route);
             const isFocused = state.index === index;
+            const testId =
+              (descriptors[route.key].options as { tabBarTestID?: string })
+                .tabBarTestID ?? `tab-${route.name}`;
+
+            // When product is active, only show product (as home), categories, and cart
+            if (isShopActive) {
+              if (
+                route.name !== "product" &&
+                route.name !== "categories" &&
+                route.name !== "cart"
+              ) {
+                return null;
+              }
+            } else {
+              // Normal state - hide cart tab and index/home tab when product is active and back button is shown
+              if (route.name === "cart" || route.name === "categories") {
+                return null; // Hide cart tab in normal state
+              }
+              if (
+                isShopActive &&
+                (route.name === "index" || route.name === "home")
+              ) {
+                return null;
+              }
+            }
+
             return (
               <TouchableOpacity
-                key={profileRoute.key}
-                onPress={() => onPress(profileRoute, index)}
-                activeOpacity={0.9}
-                className="w-14 h-14 rounded-r-none rounded-2xl bg-black border-white items-center justify-center"
+                key={route.key}
+                onPress={() => onPress(route, index)}
+                activeOpacity={0.85}
+                className="w-14 h-14 rounded-full items-center justify-center"
+                accessibilityRole="button"
+                accessibilityState={isFocused ? { selected: true } : {}}
+                accessibilityLabel={
+                  descriptors[route.key].options.tabBarAccessibilityLabel
+                }
+                testID={testId}
               >
-                {avatarUri ? (
-                  <Image
-                    source={{ uri: avatarUri }}
-                    className="w-14 h-14 rounded-full"
-                  />
-                ) : (
-                  <Ionicons
-                    name={iconFor("profile", isFocused, isShopActive)}
-                    size={40}
-                    color={isFocused ? "#fff" : "#ccc"}
-                  />
-                )}
+                <Ionicons
+                  name={iconFor(route.name, isFocused, isShopActive)}
+                  size={25}
+                  color={isFocused ? "#fff" : "#ccc"}
+                />
               </TouchableOpacity>
             );
-          })()
-        : null}
-    </View>
+          })}
+        </View>
+
+        {/* Right avatar bubble = Profile tab */}
+        {profileRoute
+          ? (() => {
+              const index = state.routes.indexOf(profileRoute);
+              const isFocused = state.index === index;
+              return (
+                <TouchableOpacity
+                  key={profileRoute.key}
+                  onPress={() => onPress(profileRoute, index)}
+                  activeOpacity={0.9}
+                  className="w-14 h-14 rounded-r-none rounded-2xl bg-black border-white items-center justify-center"
+                >
+                  {avatarUri ? (
+                    <Image
+                      source={{ uri: avatarUri }}
+                      className="w-14 h-14 rounded-full"
+                    />
+                  ) : (
+                    <Ionicons
+                      name={iconFor("profile", isFocused, isShopActive)}
+                      size={40}
+                      color={isFocused ? "#fff" : "#ccc"}
+                    />
+                  )}
+                </TouchableOpacity>
+              );
+            })()
+          : null}
+      </View>
+    </Animated.View>
   );
 }
