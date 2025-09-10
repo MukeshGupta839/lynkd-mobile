@@ -18,9 +18,9 @@ import {
 
 import Categories from "@/components/Bookings/Categories";
 import EventCard from "@/components/Bookings/EventCard";
+import Header from "@/components/Bookings/Header";
 import { EventT, POPULAR_EVENTS, UPCOMING_EVENTS } from "@/constants/bookings";
 import { useFavorites } from "@/context/FavoritesContext";
-import { Header } from "@react-navigation/elements";
 
 export default function FavoritesScreen() {
   const router = useRouter();
@@ -69,30 +69,28 @@ export default function FavoritesScreen() {
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
       {/* Header */}
-      <View>
-        <Header title="Favourite" />
 
-        {/* Search bar */}
-        <View className="px-3">
-          <View className="mt-3 flex-row items-center bg-white rounded-xl px-3 py-2 border border-gray-200">
-            <Ionicons name="search" size={18} color="#9CA3AF" />
-            <TextInput
-              placeholder="Search Event"
-              value={search}
-              onChangeText={setSearch}
-              className="ml-3 flex-1 text-base"
-              returnKeyType="search"
-            />
-          </View>
-        </View>
-
-        {/* Categories */}
-        <View className="mt-4">
-          <Categories
-            activeCategory={activeCategory}
-            setActiveCategory={setActiveCategory}
+      <Header title="Favorite" showBackIcon={false} />
+      {/* Search bar */}
+      <View className="px-3">
+        <View className="mt-3 flex-row items-center bg-white rounded-xl px-3 border border-gray-200">
+          <Ionicons name="search" size={18} color="#13123A" />
+          <TextInput
+            placeholder="Search Event"
+            value={search}
+            onChangeText={setSearch}
+            className="ml-3 flex-1 text-sm"
+            returnKeyType="search"
           />
         </View>
+      </View>
+
+      {/* Categories */}
+      <View className="mt-4">
+        <Categories
+          activeCategory={activeCategory}
+          setActiveCategory={setActiveCategory}
+        />
       </View>
 
       {/* Content */}
@@ -107,7 +105,7 @@ export default function FavoritesScreen() {
             contentContainerStyle={{ paddingBottom: 120 }}
           />
         ) : (
-          <View className="flex-1 items-center justify-center px-6">
+          <View className="flex-1 items-center justify-center ">
             <View className="w-40 h-40 rounded-xl items-center justify-center bg-white shadow-sm">
               <View className="w-24 h-24 rounded-full items-center justify-center bg-violet-50">
                 <Ionicons name="alert-circle" size={48} color="#C7B0F6" />

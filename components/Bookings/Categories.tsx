@@ -56,7 +56,7 @@ export default function Categories({
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => setActiveCategory(item.key)}
-          className=" px-2">
+          className=" px-3">
           <View className="rounded-full overflow-hidden">
             <LinearGradient
               colors={["#7952FC", "#B15CDE"]}

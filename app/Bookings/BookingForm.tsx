@@ -76,7 +76,7 @@ export default function BookTicketScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50 ">
+    <SafeAreaView edges={[]} className="flex-1 bg-gray-50 ">
       {/* Header */}
       <View>
         <Header title="Booking Ticket" />
@@ -162,13 +162,11 @@ export default function BookTicketScreen() {
           </View>
         </View>
 
-        {/* Ticket Type heading */}
         <View className="px-4 mt-5">
           <Text className="text-sm font-semibold text-[#111827] mb-3">
             Ticket Type:
           </Text>
 
-          {/* Ticket cards */}
           {ticketTypes.map((t) => {
             const isSelected = selectedType === t.id;
             return (
@@ -177,44 +175,68 @@ export default function BookTicketScreen() {
                 activeOpacity={0.95}
                 disabled={t.soldOut}
                 onPress={() => !t.soldOut && setSelectedType(t.id)}
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled: t.soldOut,
+                  selected: isSelected,
+                }}
                 className="mb-3 rounded-xl overflow-hidden">
                 <View
-                  className="flex-row items-center px-4 py-4 bg-white rounded-xl"
+                  className={`flex-row items-center px-4 py-4 bg-white rounded-xl ${
+                    isSelected
+                      ? "border-2 border-[#7C3AED]"
+                      : "border border-[#E6E6EA]"
+                  }`}
                   style={{
-                    borderColor: isSelected ? "#7C3AED" : "#E6E6EA",
-                    borderWidth: isSelected ? 2 : 1,
-                    opacity: t.soldOut ? 0.5 : 1,
+                    opacity: t.soldOut ? 0.45 : 1,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.06,
+                    shadowRadius: 12,
+                    elevation: 4,
                   }}>
+                  {/* Left icon */}
                   <View className="w-12 h-12 rounded-lg bg-violet-50 items-center justify-center">
                     <Ionicons name="ticket" size={20} color="#7C3AED" />
                   </View>
 
+                  {/* Middle text */}
                   <View className="ml-3 flex-1">
                     <Text className="font-semibold text-base text-[#111827]">
                       {t.label}
                     </Text>
-                    <Text className="text-sm text-gray-400 mt-1">
-                      {t.subtitle}
-                    </Text>
-                  </View>
 
-                  <View className="items-end mr-3">
-                    <Text
-                      className={`font-semibold ${isSelected ? "text-[#7C3AED]" : "text-gray-700"}`}>
-                      {t.price}
-                    </Text>
-                    <Text className="text-xs text-gray-400">{t.fee}</Text>
-                  </View>
-
-                  <View>
-                    {/* radio */}
-                    <View
-                      className={`w-6 h-6 rounded-full items-center justify-center 
-                      ${isSelected ? "bg-[#7C3AED]" : "border border-gray-300 bg-white"}`}>
-                      {isSelected ? (
-                        <View className="w-2 h-2 rounded-full bg-white" />
-                      ) : null}
+                    <View className="flex-row items-center mt-1">
+                      <Text className="text-sm font-semibold text-[#6B21A8]">
+                        {t.price}
+                      </Text>
+                      <Text className="text-sm text-gray-400 ml-2">
+                        {t.fee}
+                      </Text>
                     </View>
+
+                    <Text className="text-sm text-gray-400 mt-1">
+                      {t.soldOut ? "Sold Out" : t.subtitle}
+                    </Text>
+                  </View>
+
+                  {/* Right check / radio */}
+                  <View className="ml-2">
+                    {isSelected ? (
+                      <View
+                        className="w-7 h-7 rounded-full bg-[#7C3AED] items-center justify-center"
+                        style={{
+                          shadowColor: "#7C3AED",
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.16,
+                          shadowRadius: 8,
+                          elevation: 3,
+                        }}>
+                        <Ionicons name="checkmark" size={16} color="#fff" />
+                      </View>
+                    ) : (
+                      <View className="w-6 h-6 rounded-full border border-gray-300 bg-white" />
+                    )}
                   </View>
                 </View>
               </TouchableOpacity>
@@ -222,7 +244,6 @@ export default function BookTicketScreen() {
           })}
         </View>
       </View>
-
       {/* Bottom Continue bar */}
 
       <BottomNavBar

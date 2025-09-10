@@ -142,7 +142,7 @@ export default function Bookings() {
       </View>
 
       {/* Upcoming Events (horizontal) */}
-      <View className="mt-4 mb-6">
+      <View className="mt-4 ">
         <View className="flex-row items-center justify-between mb-3 px-3">
           <Text className="font-semibold text-lg">Upcoming Events</Text>
           <TouchableOpacity

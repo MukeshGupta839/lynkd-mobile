@@ -1,10 +1,21 @@
+// components/BookingHeader.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-export default function BookingHeader({ title = "" }: { title?: string }) {
+type Props = {
+  title?: string;
+  showBackIcon?: boolean; // new prop, optional
+};
+
+export default function BookingHeader({
+  title = "",
+  showBackIcon = true,
+}: Props) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // iOS + Android shadow
   const shadowOnly = {
@@ -16,17 +27,24 @@ export default function BookingHeader({ title = "" }: { title?: string }) {
   };
 
   return (
-    <View style={shadowOnly} className="bg-white rounded-b-2xl">
+    <View
+      style={[shadowOnly, { paddingTop: insets.top }]}
+      className="bg-white rounded-b-2xl">
       <View className="flex-row items-center px-4 py-3">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          activeOpacity={0.85}
-          className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
-          accessibilityLabel="Go back">
-          <Ionicons name="chevron-back" size={20} color="#111827" />
-        </TouchableOpacity>
+        {showBackIcon && (
+          <TouchableOpacity
+            onPress={() => router.back()}
+            activeOpacity={0.85}
+            className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
+            accessibilityLabel="Go back">
+            <Ionicons name="chevron-back" size={20} color="#111827" />
+          </TouchableOpacity>
+        )}
 
-        <Text className="ml-3 text-lg font-semibold text-[#111827]">
+        <Text
+          className={`text-lg font-semibold text-[#111827] ${
+            showBackIcon ? "ml-3" : ""
+          }`}>
           {title}
         </Text>
       </View>

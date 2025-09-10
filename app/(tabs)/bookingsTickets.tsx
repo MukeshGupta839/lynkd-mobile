@@ -1,10 +1,12 @@
 // app/(tabs)/bookingsTickets.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import Header from "@/components/Bookings/Header";
 import { EventT, POPULAR_EVENTS, UPCOMING_EVENTS } from "@/constants/bookings";
 
 type Ticket = EventT & {
@@ -59,7 +61,6 @@ export default function BookingsTickets() {
       .toLocaleDateString("en-US", { month: "short", day: "numeric" })
       .split(" ");
 
-    // Use event id as path segment (stable). Send ticket number as query param for display.
     const pathSegment = encodeURIComponent(String(item.id));
     const ticketQuery = encodeURIComponent(
       String(item.ticketId).replace(/^#/, "")
@@ -69,10 +70,17 @@ export default function BookingsTickets() {
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={() => {
-          // result URL: /Bookings/u1?ticketId=8954673009
           router.push(`/Bookings/${pathSegment}?ticketId=${ticketQuery}`);
         }}
-        className="mb-4 bg-white rounded-xl shadow-sm overflow-hidden">
+        className="mb-4 bg-white rounded-xl overflow-hidden"
+        style={{
+          // card shadow inline
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          elevation: 4,
+        }}>
         <View className="relative w-full h-36">
           <Image
             source={item.image}
@@ -86,7 +94,7 @@ export default function BookingsTickets() {
         </View>
 
         <View className="p-3 flex-row items-center justify-between">
-          <View>
+          <View className="pr-3 flex-1">
             <Text className="font-semibold text-base text-[#111827]">
               {item.title}
             </Text>
@@ -94,7 +102,21 @@ export default function BookingsTickets() {
               Ticket ID: {item.ticketId}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
+
+          {/* chevron with purple circular background */}
+          <View
+            style={{
+              // shadow for the circle (inline only)
+              shadowColor: "#7C3AED",
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.12,
+              shadowRadius: 8,
+              elevation: 3,
+            }}>
+            <View className="w-9 h-9 rounded-full items-center justify-center bg-[#7C3AED]">
+              <Ionicons name="chevron-forward" size={18} color="#fff" />
+            </View>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -103,29 +125,83 @@ export default function BookingsTickets() {
   const data = tab === "active" ? activeTickets : pastTickets;
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-gray-50">
+    <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
+      <Header title="My Ticket" showBackIcon={false} />
       <View className="flex-1 px-4">
-        <Text className="text-lg font-semibold text-[#111827] mt-2">
-          My Ticket
-        </Text>
+        <View className="flex-row mt-4 mb-4 bg-gray-100 rounded-full p-1 h-14">
+          {/* Active Tab (left) */}
+          <View className="flex-1 h-full">
+            {tab === "active" ? (
+              <LinearGradient
+                colors={["#B15CDE", "#7952FC"]}
+                start={[1, 0]}
+                end={[0, 0]}
+                className="flex-1 h-full"
+                style={{
+                  borderRadius: 12,
+                  shadowColor: "#7C3AED",
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.12,
+                  shadowRadius: 8,
+                  elevation: 3,
+                }}>
+                <TouchableOpacity
+                  onPress={() => setTab("active")}
+                  activeOpacity={0.9}
+                  className="flex-1 h-full items-center justify-center"
+                  style={{ borderRadius: 24 }}>
+                  <Text className="font-semibold text-white">
+                    Active Ticket
+                  </Text>
+                </TouchableOpacity>
+              </LinearGradient>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setTab("active")}
+                activeOpacity={0.9}
+                className="flex-1 h-full items-center justify-center"
+                style={{ borderRadius: 24 }}>
+                <Text className="font-semibold text-gray-700">
+                  Active Ticket
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-        <View className="flex-row mt-4 mb-4 bg-gray-100 rounded-lg p-1">
-          <TouchableOpacity
-            onPress={() => setTab("active")}
-            className={`flex-1 py-2 rounded-lg items-center ${tab === "active" ? "bg-violet-600" : ""}`}>
-            <Text
-              className={`font-semibold ${tab === "active" ? "text-white" : "text-gray-500"}`}>
-              Active Ticket
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setTab("past")}
-            className={`flex-1 py-2 rounded-lg items-center ${tab === "past" ? "bg-violet-600" : ""}`}>
-            <Text
-              className={`font-semibold ${tab === "past" ? "text-white" : "text-gray-500"}`}>
-              Past Ticket
-            </Text>
-          </TouchableOpacity>
+          {/* Past Tab (right) */}
+          <View className="flex-1 h-full ">
+            {tab === "past" ? (
+              <LinearGradient
+                colors={["#B15CDE", "#7952FC"]}
+                start={[1, 0]}
+                end={[0, 0]}
+                className="flex-1 h-full "
+                style={{
+                  borderRadius: 12,
+                  shadowColor: "#7C3AED",
+                  shadowOffset: { width: 0, height: 12 },
+                  shadowOpacity: 0.12,
+                  shadowRadius: 8,
+                  elevation: 3,
+                }}>
+                <TouchableOpacity
+                  onPress={() => setTab("past")}
+                  activeOpacity={0.9}
+                  className="flex-1 h-full items-center justify-center"
+                  style={{ borderRadius: 24 }}>
+                  <Text className="font-semibold text-white">Past Ticket</Text>
+                </TouchableOpacity>
+              </LinearGradient>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setTab("past")}
+                activeOpacity={0.9}
+                className="flex-1 h-full items-center justify-center"
+                style={{ borderRadius: 24 }}>
+                <Text className="font-semibold text-gray-700">Past Ticket</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <FlatList

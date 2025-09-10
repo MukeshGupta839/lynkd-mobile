@@ -122,24 +122,13 @@ const ProductHome = () => {
           contentInsetAdjustmentBehavior="never"
           showsVerticalScrollIndicator={false}
           scrollIndicatorInsets={{ bottom: 0 }}
-          contentContainerStyle={{ paddingBottom: 70 }}>
-          {/* Categories */}
-          <CategoryList orientation="horizontal" />
-          <View className="mt-4">
-            <Banner
-              variant="home"
-              data={homeBannerData}
-              onSlidePress={() => router.push("/Product/Productview")}
-            />
-          </View>
-          {/* Best Products (moved to reusable component) */}
-          <BestProductsCarousel data={products} title="Best Products for you" />
-
-          {/* Best Deals */}
-          <BestDealsGrid title="Best Deals for you" data={bestDeals} />
-
-          <DealsStrip title="Top Deals" data={topDeals} />
-        </ScrollView>
+          contentContainerStyle={{ paddingBottom: 70 }}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={3}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={3}
+          windowSize={5}
+        />
       </View>
     </View>
   );

@@ -61,7 +61,7 @@ export default function Details() {
   };
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-white">
+    <SafeAreaView edges={[]} className="flex-1 bg-white">
       <View className="flex-1">
         {/* Header */}
         <Header title="Detail Booking" />
@@ -114,7 +114,9 @@ export default function Details() {
             <View className="mt-4 flex-row justify-between">
               <View>
                 <Text className="text-sm text-gray-500">Number of Ticket</Text>
-                <Text className="mt-1 text-sm text-[#111827]">x{qty}</Text>
+                <Text className="mt-1 font-semibold text-sm text-[#111827]">
+                  x{qty}
+                </Text>
               </View>
 
               <View>
@@ -128,10 +130,6 @@ export default function Details() {
 
           {/* Order summary */}
           <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
-            <Text className="text-sm text-gray-600 mb-3 font-semibold">
-              Summary
-            </Text>
-
             <View className="flex-row justify-between py-2">
               <Text className="text-sm text-gray-700">Subtotal</Text>
               <Text className="text-sm text-gray-700">
@@ -150,7 +148,7 @@ export default function Details() {
             </View>
 
             <View className="border-t border-gray-100 mt-3 pt-3 flex-row justify-between items-center">
-              <Text className="font-semibold text-base">Total</Text>
+              <Text className=" text-base">Total</Text>
               <Text className="font-semibold text-base">
                 ${total.toFixed(2)}
               </Text>

@@ -78,13 +78,13 @@ export default function PaymentMethod() {
   };
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-white">
+    <SafeAreaView edges={[]} className="flex-1 bg-white">
       <View className="flex-1">
         {/* Header */}
         <Header title="Payment method" />
         <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
-          <View className="px-4 mt-4">
-            <Text className="text-sm text-gray-600 mb-4">
+          <View className="px-3 mt-8">
+            <Text className="text-sm text-gray-600 mb-5">
               Select Payment Method
             </Text>
 

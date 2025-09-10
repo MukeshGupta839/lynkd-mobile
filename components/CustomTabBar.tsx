@@ -5,8 +5,16 @@ import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 import { Camera } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
-import { Image, Platform, TouchableOpacity, View } from "react-native";
+import {
+  FlatList,
+  FlatListProps,
+  Image,
+  Platform,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Animated, {
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -86,10 +94,6 @@ const SHOP_ROUTE_NAMES = new Set([
   "payHistory",
 ]);
 
-/**
- * Important: explicit mapping from logical slot -> actual route name (registered in your navigator)
- * This avoids brittle regex hacks and ensures navigation.navigate() receives valid route names.
- */
 const SLOT_TO_ROUTE: Record<string, string> = {
   // main
   index: "index",
@@ -193,11 +197,9 @@ export default function CustomTabBar({
 
   const slots = SECTION_SLOTS[shopSection] ?? SECTION_SLOTS.main;
 
-  // find route object by name (helper)
   const findRouteByName = (name: string) =>
     state.routes.find((r) => r.name === name);
 
-  // main navigation: emit tabPress then navigate (keeps behavior and listeners)
   const navigateToRouteName = (routeName: string) => {
     const dest = findRouteByName(routeName);
     const targetKey = dest?.key;
@@ -212,9 +214,7 @@ export default function CustomTabBar({
     }
   };
 
-  // slot press uses explicit mapping
   const onSlotPress = (slot: string) => {
-    // haptic immediate
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
     if (slot === "back") {
@@ -228,7 +228,6 @@ export default function CustomTabBar({
     }
   };
 
-  // focused logic: which slot should appear active
   const isSlotFocused = (slot: string) => {
     if (!isShopActive) {
       const route = state.routes[state.index];
@@ -281,17 +280,14 @@ export default function CustomTabBar({
           activeOpacity={0.85}
           className="w-14 h-14 rounded-full items-center justify-center"
           accessibilityRole="button"
-          accessibilityLabel={
-            // if slot maps to a route, try reading its descriptor label
-            (() => {
-              const rn = SLOT_TO_ROUTE[slot];
-              const dest = rn ? findRouteByName(rn) : undefined;
-              return dest
-                ? ((descriptors[dest.key].options
-                    .tabBarAccessibilityLabel as string) ?? "Scanner")
-                : "Scanner";
-            })()
-          }
+          accessibilityLabel={(() => {
+            const rn = SLOT_TO_ROUTE[slot];
+            const dest = rn ? findRouteByName(rn) : undefined;
+            return dest
+              ? ((descriptors[dest.key].options
+                  .tabBarAccessibilityLabel as string) ?? "Scanner")
+              : "Scanner";
+          })()}
           accessibilityState={focused ? { selected: true } : {}}>
           <Camera width={28} height={28} color={focused ? "#fff" : "#ccc"} />
         </TouchableOpacity>
@@ -306,7 +302,6 @@ export default function CustomTabBar({
       ? (mapping.filled ?? mapping.outline ?? "ellipse")
       : (mapping.outline ?? mapping.filled ?? "ellipse-outline");
 
-    // try to get accessibilityLabel from the destination descriptor if available
     const accessibilityLabel = (() => {
       const rn = SLOT_TO_ROUTE[slot];
       if (!rn) return slot;
@@ -342,56 +337,133 @@ export default function CustomTabBar({
     : false;
 
   return (
-    <View
-      style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}
-      className={`flex-row ${Platform.OS === "ios" ? "-pb-safe-offset-3" : "pb-safe"}`}>
-      {/* Left pill */}
-      <View className="flex-1 h-14 bg-black rounded-l-none rounded-2xl flex-row items-center justify-around mr-2 px-2">
-        {slots.map((s, i) => renderSlotButton(s, i))}
-      </View>
+    <Animated.View
+      style={{ position: "absolute", left: 0, right: 0, bottom: 0 } as any}>
+      <Animated.View style={slideStyle}>
+        <View
+          className={`flex-row ${Platform.OS === "ios" ? "-pb-safe-offset-3" : "pb-safe"}`}>
+          {/* Left pill */}
+          <View className="flex-1 h-14 bg-black rounded-l-none rounded-2xl flex-row items-center justify-around mr-2 px-2">
+            {slots.map((s, i) => renderSlotButton(s, i))}
+          </View>
 
-      {/* Profile bubble */}
-      {profileRoute ? (
-        <TouchableOpacity
-          key={profileRoute.key}
-          onPress={() => {
-            const ev = navigation.emit({
-              type: "tabPress",
-              target: profileRoute.key,
-              canPreventDefault: true,
-            });
-            if (!ev.defaultPrevented) {
-              navigation.navigate("profile" as any);
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-                () => {}
-              );
-            }
-          }}
-          activeOpacity={0.9}
-          className="w-14 h-14 rounded-r-none rounded-2xl bg-black border-white items-center justify-center"
-          accessibilityRole="button"
-          accessibilityLabel={
-            (
-              descriptors[profileRoute.key].options as {
-                tabBarAccessibilityLabel?: string;
+          {/* Profile bubble */}
+          {profileRoute ? (
+            <TouchableOpacity
+              key={profileRoute.key}
+              onPress={() => {
+                const ev = navigation.emit({
+                  type: "tabPress",
+                  target: profileRoute.key,
+                  canPreventDefault: true,
+                });
+                if (!ev.defaultPrevented) {
+                  navigation.navigate("profile" as any);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                    () => {}
+                  );
+                }
+              }}
+              activeOpacity={0.9}
+              className="w-14 h-14 rounded-r-none rounded-2xl bg-black border-white items-center justify-center"
+              accessibilityRole="button"
+              accessibilityLabel={
+                (
+                  descriptors[profileRoute.key].options as {
+                    tabBarAccessibilityLabel?: string;
+                  }
+                ).tabBarAccessibilityLabel ?? "Profile"
               }
-            ).tabBarAccessibilityLabel ?? "Profile"
-          }
-          accessibilityState={profileFocused ? { selected: true } : {}}>
-          {avatarUri ? (
-            <Image
-              source={{ uri: avatarUri }}
-              className="w-14 h-14 rounded-full"
-            />
-          ) : (
-            <Ionicons
-              name={SLOT_ICON.profile.filled as any}
-              size={40}
-              color={profileFocused ? "#fff" : "#ccc"}
-            />
-          )}
-        </TouchableOpacity>
-      ) : null}
-    </View>
+              accessibilityState={profileFocused ? { selected: true } : {}}>
+              {avatarUri ? (
+                <Image
+                  source={{ uri: avatarUri }}
+                  className="w-14 h-14 rounded-full"
+                />
+              ) : (
+                <Ionicons
+                  name={SLOT_ICON.profile.filled as any}
+                  size={40}
+                  color={profileFocused ? "#fff" : "#ccc"}
+                />
+              )}
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+/* ---------- ADDED: scroll-aware FlatList exported from this file ---------- */
+
+/**
+ * ScrollAwareFlatList
+ *
+ * Use this in your index.tsx (or any screen) in place of FlatList.
+ * It will set tabBarHiddenSV.value = true when user scrolls DOWN (content moves up),
+ * and set it = false when user scrolls UP (content moves down).
+ *
+ * Example usage:
+ * import { ScrollAwareFlatList } from "@/components/CustomTabBar";
+ * <ScrollAwareFlatList data={...} renderItem={...} />
+ */
+
+type ScrollAwareFlatListProps<ItemT> = FlatListProps<ItemT> & {
+  /**
+   * threshold px to ignore tiny deltas
+   */
+  threshold?: number;
+  /**
+   * whether to only allow hide on index tab; default true keeps same behavior as tabbar
+   * set to false to let this component request hide for any route (tabbar itself still checks index)
+   */
+  onlyWhenIndex?: boolean;
+};
+
+export function ScrollAwareFlatList<ItemT = any>({
+  threshold = 6,
+  onlyWhenIndex = true,
+  ...props
+}: ScrollAwareFlatListProps<ItemT>) {
+  // keep previous offset to determine direction (UI-thread)
+  const prevY = useSharedValue(0);
+
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      const y = event.contentOffset.y;
+      const dy = y - prevY.value;
+
+      // ignore tiny movements
+      if (Math.abs(dy) < threshold) {
+        prevY.value = y;
+        return;
+      }
+
+      // Important: tabBarHiddenSV is boolean-typed in your lib, so assign booleans directly.
+      // The Animated tab bar will perform the actual translateY animation using withTiming
+      // when it reads tabBarHiddenSV.value.
+      if (dy > 0) {
+        // user scrolled DOWN (content moves up) -> request hide
+        tabBarHiddenSV.value = true;
+      } else {
+        // user scrolled UP (content moves down) -> request show
+        tabBarHiddenSV.value = false;
+      }
+
+      prevY.value = y;
+    },
+  });
+
+  const AnimatedFL = Animated.createAnimatedComponent(
+    FlatList
+  ) as typeof FlatList;
+
+  return (
+    <AnimatedFL
+      {...(props as any)}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+    />
   );
 }

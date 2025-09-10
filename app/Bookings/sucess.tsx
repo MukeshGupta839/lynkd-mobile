@@ -13,6 +13,12 @@ export default function PaymentSuccess() {
   const id = params?.id;
   const amount = params?.amount;
 
+  const onPress = () => {
+    // navigate to success screen (create app/book/success.tsx)
+    router.push({
+      pathname: "/(tabs)/bookingsTickets",
+    });
+  };
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-white">
       <View className="flex-1 items-center justify-center px-6">
@@ -47,9 +53,12 @@ export default function PaymentSuccess() {
           {"\n"}Please check your ticket in the My Ticket menu.
         </Text>
       </View>
-
       {/* bottom button */}
-      <BottomNavBar variant="buttonOnly" ctaLabel="Confirm Payment" />
+      <BottomNavBar
+        variant="buttonOnly"
+        ctaLabel="Check Ticket"
+        onCTAPress={onPress}
+      />
     </SafeAreaView>
   );
 }

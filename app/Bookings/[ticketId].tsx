@@ -94,7 +94,7 @@ export default function BookingTicketDetail() {
   };
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-gray-50">
+    <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
       {/* Header component you requested */}
       <Header title="Detail Ticket" />
 
