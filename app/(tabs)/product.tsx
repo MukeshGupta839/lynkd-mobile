@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React from "react";
-import { ScrollView, TouchableOpacity, View } from "react-native";
+import { FlatList, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Banner from "@/components/Product/BannerCarousel";
@@ -44,6 +44,52 @@ function GradientWrapper({
 const ProductHome = () => {
   const router = useRouter();
 
+  // Data array for FlatList - each item represents a section
+  const contentSections = [
+    { id: "categories", type: "categories" },
+    { id: "banner", type: "banner" },
+    { id: "bestProducts", type: "bestProducts" },
+    { id: "bestDeals", type: "bestDeals" },
+    { id: "topDeals", type: "topDeals" },
+  ];
+
+  // Render function for each FlatList item
+  const renderContentSection = ({
+    item,
+  }: {
+    item: (typeof contentSections)[0];
+  }) => {
+    switch (item.type) {
+      case "categories":
+        return <CategoryList orientation="horizontal" />;
+
+      case "banner":
+        return (
+          <View className="mt-4">
+            <Banner
+              variant="home"
+              data={homeBannerData}
+              onSlidePress={() => router.push("/Product/Productview")}
+            />
+          </View>
+        );
+
+      case "bestProducts":
+        return (
+          <BestProductsCarousel data={products} title="Best Products for you" />
+        );
+
+      case "bestDeals":
+        return <BestDealsGrid title="Best Deals for you" data={bestDeals} />;
+
+      case "topDeals":
+        return <DealsStrip title="Top Deals" data={topDeals} />;
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <View className="flex-1 bg-gray-50">
       {/* Rounded gradient header with safe area INSIDE */}
@@ -68,7 +114,10 @@ const ProductHome = () => {
 
       {/* Content */}
       <View className="flex-1 bg-gray-50">
-        <ScrollView
+        <FlatList
+          data={contentSections}
+          renderItem={renderContentSection}
+          keyExtractor={(item) => item.id}
           className="flex-1"
           contentInsetAdjustmentBehavior="never"
           showsVerticalScrollIndicator={false}

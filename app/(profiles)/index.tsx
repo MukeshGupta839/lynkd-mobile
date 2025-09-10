@@ -418,7 +418,7 @@ const Profile = () => {
                   style={{ height: imageHeight }}
                   onPress={() => {
                     router.push({
-                      pathname: "/(profiles)/profile-posts",
+                      pathname: "/(profiles)/profilePosts",
                       params: {
                         posts: JSON.stringify(posts),
                         focusedIndexPost: dateImages[0].id,
@@ -456,7 +456,7 @@ const Profile = () => {
                       }}
                       onPress={() => {
                         router.push({
-                          pathname: "/(profiles)/profile-posts",
+                          pathname: "/(profiles)/profilePosts",
                           params: {
                             posts: JSON.stringify(posts),
                             focusedIndexPost: image.id,
@@ -497,7 +497,7 @@ const Profile = () => {
                     }}
                     onPress={() => {
                       router.push({
-                        pathname: "/(profiles)/profile-posts",
+                        pathname: "/(profiles)/profilePosts",
                         params: {
                           posts: JSON.stringify(posts),
                           focusedIndexPost: dateImages[0].id,
@@ -526,7 +526,7 @@ const Profile = () => {
                         }}
                         onPress={() => {
                           router.push({
-                            pathname: "/(profiles)/profile-posts",
+                            pathname: "/(profiles)/profilePosts",
                             params: {
                               posts: JSON.stringify(posts),
                               focusedIndexPost: image.id,
@@ -557,7 +557,7 @@ const Profile = () => {
                     style={{ height: imageHeight }}
                     onPress={() => {
                       router.push({
-                        pathname: "/(profiles)/profile-posts",
+                        pathname: "/(profiles)/profilePosts",
                         params: {
                           posts: JSON.stringify(posts),
                           focusedIndexPost: dateImages[0].id,
@@ -587,7 +587,7 @@ const Profile = () => {
                         }}
                         onPress={() => {
                           router.push({
-                            pathname: "/(profiles)/profile-posts",
+                            pathname: "/(profiles)/profilePosts",
                             params: {
                               posts: JSON.stringify(posts),
                               focusedIndexPost: image.id,
@@ -661,7 +661,7 @@ const Profile = () => {
                 }}
                 onPress={() => {
                   router.push({
-                    pathname: "/(profiles)/profile-posts",
+                    pathname: "/(profiles)/profilePosts",
                     params: {
                       posts: JSON.stringify(posts),
                       focusedIndexPost: image.id,
@@ -820,7 +820,7 @@ const Profile = () => {
             item={item}
             onPress={() => {
               router.push({
-                pathname: "/(profiles)/profile-posts",
+                pathname: "/(profiles)/profilePosts",
                 params: {
                   posts: JSON.stringify(posts),
                   focusedIndexPost: item.id,

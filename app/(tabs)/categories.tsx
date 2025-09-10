@@ -10,7 +10,7 @@ import DealsStrip from "@/components/Product/TopDealsSection";
 import SearchBar from "@/components/Searchbar";
 
 // 🔹 brand data moved to constants
-import { PromoSlide } from "@/constants/Banner";
+import { CategoriesBannerData } from "@/constants/Banner";
 import { popularPhones } from "@/constants/Deal";
 import { popularBrands } from "@/constants/popularBrand";
 import { useRouter } from "expo-router";
@@ -18,21 +18,6 @@ import { useRouter } from "expo-router";
 const CategoriesScreen = () => {
   const router = useRouter();
   const [contentW, setContentW] = useState(0);
-
-  const CategoriesBannerData: PromoSlide[] = [
-    {
-      id: 1,
-      image: require("../../assets/images/categoriesBannerAds.png"),
-    },
-    {
-      id: 2,
-      image: require("../../assets/images/categoriesBannerAds.png"),
-    },
-    {
-      id: 3,
-      image: require("../../assets/images/categoriesBannerAds.png"),
-    },
-  ];
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -53,7 +38,7 @@ const CategoriesScreen = () => {
 
       <Text className="px-3 py-3 text-base font-bold">All Categories</Text>
       <View className="flex-row flex-1">
-        <View className="w-[22%] rounded-tr-lg rounded-br-lg border-r border-gray-200 py-4 bg-white">
+        <View className="px-3 rounded-tr-lg rounded-br-lg border-r border-gray-200 py-1 bg-white">
           <CategoryList orientation="vertical" activeDefault="Mobiles" />
         </View>
 

@@ -1,10 +1,17 @@
 // components/CustomTabBar.tsx
+import { tabBarHiddenSV } from "@/lib/tabBarVisibility";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 import { Camera } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import { Image, Platform, TouchableOpacity, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = BottomTabBarProps & {
   hidden?: boolean;
@@ -114,6 +121,8 @@ const SLOT_TO_ROUTE: Record<string, string> = {
   profile: "profile",
 };
 
+const HEIGHT = 56; // your bar height
+
 export default function CustomTabBar({
   state,
   descriptors,
@@ -135,6 +144,29 @@ export default function CustomTabBar({
 
   const isShopActive =
     isDirectlyInShop || (currentName === "profile" && wasInShop);
+
+  const insets = useSafeAreaInsets();
+
+  // derive “am I on index tab?” as a shared value so worklets can read it
+  const isIndexSV = useSharedValue(state.routes[state.index]?.name === "index");
+  const offscreenSV = useSharedValue(HEIGHT + insets.bottom);
+
+  useEffect(() => {
+    isIndexSV.value = state.routes[state.index]?.name === "index";
+  }, [state.index, state.routes, isIndexSV]);
+
+  useEffect(() => {
+    offscreenSV.value = HEIGHT + insets.bottom;
+  }, [insets.bottom, offscreenSV]);
+
+  // slide down when (isIndex && tabBarHiddenSV)
+  const slideStyle = useAnimatedStyle(() => {
+    const shouldHide = isIndexSV.value && tabBarHiddenSV.value;
+    const ty = withTiming(shouldHide ? offscreenSV.value : 0, {
+      duration: 180,
+    });
+    return { transform: [{ translateY: ty }] };
+  });
 
   if (hidden) return null;
 

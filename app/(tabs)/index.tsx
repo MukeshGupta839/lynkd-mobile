@@ -5,10 +5,10 @@ import { MultiImageViewer } from "@/components/MultiImageViewer";
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
 import { POSTS } from "@/constants/HomeData";
+import { tabBarHiddenSV } from "@/lib/tabBarVisibility";
 import { SimpleLineIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -17,6 +17,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Linking,
   Modal,
   Platform,
   RefreshControl,
@@ -318,11 +319,11 @@ const FacebookStyleImage = ({
         />
 
         {/* Debug overlay */}
-        <View className="absolute top-2 left-2 bg-black/70 px-1.5 py-0.5 rounded">
+        {/* <View className="absolute top-2 left-2 bg-black/70 px-1.5 py-0.5 rounded">
           <Text style={{ color: "white", fontSize: 8 }}>
             {originalRatio.toFixed(2)} → {clampedRatio.toFixed(2)}
           </Text>
-        </View>
+        </View> */}
       </TouchableOpacity>
 
       <FacebookImageViewer
@@ -489,6 +490,7 @@ const PostCard = ({
   onLongPress?: (item: any) => void;
 }) => {
   const router = useRouter();
+  const navigating = useRef(false);
 
   const handleUserPress = () => {
     router.push({
@@ -499,6 +501,28 @@ const PostCard = ({
       },
     });
   };
+
+  const getHashtagsWithinLimit = (hashtags: string[], limit = 50) => {
+    let totalLength = 0;
+    if (!hashtags) return [];
+
+    return hashtags.filter((tag) => {
+      totalLength += tag.length + 1; // +1 for the # symbol
+      return totalLength <= limit;
+    });
+  };
+
+  const neededHashtags = getHashtagsWithinLimit(item.post_hashtags || []);
+
+  const goToProduct = useCallback(() => {
+    if (navigating.current) return; // ignore re-press
+    navigating.current = true;
+    router.push("/Product/Productview");
+    // release the lock after a short delay or on focus event
+    setTimeout(() => {
+      navigating.current = false;
+    }, 600);
+  }, [router]);
 
   return (
     <TouchableOpacity
@@ -577,11 +601,75 @@ const PostCard = ({
             />
 
             {/* Caption */}
-            <Text className="text-sm px-3 mb-2">{item.caption}</Text>
+            {/* <Text className="text-sm  mb-2">{item.caption}</Text> */}
+            <TouchableOpacity>
+              <Text className="text-sm px-3 text-gray-900">
+                {(item.caption || "")
+                  .split(/((?:@|#)[\w.]+|(?:https?:\/\/|www\.)\S+)/gi)
+                  .map((part: string, index: number) => {
+                    if (part && part.startsWith("@")) {
+                      return (
+                        <Text
+                          key={index}
+                          className="text-blue-600"
+                          onPress={() =>
+                            router.push(
+                              `/(profiles)?mentionedUsername=${part.slice(1)}`
+                            )
+                          }
+                        >
+                          {part}
+                        </Text>
+                      );
+                    } else if (part && part.startsWith("#")) {
+                      return (
+                        <Text
+                          key={index}
+                          className="text-blue-600"
+                          onPress={() =>
+                            console.log("Navigate to hashtag:", part)
+                          }
+                        >
+                          {part}
+                        </Text>
+                      );
+                    } else if (part && /^(https?:\/\/|www\.)/i.test(part)) {
+                      const url = part.startsWith("www.")
+                        ? `https://${part}`
+                        : part;
+                      return (
+                        <Text
+                          key={index}
+                          className="text-blue-600 underline"
+                          onPress={() => Linking.openURL(url)}
+                        >
+                          {part}
+                        </Text>
+                      );
+                    }
+                    return part;
+                  })}{" "}
+              </Text>
+              {item?.post_hashtags?.length ? (
+                <Text className="text-blue-600 mt-1 px-3">
+                  {neededHashtags.map((tag: string, i: number) => (
+                    <Text
+                      key={tag}
+                      onPress={() =>
+                        console.log("Navigate to hashtag:", "#" + tag)
+                      }
+                    >
+                      #{tag}
+                      {i < neededHashtags.length - 1 ? " " : ""}
+                    </Text>
+                  ))}
+                </Text>
+              ) : null}
+            </TouchableOpacity>
 
             {/* Affiliation */}
             {item.affiliated && item.affiliation && (
-              <View className="px-3">
+              <TouchableOpacity className="px-3 mt-1" onPress={goToProduct}>
                 <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
                   <View
                     className="basis-1/4 self-stretch relative"
@@ -621,33 +709,44 @@ const PostCard = ({
                     />
                   </View>
                   <View className="flex-1 justify-between p-3">
-                    <View className="flex-row items-center mb-2">
-                      <Image
-                        source={{ uri: item.affiliation.brandLogo }}
-                        className="w-11 h-11 rounded-full mr-2"
-                        resizeMode="contain"
-                        onError={(e) => {
-                          console.log("Brand logo error:", e.nativeEvent.error);
-                          console.log(
-                            "Brand logo URI:",
-                            item.affiliation.brandLogo
-                          );
-                        }}
-                        onLoad={() =>
-                          console.log(
-                            "Brand logo loaded:",
-                            item.affiliation.brandLogo
-                          )
-                        }
-                      />
-                      <View className="flex-1">
-                        <Text className="font-semibold text-sm text-gray-800">
-                          {item.affiliation.brandName}
-                        </Text>
-                        <Text className="font-medium text-sm text-black">
-                          {item.affiliation.productName}
-                        </Text>
+                    <View className="flex-row items-center justify-between mb-2">
+                      <View className="flex-row flex-1 items-center">
+                        <Image
+                          source={{ uri: item.affiliation.brandLogo }}
+                          className="w-11 h-11 rounded-full mr-2"
+                          resizeMode="contain"
+                          onError={(e) => {
+                            console.log(
+                              "Brand logo error:",
+                              e.nativeEvent.error
+                            );
+                            console.log(
+                              "Brand logo URI:",
+                              item.affiliation.brandLogo
+                            );
+                          }}
+                          onLoad={() =>
+                            console.log(
+                              "Brand logo loaded:",
+                              item.affiliation.brandLogo
+                            )
+                          }
+                        />
+                        <View className="flex-1">
+                          <Text className="font-semibold text-sm text-gray-800">
+                            {item.affiliation.brandName}
+                          </Text>
+                          <Text className="font-medium text-sm text-black">
+                            {item.affiliation.productName}
+                          </Text>
+                        </View>
                       </View>
+                      <TouchableOpacity
+                        onPress={() => {}}
+                        className="self-start"
+                      >
+                        <Ionicons name="cart-outline" size={24} color="#000" />
+                      </TouchableOpacity>
                     </View>
                     <Text className="text-sm text-gray-600 mb-2 leading-4">
                       {item.affiliation.productDescription}
@@ -662,7 +761,7 @@ const PostCard = ({
                     </View>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             )}
 
             {/* Actions */}
@@ -675,13 +774,13 @@ const PostCard = ({
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity className="flex-row items-center">
-                  <Octicons name="comment" size={18} color="#000" />
+                  <Ionicons name="chatbubble-outline" size={18} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.comments_count}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity>
-                  <Ionicons name="paper-plane-outline" size={20} color="#000" />
+                  <Ionicons name="arrow-redo-outline" size={20} color="#000" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -748,9 +847,14 @@ export default function ConsumerHomeUI() {
   const currentHeaderTranslateValue = useRef(0); // Track current header position
   const [refreshing, setRefreshing] = React.useState(false);
 
+  // Tab bar hiding state
+  const [tabBarHidden, setTabBarHidden] = useState(false);
+
   // Scroll behavior constants
   const HIDE_THRESHOLD = 10; // pixels to scroll down before hiding header
   const SHOW_THRESHOLD = 10; // pixels to scroll up before showing header
+  const TAB_BAR_HIDE_THRESHOLD = 50; // pixels to scroll down before hiding tab bar
+  const TAB_BAR_SHOW_THRESHOLD = 30; // pixels to scroll up before showing tab bar
 
   // Header animation functions
   const hideHeader = () => {
@@ -772,6 +876,28 @@ export default function ConsumerHomeUI() {
       useNativeDriver: false,
     }).start();
   };
+
+  // Tab bar animation functions
+  const hideTabBar = () => {
+    setTabBarHidden(true);
+    tabBarHiddenSV.value = true;
+  };
+
+  const showTabBar = () => {
+    setTabBarHidden(false);
+    tabBarHiddenSV.value = false;
+  };
+
+  // Ensure tab bar is visible when component mounts/unmounts
+  useEffect(() => {
+    // Show tab bar when component mounts
+    showTabBar();
+
+    // Cleanup: show tab bar when component unmounts
+    return () => {
+      tabBarHiddenSV.value = false;
+    };
+  }, []);
 
   const handleOnScroll = (event: any) => {
     const currentRawY = event.nativeEvent.contentOffset.y;
@@ -823,6 +949,13 @@ export default function ConsumerHomeUI() {
         // If isFetchingNextPage was true, we would have returned early if currentY > TOP_BAR_HEIGHT.
         // So, this showHeader() call is generally safe from loader-induced triggers if far from top.
         showHeader();
+      }
+
+      // Tab bar hiding logic (independent of header)
+      if (delta > TAB_BAR_HIDE_THRESHOLD && !tabBarHidden) {
+        hideTabBar();
+      } else if (delta < -TAB_BAR_SHOW_THRESHOLD && tabBarHidden) {
+        showTabBar();
       }
     }
     lastScrollY.current = currentY;
@@ -884,8 +1017,8 @@ export default function ConsumerHomeUI() {
     setPostOptionsVisible(true);
   }, []);
 
-  const tabBarHeight = useBottomTabBarHeight();
-  const footerSpacing = tabBarHeight;
+  // const tabBarHeight = useBottomTabBarHeight();
+  // const footerSpacing = tabBarHeight;
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -948,8 +1081,10 @@ export default function ConsumerHomeUI() {
         // Only pad by TOP_BAR_HEIGHT (logo+search). CreatePostHeader will render immediately below.
         contentContainerStyle={{
           top: TOP_BAR_HEIGHT,
+          // paddingBottom:
+          //   Platform.OS === "ios" ? footerSpacing : footerSpacing + 150,
           paddingBottom:
-            Platform.OS === "ios" ? footerSpacing : footerSpacing + 150,
+            Platform.OS === "ios" ? insets.bottom : insets.bottom + 120,
           backgroundColor: "#F3F4F8",
         }}
         style={{
