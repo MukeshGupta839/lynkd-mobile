@@ -1,9 +1,12 @@
 import BestProductsCarousel from "@/components/Product/BestProductsCarousel";
 import DeliveryDetails from "@/components/Productview/DeliveryDetails";
 import FeaturesCard from "@/components/Productview/FeaturesCard";
+import OffersCard from "@/components/Productview/OffersCard";
 import ProductHighlights from "@/components/Productview/ProductHighlights";
 import ReviewsCard from "@/components/Productview/ReviewsCard";
 import { products } from "@/constants/Product";
+import { product } from "@/constants/Productview";
+import { highlightsData } from "@/constants/highlights";
 import { reviewsData, reviewsSummary } from "@/constants/review";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -12,9 +15,6 @@ import { Truck } from "lucide-react-native";
 import { useState } from "react";
 import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import OffersCard from "@/components/Productview/OffersCard";
-import { product } from "@/constants/Productview";
-import { highlightsData } from "@/constants/highlights";
 
 export default function ProductView() {
   const router = useRouter();
@@ -222,7 +222,7 @@ export default function ProductView() {
           <TouchableOpacity
             activeOpacity={0.85}
             className="flex-1 rounded-2xl border border-[#26FF91] bg-white"
-            onPress={() => {}}
+            onPress={() => router.push("/(tabs)/cart")}
           >
             <View className="flex-row items-center justify-center gap-2 py-4">
               <Text className="text-base font-semibold text-black">Add To Cart</Text>

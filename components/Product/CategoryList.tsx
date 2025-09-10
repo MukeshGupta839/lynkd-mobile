@@ -53,8 +53,7 @@ const Tile = React.memo(
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={onPress}
-        className={tileMargin}
-      >
+        className={tileMargin}>
         <View className="items-center">
           {/* OUTER HALO when active (behind the card) */}
           {/* CARD */}
@@ -149,8 +148,7 @@ const Tile = React.memo(
                 className={`mt-1 font-worksans-400 ${
                   active ? "text-emerald-600" : "text-gray-500"
                 }`}
-                style={{ fontSize: 8 }}
-              >
+                style={{ fontSize: 8 }}>
                 {name}
               </Text>
             </View>

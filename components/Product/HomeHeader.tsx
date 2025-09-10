@@ -1,10 +1,24 @@
+// components/HomeHeader.tsx
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router"; // ✅ add router
+import { usePathname, useRouter } from "expo-router"; // <-- added usePathname
 import { Send } from "lucide-react-native";
+import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 
 export default function HomeHeader() {
-  const router = useRouter(); // ✅ init router
+  const router = useRouter();
+  const pathname = usePathname(); // determine active tab from current path
+
+  // determine active tab key used by Notifications screen
+  const activeTab = pathname?.includes("/product")
+    ? "product"
+    : pathname?.includes("/services")
+      ? "services"
+      : pathname?.includes("/bookings")
+        ? "bookings"
+        : pathname?.includes("/pay")
+          ? "pay"
+          : "product";
 
   return (
     <View className="w-full">
@@ -19,8 +33,7 @@ export default function HomeHeader() {
         <TouchableOpacity
           className="flex-1"
           activeOpacity={0.7}
-          onPress={() => router.push("/Address/select-address")}
-        >
+          onPress={() => router.push("/Address/selectAddress")}>
           <View className="flex-row items-center gap-1.5">
             <Send size={15} color="black" />
             <Text className="font-bold text-black text-base tracking-wide">
@@ -30,13 +43,16 @@ export default function HomeHeader() {
           </View>
           <Text
             className="text-gray-600 text-xs mt-1 leading-snug"
-            numberOfLines={1}
-          >
+            numberOfLines={1}>
             Electronic City Phase 1, Doddathogur Cross ..
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.9} className="ml-auto shrink-0 ">
+        {/* NOTE: only change is adding onPress to this TouchableOpacity */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          className="ml-auto shrink-0 "
+          onPress={() => router.push(`/Notifications?tab=${activeTab}`)}>
           <View className="w-full items-end">
             <View className="w-[37%] aspect-square rounded-full bg-[#EDE8FD4D] items-center justify-center shadow-md relative">
               <MaterialCommunityIcons name="bell" size={32} color="#0f0f2d" />

@@ -2,21 +2,17 @@ import FormInput from "@/components/FormInput"; // ✅ import component
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import {
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View
-} from "react-native";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AddAddress() {
   const router = useRouter();
   const [focused, setFocused] = useState<string | null>(null);
 
-
   return (
-    <SafeAreaView edges={["top", "left", "right"]} className="flex-1 bg-gray-100">
+    <SafeAreaView
+      edges={["top", "left", "right"]}
+      className="flex-1 bg-gray-100">
       {/* Header */}
       <View className="flex-row items-center px-[5%] py-[4%] bg-white shadow-sm">
         <TouchableOpacity className="mr-4" onPress={() => router.back()}>
@@ -29,8 +25,7 @@ export default function AddAddress() {
       <ScrollView
         className="flex-1 px-[5%] mt-4"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
-      >
+        contentContainerStyle={{ paddingBottom: 120 }}>
         <FormInput
           label="Flat/House no. / Building Name"
           isFocused={focused === "house"}

@@ -1,7 +1,9 @@
+// components/CustomTabBar.tsx
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useState } from "react";
+import { Camera } from "lucide-react-native";
+import React, { useEffect, useMemo, useState } from "react";
 import { Image, Platform, TouchableOpacity, View } from "react-native";
 
 type Props = BottomTabBarProps & {
@@ -9,49 +11,107 @@ type Props = BottomTabBarProps & {
   avatarUri?: string | null;
 };
 
-// map file/route names -> icons
-const iconFor = (
-  name: string,
-  focused: boolean,
-  isShopActive: boolean = false
-) => {
-  // When shop is active, change the icons for certain tabs
-  if (isShopActive) {
-    switch (name) {
-      case "index":
-      case "product":
-        return focused ? "home" : "home-outline"; // Product shows as home
-      case "categories":
-        return focused ? "grid" : "grid-outline"; // Categories icon
-      case "cart":
-        return focused ? "cart" : "cart-outline"; // Cart icon instead of categories
-      case "profile":
-        return focused ? "person-circle-outline" : "person-circle-outline";
-      default:
-        return focused ? "ellipse" : "ellipse-outline";
-    }
-  }
+/**
+ * Config
+ */
+const SECTION_SLOTS: Record<string, string[]> = {
+  main: ["index", "posts", "product", "chat"],
+  products: ["back", "products-home", "products-categories", "products-cart"],
+  services: [
+    "back",
+    "services-home",
+    "services-categories",
+    "services-history",
+  ],
+  bookings: [
+    "back",
+    "bookings-home",
+    "bookings-favourites",
+    "bookings-tickets",
+  ],
+  pay: ["back", "pay-home", "pay-scanner", "pay-history"],
+};
 
-  // Normal state icons
-  switch (name) {
-    case "index":
-    case "home":
-      return focused ? "home" : "home-outline";
-    case "posts":
-      return focused ? "play" : "play-outline";
-    case "product":
-      return focused ? "bag" : "bag-outline";
-    case "chat":
-      return focused ? "chatbox" : "chatbox-outline";
-    case "cart":
-      return undefined; // Cart should not show in normal state
-    case "categories":
-      return undefined; // Categories should not show in normal state
-    case "profile":
-      return focused ? "person-circle-outline" : "person-circle-outline";
-    default:
-      return focused ? "ellipse" : "ellipse-outline";
-  }
+const SLOT_ICON: Record<
+  string,
+  { filled: string | null; outline: string | null }
+> = {
+  back: { filled: "arrow-back", outline: "arrow-back" },
+  index: { filled: "home", outline: "home-outline" },
+  posts: { filled: "play", outline: "play-outline" },
+  product: { filled: "bag", outline: "bag-outline" },
+  chat: { filled: "chatbox", outline: "chatbox-outline" },
+
+  "products-home": { filled: "home", outline: "home-outline" },
+  "products-categories": { filled: "grid", outline: "grid-outline" },
+  "products-cart": { filled: "cart", outline: "cart-outline" },
+
+  "services-home": { filled: "home", outline: "home-outline" },
+  "services-categories": { filled: "grid", outline: "grid-outline" },
+  "services-history": {
+    filled: "document-text",
+    outline: "document-text-outline",
+  },
+
+  "bookings-home": { filled: "home", outline: "home-outline" },
+  "bookings-favourites": { filled: "heart", outline: "heart-outline" },
+  "bookings-tickets": { filled: "ticket", outline: "ticket-outline" },
+
+  "pay-home": { filled: "home", outline: "home-outline" },
+  "pay-camera": { filled: "camera", outline: "camera-outline" },
+  "pay-history": { filled: "card", outline: "card-outline" },
+
+  profile: { filled: "person-circle", outline: "person-circle-outline" },
+};
+
+const SHOP_ROUTE_NAMES = new Set([
+  "product",
+  "categories",
+  "cart",
+  "services",
+  "servicesCategories",
+  "servicesHistory",
+  "bookings",
+  "bookingsFavourites",
+  "bookingsTickets",
+  "pay",
+  "payScanner",
+  "payHistory",
+]);
+
+/**
+ * Important: explicit mapping from logical slot -> actual route name (registered in your navigator)
+ * This avoids brittle regex hacks and ensures navigation.navigate() receives valid route names.
+ */
+const SLOT_TO_ROUTE: Record<string, string> = {
+  // main
+  index: "index",
+  posts: "posts",
+  product: "product",
+  chat: "chat",
+
+  // products
+  "products-home": "product",
+  "products-categories": "categories",
+  "products-cart": "cart",
+
+  // services
+  "services-home": "services",
+  "services-categories": "servicesCategories",
+  "services-history": "servicesHistory",
+
+  // bookings
+  "bookings-home": "bookings",
+  "bookings-favourites": "bookingsFavourites",
+  "bookings-tickets": "bookingsTickets",
+
+  // pay
+  "pay-home": "pay",
+  "pay-scanner": "payScanner",
+  "pay-history": "payHistory",
+
+  // profile (for profile bubble)
+  profile: "profile",
 };
 
 export default function CustomTabBar({
@@ -61,217 +121,245 @@ export default function CustomTabBar({
   hidden,
   avatarUri,
 }: Props) {
-  // State to track if we're in product context (must be before any early returns)
-  const [wasInProductContext, setWasInProductContext] = useState(false);
+  const [wasInShop, setWasInShop] = useState(false);
 
-  // Check if product tab is currently active (including product-related screens)
   const currentRoute = state.routes[state.index];
-  const isDirectlyInProduct =
-    currentRoute?.name === "product" ||
-    currentRoute?.name === "categories" ||
-    currentRoute?.name === "cart";
+  const currentName = currentRoute?.name ?? "";
 
-  // Update product context state
+  const isDirectlyInShop = SHOP_ROUTE_NAMES.has(currentName);
+
   useEffect(() => {
-    if (isDirectlyInProduct) {
-      setWasInProductContext(true);
-    } else if (currentRoute?.name !== "profile") {
-      // Reset product context when navigating to non-product, non-profile tabs
-      setWasInProductContext(false);
-    }
-  }, [currentRoute?.name, isDirectlyInProduct]);
+    if (isDirectlyInShop) setWasInShop(true);
+    else if (currentName !== "profile") setWasInShop(false);
+  }, [currentName, isDirectlyInShop]);
 
   const isShopActive =
-    isDirectlyInProduct ||
-    (currentRoute?.name === "profile" && wasInProductContext);
+    isDirectlyInShop || (currentName === "profile" && wasInShop);
 
   if (hidden) return null;
 
-  const routesLeft = state.routes.filter((r) => r.name !== "profile");
-  const profileRoute = state.routes.find((r) => r.name === "profile");
+  // which slot set to show
+  const shopSection = useMemo(() => {
+    if (!isShopActive) return "main";
+    if (["product", "categories", "cart"].includes(currentName))
+      return "products";
+    if (
+      ["services", "servicesCategories", "servicesHistory"].includes(
+        currentName
+      )
+    )
+      return "services";
+    if (
+      ["bookings", "bookingsFavourites", "bookingsTickets"].includes(
+        currentName
+      )
+    )
+      return "bookings";
+    if (["pay", "payScanner", "payHistory"].includes(currentName)) return "pay";
+    return "products";
+  }, [currentName, isShopActive]);
 
-  const onPress = (route: (typeof state.routes)[number], index: number) => {
-    const isFocused = state.index === index;
+  const slots = SECTION_SLOTS[shopSection] ?? SECTION_SLOTS.main;
 
-    // Special handling when product is active
-    if (isShopActive) {
-      // Handle navigation based on the modified icons
-      if (route.name === "categories") {
-        // Categories tab navigation
-        const event = navigation.emit({
-          type: "tabPress",
-          target: route.key,
-          canPreventDefault: true,
-        });
-        if (!event.defaultPrevented) {
-          navigation.navigate("categories");
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-            () => {}
-          );
-        }
-        return;
-      }
-      if (route.name === "cart") {
-        // Cart tab navigation
-        const event = navigation.emit({
-          type: "tabPress",
-          target: route.key,
-          canPreventDefault: true,
-        });
-        if (!event.defaultPrevented) {
-          navigation.navigate("cart");
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-            () => {}
-          );
-        }
-        return;
-      }
-      if (route.name === "posts") {
-        // Posts tab now acts as home when product is active
-        navigation.navigate("index");
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        return;
-      }
-      if (route.name === "chat") {
-        // Chat tab now acts as cart when product is active
-        // You can navigate to a cart screen or handle cart functionality here
-        console.log("Navigate to cart");
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        return;
-      }
-      if (route.name === "product") {
-        // Product tab navigation - always navigate to product when clicked
-        const event = navigation.emit({
-          type: "tabPress",
-          target: route.key,
-          canPreventDefault: true,
-        });
-        if (!event.defaultPrevented) {
-          navigation.navigate("product");
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-            () => {}
-          );
-        }
-        return;
-      }
-    }
+  // find route object by name (helper)
+  const findRouteByName = (name: string) =>
+    state.routes.find((r) => r.name === name);
 
+  // main navigation: emit tabPress then navigate (keeps behavior and listeners)
+  const navigateToRouteName = (routeName: string) => {
+    const dest = findRouteByName(routeName);
+    const targetKey = dest?.key;
     const event = navigation.emit({
       type: "tabPress",
-      target: route.key,
+      target: targetKey,
       canPreventDefault: true,
     });
-
-    if (!isFocused && !event.defaultPrevented) {
-      navigation.navigate(route.name);
+    if (!event.defaultPrevented) {
+      navigation.navigate(routeName as any);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
   };
 
+  // slot press uses explicit mapping
+  const onSlotPress = (slot: string) => {
+    // haptic immediate
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+
+    if (slot === "back") {
+      navigateToRouteName("index");
+      return;
+    }
+
+    const routeName = SLOT_TO_ROUTE[slot];
+    if (routeName) {
+      navigateToRouteName(routeName);
+    }
+  };
+
+  // focused logic: which slot should appear active
+  const isSlotFocused = (slot: string) => {
+    if (!isShopActive) {
+      const route = state.routes[state.index];
+      if (!route) return false;
+      if (slot === "index")
+        return route.name === "index" || route.name === "home";
+      return route.name === slot;
+    }
+
+    // shop-mode comparisons
+    switch (slot) {
+      case "products-home":
+        return currentName === "product";
+      case "products-categories":
+        return currentName === "categories";
+      case "products-cart":
+        return currentName === "cart";
+      case "services-home":
+        return currentName === "services";
+      case "services-categories":
+        return currentName === "servicesCategories";
+      case "services-history":
+        return currentName === "servicesHistory";
+      case "bookings-home":
+        return currentName === "bookings";
+      case "bookings-favourites":
+        return currentName === "bookingsFavourites";
+      case "bookings-tickets":
+        return currentName === "bookingsTickets";
+      case "pay-home":
+        return currentName === "pay";
+      case "pay-scanner":
+        return currentName === "payScanner";
+      case "pay-history":
+        return currentName === "payHistory";
+      default:
+        return false;
+    }
+  };
+
+  const renderSlotButton = (slot: string, idx: number) => {
+    const focused = isSlotFocused(slot);
+
+    // scanner uses lucide icon
+    if (slot === "pay-scanner") {
+      return (
+        <TouchableOpacity
+          key={`${slot}-${idx}`}
+          onPress={() => onSlotPress(slot)}
+          activeOpacity={0.85}
+          className="w-14 h-14 rounded-full items-center justify-center"
+          accessibilityRole="button"
+          accessibilityLabel={
+            // if slot maps to a route, try reading its descriptor label
+            (() => {
+              const rn = SLOT_TO_ROUTE[slot];
+              const dest = rn ? findRouteByName(rn) : undefined;
+              return dest
+                ? ((descriptors[dest.key].options
+                    .tabBarAccessibilityLabel as string) ?? "Scanner")
+                : "Scanner";
+            })()
+          }
+          accessibilityState={focused ? { selected: true } : {}}>
+          <Camera width={28} height={28} color={focused ? "#fff" : "#ccc"} />
+        </TouchableOpacity>
+      );
+    }
+
+    const mapping = SLOT_ICON[slot] ?? {
+      filled: "ellipse",
+      outline: "ellipse-outline",
+    };
+    const iconName = focused
+      ? (mapping.filled ?? mapping.outline ?? "ellipse")
+      : (mapping.outline ?? mapping.filled ?? "ellipse-outline");
+
+    // try to get accessibilityLabel from the destination descriptor if available
+    const accessibilityLabel = (() => {
+      const rn = SLOT_TO_ROUTE[slot];
+      if (!rn) return slot;
+      const dest = findRouteByName(rn);
+      if (!dest) return slot;
+      const opt = descriptors[dest.key]?.options as
+        | { tabBarAccessibilityLabel?: string }
+        | undefined;
+      return opt?.tabBarAccessibilityLabel ?? slot;
+    })();
+
+    return (
+      <TouchableOpacity
+        key={`${slot}-${idx}`}
+        onPress={() => onSlotPress(slot)}
+        activeOpacity={0.85}
+        className="w-14 h-14 rounded-full items-center justify-center"
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={focused ? { selected: true } : {}}>
+        <Ionicons
+          name={iconName as any}
+          size={25}
+          color={focused ? "#fff" : "#ccc"}
+        />
+      </TouchableOpacity>
+    );
+  };
+
+  const profileRoute = state.routes.find((r) => r.name === "profile");
+  const profileFocused = profileRoute
+    ? state.index === state.routes.indexOf(profileRoute)
+    : false;
+
   return (
     <View
-      className={`absolute left-0 right-0 bottom-0 flex-row ${Platform.OS === "ios" ? " -pb-safe-offset-3" : "pb-safe"}`}
-    >
-      {/* Left pill with all tabs except Profile */}
+      style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}
+      className={`flex-row ${Platform.OS === "ios" ? "-pb-safe-offset-3" : "pb-safe"}`}>
+      {/* Left pill */}
       <View className="flex-1 h-14 bg-black rounded-l-none rounded-2xl flex-row items-center justify-around mr-2 px-2">
-        {/* Show back button when product is active */}
-        {isShopActive && (
-          <TouchableOpacity
-            onPress={() => {
-              navigation.navigate("index"); // Navigate back to home
+        {slots.map((s, i) => renderSlotButton(s, i))}
+      </View>
+
+      {/* Profile bubble */}
+      {profileRoute ? (
+        <TouchableOpacity
+          key={profileRoute.key}
+          onPress={() => {
+            const ev = navigation.emit({
+              type: "tabPress",
+              target: profileRoute.key,
+              canPreventDefault: true,
+            });
+            if (!ev.defaultPrevented) {
+              navigation.navigate("profile" as any);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
                 () => {}
               );
-            }}
-            activeOpacity={0.85}
-            className="w-14 h-14 rounded-full items-center justify-center"
-            accessibilityRole="button"
-            accessibilityLabel="Back to home"
-          >
-            <Ionicons name="arrow-back" size={25} color="#fff" />
-          </TouchableOpacity>
-        )}
-
-        {routesLeft.map((route) => {
-          const index = state.routes.indexOf(route);
-          const isFocused = state.index === index;
-          const testId =
-            (descriptors[route.key].options as { tabBarTestID?: string })
-              .tabBarTestID ?? `tab-${route.name}`;
-
-          // When product is active, only show product (as home), categories, and cart
-          if (isShopActive) {
-            if (
-              route.name !== "product" &&
-              route.name !== "categories" &&
-              route.name !== "cart"
-            ) {
-              return null;
             }
-          } else {
-            // Normal state - hide cart tab and index/home tab when product is active and back button is shown
-            if (route.name === "cart" || route.name === "categories") {
-              return null; // Hide cart tab in normal state
-            }
-            if (
-              isShopActive &&
-              (route.name === "index" || route.name === "home")
-            ) {
-              return null;
-            }
-          }
-
-          return (
-            <TouchableOpacity
-              key={route.key}
-              onPress={() => onPress(route, index)}
-              activeOpacity={0.85}
-              className="w-14 h-14 rounded-full items-center justify-center"
-              accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
-              accessibilityLabel={
-                descriptors[route.key].options.tabBarAccessibilityLabel
+          }}
+          activeOpacity={0.9}
+          className="w-14 h-14 rounded-r-none rounded-2xl bg-black border-white items-center justify-center"
+          accessibilityRole="button"
+          accessibilityLabel={
+            (
+              descriptors[profileRoute.key].options as {
+                tabBarAccessibilityLabel?: string;
               }
-              testID={testId}
-            >
-              <Ionicons
-                name={iconFor(route.name, isFocused, isShopActive)}
-                size={25}
-                color={isFocused ? "#fff" : "#ccc"}
-              />
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Right avatar bubble = Profile tab */}
-      {profileRoute
-        ? (() => {
-            const index = state.routes.indexOf(profileRoute);
-            const isFocused = state.index === index;
-            return (
-              <TouchableOpacity
-                key={profileRoute.key}
-                onPress={() => onPress(profileRoute, index)}
-                activeOpacity={0.9}
-                className="w-14 h-14 rounded-r-none rounded-2xl bg-black border-white items-center justify-center"
-              >
-                {avatarUri ? (
-                  <Image
-                    source={{ uri: avatarUri }}
-                    className="w-14 h-14 rounded-full"
-                  />
-                ) : (
-                  <Ionicons
-                    name={iconFor("profile", isFocused, isShopActive)}
-                    size={40}
-                    color={isFocused ? "#fff" : "#ccc"}
-                  />
-                )}
-              </TouchableOpacity>
-            );
-          })()
-        : null}
+            ).tabBarAccessibilityLabel ?? "Profile"
+          }
+          accessibilityState={profileFocused ? { selected: true } : {}}>
+          {avatarUri ? (
+            <Image
+              source={{ uri: avatarUri }}
+              className="w-14 h-14 rounded-full"
+            />
+          ) : (
+            <Ionicons
+              name={SLOT_ICON.profile.filled as any}
+              size={40}
+              color={profileFocused ? "#fff" : "#ccc"}
+            />
+          )}
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }

@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import "../global.css";
 
+import { FavoritesProvider } from "@/context/FavoritesContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 
 export default function RootLayout() {
@@ -31,36 +32,77 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        {/* <KeyboardProvider> */}
-        <Stack>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          {/* <Stack.Screen name="(auth)" options={{ headerShown: false }} /> */}
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(profiles)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="Address/select-address"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Address/AddAddress"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="Searchscreen" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="Product/Productview"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Product/ReviewOrder"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Product/payments"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        {/* </KeyboardProvider> */}
+        <FavoritesProvider>
+          {/* <KeyboardProvider> */}
+          <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            {/* <Stack.Screen name="(auth)" options={{ headerShown: false }} /> */}
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(profiles)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="Address/selectAddress"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Address/AddAddress"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Searchscreen"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Product/Productview"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Product/ReviewOrder"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Product/payments"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Bookings/UpcomingEvents"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Bookings/PopularEvents"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Bookings/Booking"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Bookings/BookingForm"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Bookings/Details"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Bookings/Payments"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Bookings/sucess"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Bookings/[ticketId]"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Notifications"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          {/* </KeyboardProvider> */}
+        </FavoritesProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

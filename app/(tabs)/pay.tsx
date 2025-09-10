@@ -4,18 +4,10 @@ import React from "react";
 import { ScrollView, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import Banner from "@/components/Product/BannerCarousel";
-import BestDealsGrid from "@/components/Product/BestDealsGrid";
-import BestProductsCarousel from "@/components/Product/BestProductsCarousel";
 import CategoryList from "@/components/Product/CategoryList";
 import HomeHeader from "@/components/Product/HomeHeader";
 import QuickActions from "@/components/Product/QuickActions";
-import DealsStrip from "@/components/Product/TopDealsSection";
 import SearchBar from "@/components/Searchbar";
-import { homeBannerData } from "@/constants/Banner";
-import { bestDeals } from "@/constants/BestDeals";
-import { topDeals } from "@/constants/Deal";
-import { products } from "@/constants/Product";
 
 function GradientWrapper({
   children,
@@ -41,7 +33,7 @@ function GradientWrapper({
   );
 }
 
-const ProductHome = () => {
+export default function Home() {
   const router = useRouter();
 
   return (
@@ -49,11 +41,11 @@ const ProductHome = () => {
       {/* Rounded gradient header with safe area INSIDE */}
       <View className="w-full rounded-b-2xl overflow-hidden">
         <GradientWrapper
-          colors={["#C5F8CE", "#f9fafb"]}
+          colors={["#C5F8CE", "#ffffffff"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           className="rounded-b-2xl overflow-hidden">
-          <SafeAreaView edges={["top"]} className="px-3 pb-2">
+          <SafeAreaView edges={["top"]} className="px-4 py-2">
             <HomeHeader />
             <QuickActions />
             <TouchableOpacity
@@ -75,25 +67,17 @@ const ProductHome = () => {
           scrollIndicatorInsets={{ bottom: 0 }}
           contentContainerStyle={{ paddingBottom: 70 }}>
           {/* Categories */}
-          <CategoryList orientation="horizontal" />
-          <View className="mt-4">
-            <Banner
-              variant="home"
-              data={homeBannerData}
-              onSlidePress={() => router.push("/Product/Productview")}
-            />
+          <View className="px-4">
+            <CategoryList orientation="horizontal" />
           </View>
-          {/* Best Products (moved to reusable component) */}
-          <BestProductsCarousel data={products} title="Best Products for you" />
-
-          {/* Best Deals */}
-          <BestDealsGrid title="Best Deals for you" data={bestDeals} />
-
-          <DealsStrip title="Top Deals" data={topDeals} />
+          <View className="mt-4">
+            <TouchableOpacity
+              onPress={() =>
+                router.push("/Product/Productview")
+              }></TouchableOpacity>
+          </View>
         </ScrollView>
       </View>
     </View>
   );
-};
-
-export default ProductHome;
+}
