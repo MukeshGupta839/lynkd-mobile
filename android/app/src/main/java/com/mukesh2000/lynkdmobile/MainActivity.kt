@@ -1,4 +1,4 @@
-package com.synthora.lynkdmobile
+package com.mukesh2000.lynkdmobile
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

@@ -1,11 +1,12 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const posts = () => {
   return (
-    <View>
-      <Text>posts</Text>
-    </View>
+    <SafeAreaView className="flex-1 justify-center items-center bg-yellow-400">
+      <Text>Posts</Text>
+    </SafeAreaView>
   );
 };
 

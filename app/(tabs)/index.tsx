@@ -1,4 +1,5 @@
 import BlockUserPopup from "@/components/BlockUserPopup";
+import CameraPost from "@/components/CameraPost";
 import CreatePostHeader from "@/components/CreatePostHeader";
 import { MultiImageCollage } from "@/components/MultiImageCollage";
 import { MultiImageViewer } from "@/components/MultiImageViewer";
@@ -20,6 +21,7 @@ import {
   Linking,
   Modal,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -29,8 +31,20 @@ import {
   View,
   ViewToken,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import {
+  Gesture,
+  GestureDetector,
+  GestureType,
+} from "react-native-gesture-handler";
+import Reanimated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { scheduleOnRN } from "react-native-worklets";
 
 // Define window width for calculations
 const windowWidth = Dimensions.get("window").width;
@@ -230,10 +244,14 @@ const FacebookStyleImage = ({
   uri,
   style,
   onLongPress,
+  isGestureActive = false,
+  panGesture,
 }: {
   uri: string;
   style?: any;
   onLongPress?: () => void;
+  isGestureActive?: boolean;
+  panGesture: GestureType;
 }) => {
   const [imageSize, setImageSize] = useState<{
     width: number;
@@ -274,6 +292,26 @@ const FacebookStyleImage = ({
     );
   }, [uri, containerWidth]);
 
+  const makeTapThatYieldsToPan = (onEnd: () => void) =>
+    Gesture.Tap()
+      .maxDuration(220)
+      .maxDeltaX(10)
+      .maxDeltaY(10)
+      .requireExternalGestureToFail(panGesture)
+      .onEnd((_e, success) => {
+        "worklet";
+        if (success) {
+          // hop to JS before calling anything that touches React/router
+          // runOnJS(onEnd)();
+          scheduleOnRN(() => onEnd());
+        }
+      });
+
+  const openImageTap = makeTapThatYieldsToPan(() => {
+    if (isGestureActive) return;
+    setShowViewer(true);
+  });
+
   if (!imageSize) {
     return (
       <View
@@ -294,37 +332,31 @@ const FacebookStyleImage = ({
   }
 
   const clampedHeight = getClampedHeight(imageSize.width, imageSize.height);
-  const originalRatio = imageSize.width / imageSize.height;
-  const clampedRatio = containerWidth / clampedHeight;
 
   return (
     <>
-      <TouchableOpacity
-        onPress={() => setShowViewer(true)}
-        onLongPress={onLongPress}
-        delayLongPress={500}
-        activeOpacity={0.95}
-        className="overflow-hidden bg-[#f0f0f0] w-full"
-        style={[
-          {
-            height: clampedHeight,
-          },
-          style,
-        ]}
-      >
-        <Image
-          source={{ uri }}
-          className="w-full h-full"
-          resizeMode="cover" // This creates the Facebook "crop" effect
-        />
-
-        {/* Debug overlay */}
-        {/* <View className="absolute top-2 left-2 bg-black/70 px-1.5 py-0.5 rounded">
-          <Text style={{ color: "white", fontSize: 8 }}>
-            {originalRatio.toFixed(2)} → {clampedRatio.toFixed(2)}
-          </Text>
-        </View> */}
-      </TouchableOpacity>
+      <GestureDetector gesture={openImageTap}>
+        <TouchableOpacity
+          // onPress={isGestureActive ? undefined : () => setShowViewer(true)}
+          onLongPress={onLongPress}
+          delayLongPress={500}
+          activeOpacity={0.95}
+          className="overflow-hidden bg-[#f0f0f0] w-full"
+          disabled={isGestureActive}
+          style={[
+            {
+              height: clampedHeight,
+            },
+            style,
+          ]}
+        >
+          <Image
+            source={{ uri }}
+            className="w-full h-full"
+            resizeMode="cover" // This creates the Facebook "crop" effect
+          />
+        </TouchableOpacity>
+      </GestureDetector>
 
       <FacebookImageViewer
         imageUri={uri}
@@ -350,7 +382,9 @@ const STORIES = Array.from({ length: 10 }).map((_, i) => ({
     "emma_clarke",
     "lucas_williams",
   ][i],
-  avatar: `https://randomuser.me/api/portraits/${i % 2 ? "women" : "men"}/${i + 1}.jpg`,
+  avatar: `https://randomuser.me/api/portraits/${i % 2 ? "women" : "men"}/${
+    i + 1
+  }.jpg`,
 }));
 
 // ----- Header -----
@@ -417,16 +451,29 @@ const PostMedia = ({
   isVisible,
   postId,
   onLongPress,
+  isGestureActive = false,
+  panGesture,
 }: {
   media?: { type: "image"; uri: string } | { type: "images"; uris: string[] };
   isVisible: boolean;
   postId: string;
   onLongPress?: () => void;
+  isGestureActive?: boolean;
+  panGesture: GestureType;
 }) => {
   const [showMultiViewer, setShowMultiViewer] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   console.log("PostMedia rendered with:", media, "isVisible:", isVisible);
+
+  const handlePressImage = useCallback(
+    (index: number) => {
+      if (isGestureActive) return;
+      setSelectedImageIndex(index);
+      setShowMultiViewer(true);
+    },
+    [isGestureActive]
+  );
 
   // If no media, return null
   if (!media) {
@@ -441,6 +488,8 @@ const PostMedia = ({
           uri={media.uri}
           style={{ marginBottom: 0 }}
           onLongPress={onLongPress}
+          isGestureActive={isGestureActive}
+          panGesture={panGesture}
         />
       </View>
     );
@@ -452,11 +501,9 @@ const PostMedia = ({
       <View style={{ marginBottom: 8 }}>
         <MultiImageCollage
           images={media.uris}
-          onPressImage={(index) => {
-            setSelectedImageIndex(index);
-            setShowMultiViewer(true);
-          }}
+          onPressImage={handlePressImage}
           onLongPress={onLongPress}
+          panGesture={panGesture}
         />
 
         <MultiImageViewer
@@ -484,15 +531,36 @@ const PostCard = ({
   item,
   isVisible,
   onLongPress,
+  isGestureActive = false,
+  panGesture,
 }: {
   item: any;
   isVisible: boolean;
   onLongPress?: (item: any) => void;
+  isGestureActive?: boolean;
+  panGesture: GestureType;
 }) => {
   const router = useRouter();
   const navigating = useRef(false);
+  const [showFullCaption, setShowFullCaption] = useState(false);
 
-  const handleUserPress = () => {
+  const openPostOptions = React.useCallback(() => {
+    Vibration.vibrate(100);
+    onLongPress?.(item); // the same callback you're passing to the card
+  }, [item, onLongPress]);
+
+  // Debug: log when isGestureActive changes
+  useEffect(() => {
+    console.log(
+      `PostCard ${item.id} - isGestureActive changed to:`,
+      isGestureActive
+    );
+  }, [isGestureActive, item.id]);
+
+  const handleUserPressSafe = () => {
+    // optional: block while a horizontal gesture is active
+    if (isGestureActive) return;
+
     router.push({
       pathname: "/(profiles)" as any,
       params: {
@@ -514,15 +582,33 @@ const PostCard = ({
 
   const neededHashtags = getHashtagsWithinLimit(item.post_hashtags || []);
 
-  const goToProduct = useCallback(() => {
-    if (navigating.current) return; // ignore re-press
+  const goToProductSafe = () => {
+    if (isGestureActive) return; // prop/JS state check in JS
+    if (navigating.current) return;
     navigating.current = true;
     router.push("/Product/Productview");
-    // release the lock after a short delay or on focus event
     setTimeout(() => {
       navigating.current = false;
     }, 600);
-  }, [router]);
+  };
+
+  const makeTapThatYieldsToPan = (onEnd: () => void) =>
+    Gesture.Tap()
+      .maxDuration(220)
+      .maxDeltaX(10)
+      .maxDeltaY(10)
+      .requireExternalGestureToFail(panGesture)
+      .onEnd((_e, success) => {
+        "worklet";
+        if (success) {
+          // hop to JS before calling anything that touches React/router
+          // runOnJS(onEnd)();
+          scheduleOnRN(() => onEnd()); // Extra safety for RN state changes
+        }
+      });
+
+  const openProductTap = makeTapThatYieldsToPan(goToProductSafe);
+  const openProfileTap = makeTapThatYieldsToPan(handleUserPressSafe);
 
   return (
     <TouchableOpacity
@@ -551,41 +637,49 @@ const PostCard = ({
             {/* Header */}
             <View className="flex-row px-3 items-center mb-2">
               {/* LEFT group takes remaining space, but doesn't overgrow */}
-              <TouchableOpacity
-                className="flex-row items-center flex-1 mr-2"
-                onPress={handleUserPress}
-                activeOpacity={0.7}
-              >
-                <Image
-                  source={{ uri: item.userProfilePic }}
-                  className="w-13 h-13 rounded-full mr-2"
-                />
-                {/* REMOVE flex-1 here */}
-                <View /* className="flex-1" */>
-                  <View className="flex-row items-center">
-                    <Text className="font-semibold text-lg">
-                      {item.username}
-                    </Text>
-                    {item.is_creator && (
-                      <Octicons
-                        name="verified"
-                        size={14}
-                        color="#000"
-                        style={{ marginLeft: 4 }}
-                      />
-                    )}
+              <GestureDetector gesture={openProfileTap}>
+                <TouchableOpacity
+                  className="flex-row items-center flex-1 mr-2"
+                  // onPress={isGestureActive ? undefined : handleUserPressSafe}
+                  activeOpacity={0.7}
+                  disabled={isGestureActive}
+                >
+                  <Image
+                    source={{ uri: item.userProfilePic }}
+                    className="w-13 h-13 rounded-full mr-2"
+                  />
+                  {/* REMOVE flex-1 here */}
+                  <View /* className="flex-1" */>
+                    <View className="flex-row items-center">
+                      <Text className="font-semibold text-lg">
+                        {item.username}
+                      </Text>
+                      {item.is_creator && (
+                        <Octicons
+                          name="verified"
+                          size={14}
+                          color="#000"
+                          style={{ marginLeft: 4 }}
+                        />
+                      )}
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </GestureDetector>
 
               {/* RIGHT button: fixed size, don’t let it shrink */}
               {item.affiliated && item.affiliation && (
                 <TouchableOpacity
                   className="w-11 h-11 rounded-lg items-center justify-center ml-2"
                   style={{ flexShrink: 0 }} // tailwind: shrink-0 (if available)
-                  onPress={() => {
-                    /* ... */
-                  }}
+                  onPress={
+                    isGestureActive
+                      ? undefined
+                      : () => {
+                          /* ... */
+                        }
+                  }
+                  disabled={isGestureActive}
                 >
                   <SimpleLineIcons name="handbag" size={20} color="#000" />
                 </TouchableOpacity>
@@ -598,65 +692,142 @@ const PostCard = ({
               isVisible={isVisible}
               postId={item.id}
               onLongPress={() => onLongPress?.(item)}
+              isGestureActive={isGestureActive}
+              panGesture={panGesture}
             />
 
             {/* Caption */}
             {/* <Text className="text-sm  mb-2">{item.caption}</Text> */}
-            <TouchableOpacity>
-              <Text className="text-sm px-3 text-gray-900">
-                {(item.caption || "")
-                  .split(/((?:@|#)[\w.]+|(?:https?:\/\/|www\.)\S+)/gi)
-                  .map((part: string, index: number) => {
-                    if (part && part.startsWith("@")) {
-                      return (
-                        <Text
-                          key={index}
-                          className="text-blue-600"
-                          onPress={() =>
-                            router.push(
-                              `/(profiles)?mentionedUsername=${part.slice(1)}`
-                            )
+            <View>
+              {(() => {
+                const caption = item.caption || "";
+                const captionLimit = 150; // Character limit before showing "more"
+                const shouldTruncate = caption.length > captionLimit;
+                const displayCaption =
+                  shouldTruncate && !showFullCaption
+                    ? caption.substring(0, captionLimit)
+                    : caption;
+
+                return (
+                  <View>
+                    <Text className="text-sm px-3 text-gray-900">
+                      {displayCaption
+                        .split(/((?:@|#)[\w.]+|(?:https?:\/\/|www\.)\S+)/gi)
+                        .map((part: string, index: number) => {
+                          if (part && part.startsWith("@")) {
+                            return (
+                              <Text
+                                key={index}
+                                className="text-blue-600"
+                                suppressHighlighting
+                                onPress={
+                                  isGestureActive
+                                    ? undefined
+                                    : () =>
+                                        router.push(
+                                          `/(profiles)?mentionedUsername=${part.slice(
+                                            1
+                                          )}`
+                                        )
+                                }
+                                onLongPress={openPostOptions}
+                              >
+                                {part}
+                              </Text>
+                            );
+                          } else if (part && part.startsWith("#")) {
+                            return (
+                              <Text
+                                key={index}
+                                className="text-blue-600"
+                                suppressHighlighting
+                                onPress={
+                                  isGestureActive
+                                    ? undefined
+                                    : () =>
+                                        console.log(
+                                          "Navigate to hashtag:",
+                                          part
+                                        )
+                                }
+                                onLongPress={openPostOptions}
+                              >
+                                {part}
+                              </Text>
+                            );
+                          } else if (
+                            part &&
+                            /^(https?:\/\/|www\.)/i.test(part)
+                          ) {
+                            const url = part.startsWith("www.")
+                              ? `https://${part}`
+                              : part;
+                            return (
+                              <Text
+                                key={index}
+                                className="text-blue-600 underline"
+                                suppressHighlighting
+                                onPress={
+                                  isGestureActive
+                                    ? undefined
+                                    : () => Linking.openURL(url)
+                                }
+                                onLongPress={openPostOptions}
+                              >
+                                {part}
+                              </Text>
+                            );
                           }
-                        >
-                          {part}
+                          return part;
+                        })}
+                    </Text>
+                    {shouldTruncate && !showFullCaption && (
+                      <Pressable
+                        onPress={
+                          isGestureActive
+                            ? undefined
+                            : () => setShowFullCaption(true)
+                        }
+                        hitSlop={8}
+                        style={{ marginLeft: 2, alignSelf: "baseline" }}
+                        onLongPress={openPostOptions}
+                        delayLongPress={500}
+                      >
+                        <Text className="text-sm text-gray-500 px-3 font-medium">
+                          Show more
                         </Text>
-                      );
-                    } else if (part && part.startsWith("#")) {
-                      return (
-                        <Text
-                          key={index}
-                          className="text-blue-600"
-                          onPress={() =>
-                            console.log("Navigate to hashtag:", part)
-                          }
-                        >
-                          {part}
+                      </Pressable>
+                    )}
+
+                    {shouldTruncate && showFullCaption && (
+                      <Pressable
+                        onPress={
+                          isGestureActive
+                            ? undefined
+                            : () => setShowFullCaption(false)
+                        }
+                        hitSlop={8}
+                        style={{ marginLeft: 2, alignSelf: "baseline" }}
+                        onLongPress={openPostOptions}
+                        delayLongPress={500}
+                      >
+                        <Text className="text-sm text-gray-500 px-3 font-medium">
+                          Show less
                         </Text>
-                      );
-                    } else if (part && /^(https?:\/\/|www\.)/i.test(part)) {
-                      const url = part.startsWith("www.")
-                        ? `https://${part}`
-                        : part;
-                      return (
-                        <Text
-                          key={index}
-                          className="text-blue-600 underline"
-                          onPress={() => Linking.openURL(url)}
-                        >
-                          {part}
-                        </Text>
-                      );
-                    }
-                    return part;
-                  })}{" "}
-              </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                );
+              })()}
               {item?.post_hashtags?.length ? (
                 <Text className="text-blue-600 mt-1 px-3">
                   {neededHashtags.map((tag: string, i: number) => (
                     <Text
                       key={tag}
-                      onPress={() =>
-                        console.log("Navigate to hashtag:", "#" + tag)
+                      onPress={
+                        isGestureActive
+                          ? undefined
+                          : () => console.log("Navigate to hashtag:", "#" + tag)
                       }
                     >
                       #{tag}
@@ -665,121 +836,155 @@ const PostCard = ({
                   ))}
                 </Text>
               ) : null}
-            </TouchableOpacity>
+            </View>
 
             {/* Affiliation */}
             {item.affiliated && item.affiliation && (
-              <TouchableOpacity className="px-3 mt-1" onPress={goToProduct}>
-                <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
-                  <View
-                    className="basis-1/4 self-stretch relative"
-                    style={{
-                      borderTopLeftRadius: 6,
-                      borderBottomLeftRadius: 6,
-                      overflow: "hidden",
-                    }}
-                  >
-                    <Image
-                      source={{ uri: item.affiliation.productImage }}
-                      // Fill the wrapper's full height & width
+              <GestureDetector gesture={openProductTap}>
+                <TouchableOpacity
+                  className="px-3 mt-2"
+                  // onPress={
+                  //   isGestureActive
+                  //     ? undefined
+                  //     : () => {
+                  //         console.log(
+                  //           "Affiliation TouchableOpacity pressed - gesture active:",
+                  //           isGestureActive
+                  //         );
+                  //         goToProductSafe();
+                  //       }
+                  // }
+                  onLongPress={() => onLongPress?.(item)}
+                  delayLongPress={500}
+                  disabled={isGestureActive}
+                >
+                  <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
+                    <View
+                      className="basis-1/4 self-stretch relative"
                       style={{
-                        position: "absolute",
-                        top: 0,
-                        right: 0,
-                        bottom: 0,
-                        left: 0,
+                        borderTopLeftRadius: 6,
+                        borderBottomLeftRadius: 6,
+                        overflow: "hidden",
                       }}
-                      resizeMode="cover"
-                      onError={(e) => {
-                        console.log(
-                          "Product image error:",
-                          e.nativeEvent.error
-                        );
-                        console.log(
-                          "Product image URI:",
-                          item.affiliation.productImage
-                        );
-                      }}
-                      onLoad={() =>
-                        console.log(
-                          "Product image loaded:",
-                          item.affiliation.productImage
-                        )
-                      }
-                    />
-                  </View>
-                  <View className="flex-1 justify-between p-3">
-                    <View className="flex-row items-center justify-between mb-2">
-                      <View className="flex-row flex-1 items-center">
-                        <Image
-                          source={{ uri: item.affiliation.brandLogo }}
-                          className="w-11 h-11 rounded-full mr-2"
-                          resizeMode="contain"
-                          onError={(e) => {
-                            console.log(
-                              "Brand logo error:",
-                              e.nativeEvent.error
-                            );
-                            console.log(
-                              "Brand logo URI:",
-                              item.affiliation.brandLogo
-                            );
-                          }}
-                          onLoad={() =>
-                            console.log(
-                              "Brand logo loaded:",
-                              item.affiliation.brandLogo
-                            )
-                          }
-                        />
-                        <View className="flex-1">
-                          <Text className="font-semibold text-sm text-gray-800">
-                            {item.affiliation.brandName}
-                          </Text>
-                          <Text className="font-medium text-sm text-black">
-                            {item.affiliation.productName}
-                          </Text>
+                    >
+                      <Image
+                        source={{ uri: item.affiliation.productImage }}
+                        // Fill the wrapper's full height & width
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
+                          left: 0,
+                        }}
+                        resizeMode="cover"
+                        onError={(e) => {
+                          console.log(
+                            "Product image error:",
+                            e.nativeEvent.error
+                          );
+                          console.log(
+                            "Product image URI:",
+                            item.affiliation.productImage
+                          );
+                        }}
+                        onLoad={() =>
+                          console.log(
+                            "Product image loaded:",
+                            item.affiliation.productImage
+                          )
+                        }
+                      />
+                    </View>
+                    <View className="flex-1 justify-between p-3">
+                      <View className="flex-row items-center justify-between mb-2">
+                        <View className="flex-row flex-1 items-center">
+                          <Image
+                            source={{ uri: item.affiliation.brandLogo }}
+                            className="w-11 h-11 rounded-full mr-2"
+                            resizeMode="contain"
+                            onError={(e) => {
+                              console.log(
+                                "Brand logo error:",
+                                e.nativeEvent.error
+                              );
+                              console.log(
+                                "Brand logo URI:",
+                                item.affiliation.brandLogo
+                              );
+                            }}
+                            onLoad={() =>
+                              console.log(
+                                "Brand logo loaded:",
+                                item.affiliation.brandLogo
+                              )
+                            }
+                          />
+                          <View className="flex-1">
+                            <Text className="font-semibold text-sm text-gray-800">
+                              {item.affiliation.brandName}
+                            </Text>
+                            <Text className="font-medium text-sm text-black">
+                              {item.affiliation.productName}
+                            </Text>
+                          </View>
                         </View>
+                        <TouchableOpacity
+                          onPress={isGestureActive ? undefined : () => {}}
+                          className="self-start"
+                          disabled={isGestureActive}
+                        >
+                          <Ionicons
+                            name="cart-outline"
+                            size={24}
+                            color="#000"
+                          />
+                        </TouchableOpacity>
                       </View>
-                      <TouchableOpacity
-                        onPress={() => {}}
-                        className="self-start"
-                      >
-                        <Ionicons name="cart-outline" size={24} color="#000" />
-                      </TouchableOpacity>
-                    </View>
-                    <Text className="text-sm text-gray-600 mb-2 leading-4">
-                      {item.affiliation.productDescription}
-                    </Text>
-                    <View className="flex-row items-center">
-                      <Text className="text-sm text-gray-400 line-through mr-2">
-                        ₹{item.affiliation.productRegularPrice}
+                      <Text className="text-sm text-gray-600 mb-2 leading-4">
+                        {item.affiliation.productDescription}
                       </Text>
-                      <Text className="text-sm font-bold text-green-600">
-                        ₹{item.affiliation.productSalePrice}
-                      </Text>
+                      <View className="flex-row items-center">
+                        <Text className="text-sm text-gray-400 line-through mr-2">
+                          ₹{item.affiliation.productRegularPrice}
+                        </Text>
+                        <Text className="text-sm font-bold text-green-600">
+                          ₹{item.affiliation.productSalePrice}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </GestureDetector>
             )}
 
             {/* Actions */}
             <View className="flex-row items-center justify-between mt-3 px-3">
               <View className="flex-row items-center gap-x-4">
-                <TouchableOpacity className="flex-row items-center">
+                <TouchableOpacity
+                  className="flex-row items-center"
+                  disabled={isGestureActive}
+                  onPress={isGestureActive ? undefined : undefined}
+                >
                   <Ionicons name="heart-outline" size={20} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.likes_count}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity className="flex-row items-center">
+                <TouchableOpacity
+                  className="flex-row items-center"
+                  disabled={isGestureActive}
+                  onPress={isGestureActive ? undefined : undefined}
+                >
                   <Ionicons name="chatbubble-outline" size={18} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.comments_count}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity>
+                <TouchableOpacity
+                  disabled={isGestureActive}
+                  onPress={isGestureActive ? undefined : undefined}
+                >
                   <Ionicons name="arrow-redo-outline" size={20} color="#000" />
                 </TouchableOpacity>
               </View>
@@ -823,6 +1028,7 @@ const NotificationBell = ({
 // ----- Screen -----
 export default function ConsumerHomeUI() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const NAV_BAR_CONTENT_HEIGHT = 56;
   const TOP_BAR_HEIGHT = insets.top - 10 + NAV_BAR_CONTENT_HEIGHT;
   const flatListRef = useRef<FlatList>(null);
@@ -1027,124 +1233,421 @@ export default function ConsumerHomeUI() {
     }, 2000);
   }, []);
 
-  return (
-    <View className="flex-1 bg-[#F3F4F8]">
-      {/* ─── Animated Top Bar (Logo + Search) ─────────────────────────────────── */}
-      <Animated.View
-        className="absolute top-0 right-0 left-0 z-10 bg-white overflow-hidden"
-        style={{
-          height: TOP_BAR_HEIGHT,
-          transform: [{ translateY: headerTranslateY }],
-        }}
-      >
-        {/* Safe-area padding so that logo+search sits below notch/status bar */}
-        <View style={{ paddingTop: insets.top - 10, backgroundColor: "white" }}>
-          <View
-            style={{
-              height: NAV_BAR_CONTENT_HEIGHT,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingHorizontal: 12,
-            }}
-          >
-            <Text className="text-2xl font-bold">LYNKD</Text>
-            <View className="flex-row items-center space-x-3">
-              <TouchableOpacity className="w-9 h-9 rounded-full items-center justify-center">
-                <Ionicons name="search-outline" size={24} color="#000" />
-              </TouchableOpacity>
-              <NotificationBell
-                count={12}
-                onPress={() => {
-                  /* open notifications */
-                }}
-              />
-            </View>
-          </View>
-        </View>
-      </Animated.View>
+  const { width } = Dimensions.get("window");
+  const translateX = useSharedValue(0);
+  const startX = useSharedValue(0);
+  const isGestureActive = useSharedValue(false);
+  const [isGestureActiveState, setIsGestureActiveState] = useState(false);
 
-      {/* ─── FlatList w/ CreatePostHeader as the first visible row ────────────────── */}
-      <FlatList
-        ref={flatListRef}
-        data={POSTS}
-        showsVerticalScrollIndicator={false}
-        keyExtractor={(item) => item.id}
-        scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          {
-            useNativeDriver: false,
-            listener: handleOnScroll,
-          }
-        )}
-        // Only pad by TOP_BAR_HEIGHT (logo+search). CreatePostHeader will render immediately below.
-        contentContainerStyle={{
-          top: TOP_BAR_HEIGHT,
-          // paddingBottom:
-          //   Platform.OS === "ios" ? footerSpacing : footerSpacing + 150,
-          paddingBottom:
-            Platform.OS === "ios" ? insets.bottom : insets.bottom + 120,
-          backgroundColor: "#F3F4F8",
-        }}
-        style={{
-          backgroundColor: "#F3F4F8",
-        }}
-        renderItem={({ item }) => (
-          <PostCard
-            item={item}
-            isVisible={visibleItems.includes(item.id)}
-            onLongPress={handleLongPress}
-          />
-        )}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#4D70D1"]} // Android
-            tintColor={"#4D70D1"} // iOS
-            progressBackgroundColor={"#F3F4F8"} // Match background
-            progressViewOffset={TOP_BAR_HEIGHT} // Position below header
-          />
+  // Debug gesture state
+  useEffect(() => {
+    console.log("isGestureActiveState changed to:", isGestureActiveState);
+  }, [isGestureActiveState]);
+
+  // Safety mechanism to reset gesture state if it gets stuck
+  useEffect(() => {
+    if (isGestureActiveState) {
+      const timeout = setTimeout(() => {
+        console.log("Safety reset: Force resetting gesture state");
+        setIsGestureActiveState(false);
+      }, 3000); // Reset after 3 seconds if still active
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isGestureActiveState]);
+
+  const panGesture = Gesture.Pan()
+    .failOffsetY([-15, 15]) // Increased from 10 to 15
+    .activeOffsetX([-25, 25]) // Increased from 10 to 25
+    .maxPointers(1)
+    // .enabled(!cameraActive)
+    .onStart(() => {
+      startX.value = translateX.value;
+      isGestureActive.value = false;
+      // Always reset gesture state on start
+      // runOnJS(setIsGestureActiveState)(false);
+      scheduleOnRN(() => setIsGestureActiveState(false));
+    })
+    .onUpdate((e) => {
+      const translationX = Number.isFinite(e.translationX) ? e.translationX : 0;
+      const currentStartX = Number.isFinite(startX.value) ? startX.value : 0;
+
+      // Mark gesture as active if there's significant movement (increased threshold)
+      if (Math.abs(translationX) > 40) {
+        // Increased from 20 to 40
+        if (!isGestureActive.value) {
+          isGestureActive.value = true;
+          // runOnJS(setIsGestureActiveState)(true);
+          scheduleOnRN(() => setIsGestureActiveState(true));
+          console.log("Gesture became active, blocking touches");
         }
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        // Optimize performance for smooth scrolling
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={2}
-        windowSize={3}
-        initialNumToRender={2}
-        onEndReachedThreshold={0.5}
-      />
+      }
 
-      {/* Post Options Bottom Sheet */}
-      <PostOptionsBottomSheet
-        show={postOptionsVisible}
-        setShow={setPostOptionsVisible}
-        setBlockUser={setBlockUser}
-        setReportVisible={setReportVisible}
-        setFocusedPost={setFocusedPost}
-        toggleFollow={() => toggleFollow(focusedPost?.user_id || "")}
-        isFollowing={followedUsers.includes(focusedPost?.user_id || "")}
-        focusedPost={focusedPost}
-        deleteAction={deletePost}
-        user={user}
-      />
+      const next = Math.max(
+        -width,
+        Math.min(width, currentStartX + translationX)
+      );
+      translateX.value = next;
+    })
+    .onEnd((e) => {
+      const translationX = Number.isFinite(e.translationX) ? e.translationX : 0;
+      const vx = Number.isFinite(e.velocityX) ? e.velocityX : 0;
+      const currentStartX = Number.isFinite(startX.value) ? startX.value : 0;
 
-      {/* Report Post Bottom Sheet */}
-      <ReportPostBottomSheet
-        show={reportVisible}
-        setShow={setReportVisible}
-        postId={focusedPost?.id || ""}
-        userId={user.id}
-      />
+      let targetPosition = 0;
 
-      {/* Block User Popup */}
-      <BlockUserPopup
-        show={blockUser}
-        setShow={setBlockUser}
-        post={focusedPost}
-      />
+      const startedFromCenter = Math.abs(currentStartX) < width * 0.1;
+      const startedFromLeft = currentStartX < -width * 0.5; // Chat underlay
+      const startedFromRight = currentStartX > width * 0.5; // AI underlay
+
+      if (startedFromCenter) {
+        const swipeThreshold = width * 0.25;
+        const velocityThreshold = 500;
+
+        if (translationX > swipeThreshold || vx > velocityThreshold) {
+          // swipe right -> POST underlay
+          targetPosition = width;
+          // runOnJS(setCameraActive)(true);
+          tabBarHiddenSV.value = true; // hide tab bar when swiping to POST
+        } else if (translationX < -swipeThreshold || vx < -velocityThreshold) {
+          // swipe left -> Chat underlay
+          targetPosition = -width;
+        } else {
+          targetPosition = 0; // stay centered
+        }
+      } else if (startedFromRight) {
+        // POST underlay: ONLY allow left-swipe to go back
+        const minSwipe = width * 0.12;
+        const minVelocity = 250;
+
+        if (translationX < -minSwipe || vx < -minVelocity) {
+          targetPosition = 0; // left swipe -> center
+          tabBarHiddenSV.value = false;
+        } else {
+          targetPosition = width; // ignore right swipe -> stay on POST
+        }
+      } else if (startedFromLeft) {
+        // Chat underlay: ONLY allow right-swipe to go back
+        const minSwipe = width * 0.12;
+        const minVelocity = 250;
+
+        if (translationX > minSwipe || vx > minVelocity) {
+          targetPosition = 0; // right swipe -> center
+        } else {
+          targetPosition = -width; // ignore left swipe -> stay on Chat
+        }
+      }
+
+      translateX.value = withSpring(targetPosition, {
+        damping: 15,
+        stiffness: 160,
+      });
+
+      isGestureActive.value = false;
+      // runOnJS(setIsGestureActiveState)(false);
+      scheduleOnRN(() => setIsGestureActiveState(false));
+    });
+
+  // --- STYLES ---
+  const feedStyle = useAnimatedStyle(() => {
+    try {
+      const safeTranslateX = Number.isFinite(translateX.value)
+        ? translateX.value
+        : 0;
+      return {
+        transform: [{ translateX: safeTranslateX }],
+        zIndex: 2,
+      };
+    } catch (error) {
+      console.warn("Error in feedStyle:", error);
+      return {
+        transform: [{ translateX: 0 }],
+        zIndex: 2,
+      };
+    }
+  });
+
+  const rightUnderlayStyle = useAnimatedStyle(() => {
+    try {
+      const safeTranslateX = Number.isFinite(translateX.value)
+        ? translateX.value
+        : 0;
+      return {
+        transform: [
+          {
+            translateX: interpolate(
+              safeTranslateX,
+              [0, width],
+              [-width, 0],
+              Extrapolation.CLAMP
+            ),
+          },
+        ],
+        opacity: interpolate(
+          safeTranslateX,
+          [0, width],
+          [0, 1],
+          Extrapolation.CLAMP
+        ),
+        zIndex: 0,
+      };
+    } catch (error) {
+      console.warn("Error in rightUnderlayStyle:", error);
+      return {
+        transform: [{ translateX: -width }],
+        opacity: 0,
+        zIndex: 0,
+      };
+    }
+  });
+
+  const leftUnderlayStyle = useAnimatedStyle(() => {
+    try {
+      const safeTranslateX = Number.isFinite(translateX.value)
+        ? translateX.value
+        : 0;
+      return {
+        transform: [
+          {
+            translateX: interpolate(
+              safeTranslateX,
+              [-width, 0],
+              [0, width],
+              Extrapolation.CLAMP
+            ),
+          },
+        ],
+        opacity: interpolate(
+          safeTranslateX,
+          [-width, 0],
+          [1, 0],
+          Extrapolation.CLAMP
+        ),
+        zIndex: 0,
+      };
+    } catch (error) {
+      console.warn("Error in leftUnderlayStyle:", error);
+      return {
+        transform: [{ translateX: width }],
+        opacity: 0,
+        zIndex: 0,
+      };
+    }
+  });
+
+  const ChatUnderlay = () => (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "#f8f9fa",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingTop: insets.top + 60,
+      }}
+    >
+      <View style={{ alignItems: "center", paddingHorizontal: 20 }}>
+        <Ionicons
+          name="chatbubbles"
+          size={48}
+          color="#4D70D1"
+          style={{ marginBottom: 16 }}
+        />
+        <Text style={{ fontSize: 24, fontWeight: "600", marginBottom: 8 }}>
+          Messages
+        </Text>
+        <Text
+          style={{
+            fontSize: 16,
+            color: "#666",
+            textAlign: "center",
+            marginBottom: 24,
+          }}
+        >
+          Connect with friends and discover new conversations
+        </Text>
+        <TouchableOpacity
+          style={{
+            backgroundColor: "#4D70D1",
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: 8,
+            marginBottom: 16,
+          }}
+          onPress={() => {
+            // Navigate to actual chat screen or back to center
+            router.push("/(tabs)/chat");
+          }}
+        >
+          <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
+            Open Chats
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            translateX.value = withSpring(0, {
+              damping: 15,
+              stiffness: 160,
+            });
+          }}
+        >
+          <Text style={{ color: "#666", fontSize: 14 }}>← Back to Feed</Text>
+        </TouchableOpacity>
+      </View>
     </View>
+  );
+
+  const snapToCenter = () => {
+    translateX.value = withSpring(0, { damping: 15, stiffness: 160 });
+    tabBarHiddenSV.value = false;
+    // setCameraActive(false);
+  };
+
+  return (
+    <GestureDetector gesture={panGesture}>
+      <Reanimated.View style={{ flex: 1 }}>
+        {/* UNDERLAYS — rendered first so they sit behind the feed */}
+        <Reanimated.View
+          style={[
+            { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+            rightUnderlayStyle,
+            { zIndex: 3 },
+          ]}
+          pointerEvents="auto"
+        >
+          {/* Post screen */}
+          <CameraPost onBackToFeed={snapToCenter} active={true} />
+        </Reanimated.View>
+
+        <Reanimated.View
+          style={[
+            { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+            leftUnderlayStyle,
+          ]}
+          pointerEvents="auto"
+        >
+          {/* Chats screen */}
+          <ChatUnderlay />
+        </Reanimated.View>
+
+        {/* FEED ON TOP */}
+        <Reanimated.View
+          style={[
+            { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+            feedStyle,
+            { zIndex: 1 },
+          ]}
+          pointerEvents="auto"
+        >
+          <View className="flex-1 bg-[#F3F4F8]">
+            {/* Top bar */}
+            <Animated.View
+              className="absolute top-0 right-0 left-0 z-10 bg-white overflow-hidden"
+              style={{
+                height: TOP_BAR_HEIGHT,
+                transform: [{ translateY: headerTranslateY }],
+              }}
+            >
+              <View
+                style={{
+                  paddingTop: insets.top - 10,
+                  backgroundColor: "white",
+                }}
+              >
+                <View
+                  style={{
+                    height: NAV_BAR_CONTENT_HEIGHT,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                  }}
+                >
+                  <Text className="text-2xl font-bold">LYNKD</Text>
+                  <View className="flex-row items-center space-x-3">
+                    <TouchableOpacity className="w-9 h-9 rounded-full items-center justify-center">
+                      <Ionicons name="search-outline" size={24} color="#000" />
+                    </TouchableOpacity>
+                    <NotificationBell count={12} onPress={() => {}} />
+                  </View>
+                </View>
+              </View>
+            </Animated.View>
+
+            {/* Feed list */}
+            <FlatList
+              ref={flatListRef}
+              data={POSTS}
+              showsVerticalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              scrollEventThrottle={16}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                { useNativeDriver: false, listener: handleOnScroll }
+              )}
+              contentContainerStyle={{
+                top: TOP_BAR_HEIGHT,
+                paddingBottom:
+                  Platform.OS === "ios" ? insets.bottom : insets.bottom + 120,
+                backgroundColor: "#F3F4F8",
+              }}
+              style={{ backgroundColor: "#F3F4F8" }}
+              renderItem={({ item }) => (
+                <PostCard
+                  item={item}
+                  isVisible={visibleItems.includes(item.id)}
+                  onLongPress={handleLongPress}
+                  isGestureActive={isGestureActiveState}
+                  panGesture={panGesture}
+                />
+              )}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={["#4D70D1"]}
+                  tintColor={"#4D70D1"}
+                  progressBackgroundColor={"#F3F4F8"}
+                  progressViewOffset={TOP_BAR_HEIGHT}
+                />
+              }
+              onViewableItemsChanged={onViewableItemsChanged}
+              viewabilityConfig={viewabilityConfig}
+              removeClippedSubviews
+              maxToRenderPerBatch={2}
+              windowSize={3}
+              initialNumToRender={2}
+              onEndReachedThreshold={0.5}
+            />
+
+            {/* Bottom sheets / popups */}
+            <PostOptionsBottomSheet
+              show={postOptionsVisible}
+              setShow={setPostOptionsVisible}
+              setBlockUser={setBlockUser}
+              setReportVisible={setReportVisible}
+              setFocusedPost={setFocusedPost}
+              toggleFollow={() => toggleFollow(focusedPost?.user_id || "")}
+              isFollowing={followedUsers.includes(focusedPost?.user_id || "")}
+              focusedPost={focusedPost}
+              deleteAction={deletePost}
+              user={user}
+            />
+
+            <ReportPostBottomSheet
+              show={reportVisible}
+              setShow={setReportVisible}
+              postId={focusedPost?.id || ""}
+              userId={user.id}
+            />
+
+            <BlockUserPopup
+              show={blockUser}
+              setShow={setBlockUser}
+              post={focusedPost}
+            />
+          </View>
+        </Reanimated.View>
+      </Reanimated.View>
+    </GestureDetector>
   );
 }

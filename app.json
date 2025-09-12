@@ -12,6 +12,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.mukesh2000.lynkdmobile",
       "infoPlist": {
+        "NSCameraUsageDescription": "Allow LYNKD to access your camera",
+        "NSMicrophoneUsageDescription": "Allow LYNKD to access your microphone",
+        "NSPhotoLibraryAddUsageDescription": "Allow LYNKD to save photos",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -20,6 +23,13 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_MEDIA_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.mukesh2000.lynkdmobile",
@@ -47,6 +57,23 @@
         {
           "supportsBackgroundPlayback": true,
           "supportsPictureInPicture": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
+          "isAccessMediaLocationEnabled": true,
+          "granularPermissions": ["audio", "photo", "video"]
         }
       ]
     ],

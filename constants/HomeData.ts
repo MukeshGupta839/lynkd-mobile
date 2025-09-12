@@ -6,7 +6,7 @@ export const POSTS = [
     is_creator: true,
     userProfilePic: "https://randomuser.me/api/portraits/men/32.jpg",
     caption:
-      "Weekend drip with the new #AirMax — comfy and clean. Check this out: https://nike.example",
+      "Weekend drip with the new #AirMax — comfy and clean. Check this out: https://nike.example Weekend drip with the new #AirMax — comfy and clean. Weekend drip with the new #AirMax — comfy and clean. Weekend drip with the new #AirMax — comfy and clean. Weekend drip with the new #AirMax — comfy and clean. Weekend drip with the new #AirMax — comfy and clean. Weekend drip with the new #AirMax — comfy and clean.",
     likes_count: 128,
     comments_count: 22,
     media: {
