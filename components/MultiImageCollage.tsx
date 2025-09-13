@@ -1,5 +1,6 @@
 import React from "react";
 import { Dimensions, Image, Text, TouchableOpacity, View } from "react-native";
+import { GestureType } from "react-native-gesture-handler";
 
 const FEED_MIN_RATIO = 0.8; // 4:5 portrait clamp used in FB/IG feed
 const FEED_MAX_RATIO = 1.91; // landscape clamp
@@ -65,10 +66,12 @@ export const MultiImageCollage = ({
   images,
   onPressImage,
   onLongPress,
+  panGesture,
 }: {
   images: string[];
   onPressImage?: (index: number) => void;
   onLongPress?: () => void;
+  panGesture: GestureType;
 }) => {
   if (!images?.length) return null;
 
