@@ -6,7 +6,7 @@ import { MultiImageViewer } from "@/components/MultiImageViewer";
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
 import { POSTS } from "@/constants/HomeData";
-import { tabBarHiddenSV } from "@/lib/tabBarVisibility";
+import { cameraActiveSV, tabBarHiddenSV } from "@/lib/tabBarVisibility";
 import { FontAwesome6, SimpleLineIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
@@ -1043,6 +1043,8 @@ export default function ConsumerHomeUI() {
   const [blockUser, setBlockUser] = useState(false);
   const [focusedPost, setFocusedPost] = useState<any>(null);
   const [followedUsers, setFollowedUsers] = useState<string[]>([]);
+  // Camera active state: only mount/start CameraPost when true
+  const [cameraActive, setCameraActive] = useState(false);
 
   // Mock user data - replace with your actual user context
   const user = { id: "1", username: "current_user" };
@@ -1328,6 +1330,13 @@ export default function ConsumerHomeUI() {
         stiffness: 160,
       });
 
+      // If we ended on the POST underlay (targetPosition === width) then
+      // activate the camera; otherwise deactivate it. Set both the React
+      // state (for mounting) and the shared value (for UI-thread animations).
+      const activate = targetPosition === width;
+      cameraActiveSV.value = activate;
+      scheduleOnRN(setCameraActive, activate);
+
       isGestureActive.value = false;
       // runOnJS(setIsGestureActiveState)(false);
       scheduleOnRN(setIsGestureActiveState, false);
@@ -1484,7 +1493,9 @@ export default function ConsumerHomeUI() {
   const snapToCenter = () => {
     translateX.value = withSpring(0, { damping: 15, stiffness: 160 });
     tabBarHiddenSV.value = false;
-    // setCameraActive(false);
+    // ensure camera is deactivated when snapping back to feed
+    setCameraActive(false);
+    cameraActiveSV.value = false;
   };
 
   const headerAnimatedStyle = useAnimatedStyle(() => {
@@ -1505,8 +1516,7 @@ export default function ConsumerHomeUI() {
           ]}
           pointerEvents="auto"
         >
-          {/* Post screen */}
-          <CameraPost onBackToFeed={snapToCenter} active={true} />
+          <CameraPost onBackToFeed={snapToCenter} active={cameraActive} />
         </Reanimated.View>
 
         <Reanimated.View
@@ -1672,22 +1682,29 @@ export default function ConsumerHomeUI() {
 function FloatingPostButton({ insets }: { insets: { bottom: number } }) {
   const { bottom } = insets;
 
-  // derive a reanimated value directly from the global mutable shared value
-  const hidden = useDerivedValue(() => !!tabBarHiddenSV.value);
+  // derive a reanimated value directly from the global mutable shared values
+  const shouldHide = useDerivedValue(() => {
+    // hide when either the tab bar is hidden OR the camera underlay is active
+    return !!tabBarHiddenSV.value || !!cameraActiveSV.value;
+  });
 
   // Mirror the CustomTabBar constants so movement is identical
-  // const BUTTON_LIFT = 70;
   const BUTTON_LIFT = Platform.OS === "ios" ? 15 : 35;
   const ANIM_DURATION = 180;
 
   const animatedStyle = useAnimatedStyle(() => {
-    // when tab bar hidden -> keep button at bottom (translateY = 0)
-    // when tab bar visible -> lift it above the tab bar by BUTTON_LIFT + inset
-    const translateY = hidden.value
-      ? withTiming(0, { duration: ANIM_DURATION })
+    // when shouldHide -> translate down off-screen and fade out
+    const translateY = shouldHide.value
+      ? withTiming(BUTTON_LIFT + (bottom || 0) + 24, {
+          duration: ANIM_DURATION,
+        })
       : withTiming(-(BUTTON_LIFT + (bottom || 0)), { duration: ANIM_DURATION });
+    const opacity = shouldHide.value
+      ? withTiming(0, { duration: ANIM_DURATION })
+      : withTiming(1, { duration: ANIM_DURATION });
     return {
       transform: [{ translateY }],
+      opacity,
       // align on the right, keep center alignment for inner content
       alignItems: "flex-end",
     } as any;
