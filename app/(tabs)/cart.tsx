@@ -10,9 +10,9 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   ListRenderItemInfo,
+  Platform,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,7 +44,7 @@ function mapWishlistToCartItem(w: WishlistItemT): CartItemWithQty {
     image: w.image,
     reviews: (w as any).reviews ?? 0,
     quantity: 1,
-  } as any;
+  } as CartItemWithQty;
 }
 
 /* ------------------------------------------------------------------ */
@@ -53,7 +53,6 @@ const TAB_BAR_HEIGHT = 64;
 
 export default function CartAndWishlistScreen() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const [tab, setTab] = useState<"cart" | "wishlist">("cart");
 
   const [cartData, setCartData] = useState<CartItemWithQty[]>(() =>
@@ -66,9 +65,12 @@ export default function CartAndWishlistScreen() {
     ...WISHLIST_DATA_CONST,
   ]);
 
-  const footerPadding = (insets.bottom || 0) + TAB_BAR_HEIGHT + 70;
+  const footerPadding = useMemo(
+    () => (insets.bottom || 0) + TAB_BAR_HEIGHT + 70,
+    [insets.bottom]
+  );
 
-  // Derived
+  // Derived values
   const subtotal = useMemo(() => subtotalFromCart(cartData), [cartData]);
   const itemsCount = useMemo(
     () => cartData.reduce((s, it) => s + it.quantity, 0),
@@ -77,6 +79,7 @@ export default function CartAndWishlistScreen() {
   const discount = 9999;
   const tax = 1000;
   const total = subtotal - discount + tax;
+  const totalStr = useMemo(() => fmtINR(total), [total]);
 
   /* ----------------- Handlers ----------------- */
 
@@ -104,30 +107,13 @@ export default function CartAndWishlistScreen() {
     setWishlistData((prev) => prev.filter((w) => w.id !== id));
   }, []);
 
-  /**
-   * Add wishlist item to cart.
-   * Uses functional update and the actual removed wishlist item to avoid
-   * stale or missing fields when the new item first renders in cart.
-   *
-   * NOTE: does NOT auto-switch to cart tab (keeps user on wishlist).
-   */
   const moveWishlistToCart = useCallback((id: string) => {
     setWishlistData((prevWishlist) => {
       const found = prevWishlist.find((w) => w.id === id);
       const newWishlist = prevWishlist.filter((w) => w.id !== id);
 
       if (found) {
-        const newCartItem: CartItemWithQty = {
-          id: found.id,
-          name: found.name,
-          price: found.price,
-          mrp: (found as any).mrp ?? found.price,
-          image: found.image,
-          reviews: (found as any).reviews ?? 0,
-          quantity: 1,
-        };
-
-        // enqueue add to cart using functional update
+        const newCartItem = mapWishlistToCartItem(found);
         setCartData((prevCart) => [newCartItem, ...prevCart]);
       }
 
@@ -162,27 +148,66 @@ export default function CartAndWishlistScreen() {
     [removeFromWishlist, moveWishlistToCart]
   );
 
-  // If your row height is stable, keep getItemLayout for perf.
-  // If rows vary in height, remove getItemLayout.
-  const ITEM_HEIGHT = 160;
-  const getItemLayout = useCallback(
-    (_data: any, index: number) => ({
-      length: ITEM_HEIGHT,
-      offset: ITEM_HEIGHT * index,
-      index,
-    }),
+  /* ----------------- Memoized styles/components ----------------- */
+
+  const cartContentContainerStyle = useMemo(
+    () => ({ paddingBottom: footerPadding, paddingTop: 12 }),
+    [footerPadding]
+  );
+
+  const wishlistContentContainerStyle = useMemo(
+    () => ({ paddingBottom: (insets.bottom || 0) + 70, paddingTop: 12 }),
+    [insets.bottom]
+  );
+
+  const CartListHeader = useMemo(
+    () => () => (
+      <View className="mt-3">
+        <AddressCard />
+      </View>
+    ),
     []
   );
+
+  const CartListFooter = useMemo(
+    () => () => (
+      <View className="mt-4">
+        <PriceDetails
+          itemsCount={itemsCount}
+          subtotal={subtotal}
+          discount={discount}
+          tax={tax}
+        />
+      </View>
+    ),
+    [itemsCount, subtotal, discount, tax]
+  );
+
+  // Only use getItemLayout if rows are stable height
+  const useFixedRowHeight = false;
+  const ITEM_HEIGHT = 160;
+  const getItemLayout = useMemo(
+    () =>
+      useFixedRowHeight
+        ? (_data: any, index: number) => ({
+            length: ITEM_HEIGHT,
+            offset: ITEM_HEIGHT * index,
+            index,
+          })
+        : undefined,
+    [useFixedRowHeight]
+  );
+
+  const removeClippedSubviewsForPlatform = Platform.OS === "android";
 
   /* ----------------- UI ----------------- */
 
   return (
     <View className="flex-1 bg-gray-100 pt-safe">
-      {/* make status bar translucent so header color shows through notch */}
       <StatusBar style="dark" translucent backgroundColor="transparent" />
 
-      {/* Header + tabs: header background extends into notch */}
-      <View className="w-full bg-white rounded-b-xl  ">
+      {/* Header + tabs */}
+      <View className="w-full bg-white rounded-b-xl">
         <View className="flex-row items-center">
           <TouchableOpacity
             onPress={() => setTab("cart")}
@@ -215,82 +240,67 @@ export default function CartAndWishlistScreen() {
             data={cartData}
             keyExtractor={(i) => i.id}
             renderItem={renderCartItem}
-            extraData={cartData} // force re-eval when cartData changes
             getItemLayout={getItemLayout}
-            ListHeaderComponent={() => (
-              <View className="mt-3">
-                <AddressCard />
-              </View>
-            )}
-            contentContainerStyle={{
-              paddingBottom: footerPadding,
-              paddingTop: 12,
-            }}
+            ListHeaderComponent={CartListHeader}
+            ListFooterComponent={CartListFooter}
+            contentContainerStyle={cartContentContainerStyle}
             initialNumToRender={5}
             maxToRenderPerBatch={8}
-            windowSize={9}
-            removeClippedSubviews
+            windowSize={7}
+            removeClippedSubviews={removeClippedSubviewsForPlatform}
             showsVerticalScrollIndicator={false}
-            bounces={false} // prevent iOS overscroll
+            bounces={false}
             alwaysBounceVertical={false}
-            overScrollMode="never" // prevent Android glow
-            ListFooterComponent={() => (
-              <View className="mt-4">
-                <PriceDetails
-                  itemsCount={itemsCount}
-                  subtotal={subtotal}
-                  discount={discount}
-                  tax={tax}
-                />
-              </View>
-            )}
+            overScrollMode="never"
           />
         ) : (
           <FlatList
             data={wishlistData}
             keyExtractor={(i) => i.id}
             renderItem={renderWishlistItem}
-            contentContainerStyle={{
-              paddingBottom: (insets.bottom || 0) + 70,
-              paddingTop: 12,
-            }}
+            contentContainerStyle={wishlistContentContainerStyle}
             initialNumToRender={6}
             maxToRenderPerBatch={8}
-            windowSize={9}
-            removeClippedSubviews
+            windowSize={7}
+            removeClippedSubviews={removeClippedSubviewsForPlatform}
             showsVerticalScrollIndicator={false}
             bounces={false}
             alwaysBounceVertical={false}
             overScrollMode="never"
-            ListEmptyComponent={<View className="" />}
+            ListEmptyComponent={<View />}
           />
         )}
       </View>
 
       {/* Continue bar */}
-
       {tab === "cart" && (
-        <View className="absolute left-0 right-0 bottom-[calc(env(safe-area-inset-bottom)+64px-8px)] z-30">
-          <View className="">
-            <View className="bg-white rounded-xl px-4 py-3 flex-row justify-between items-center shadow-md">
-              {/* Left: total */}
-              <View>
-                <Text className="text-xl font-semibold">{fmtINR(total)}</Text>
-                <Text className="text-xs text-gray-400 line-through">
-                  ₹2,00,000
-                </Text>
-              </View>
-
-              {/* Buy Now: pill button */}
-              <TouchableOpacity
-                onPress={() => {
-                  /* continue action */
-                }}
-                activeOpacity={0.9}
-                className="items-center justify-center bg-[#26FF91] rounded-xl px-12 py-3 shadow-sm">
-                <Text className="text-base font-semibold">Buy Now</Text>
-              </TouchableOpacity>
+        <View
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: (insets.bottom || 0) + TAB_BAR_HEIGHT - 8,
+            zIndex: 30,
+            paddingHorizontal: 16,
+          }}>
+          <View className="bg-white rounded-xl px-4 py-3 flex-row justify-between items-center shadow-md">
+            {/* Left: total */}
+            <View>
+              <Text className="text-xl font-semibold">{totalStr}</Text>
+              <Text className="text-xs text-gray-400 line-through">
+                ₹2,00,00
+              </Text>
             </View>
+
+            {/* Buy Now */}
+            <TouchableOpacity
+              onPress={() => {
+                /* continue action */
+              }}
+              activeOpacity={0.9}
+              className="items-center justify-center bg-[#26FF91] rounded-xl px-14 py-4 shadow-sm">
+              <Text className="text-base font-semibold">Buy Now</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}

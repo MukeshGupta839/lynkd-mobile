@@ -18,21 +18,20 @@ import HomeHeader from "@/components/Product/HomeHeader";
 import QuickActions from "@/components/Product/QuickActions";
 import SearchBar from "@/components/Searchbar";
 
-import {
-  CATEGORIES,
-  POPULAR_EVENTS,
-  UPCOMING_EVENTS,
-} from "@/constants/bookings";
+import { POPULAR_EVENTS, UPCOMING_EVENTS } from "@/constants/bookings";
 import { useFavorites } from "@/context/FavoritesContext";
 
 export default function Bookings() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { width: sw } = useWindowDimensions();
+  const { width: screenWidth } = useWindowDimensions();
 
-  const categories = useMemo(() => CATEGORIES, []);
+  const CARD_PERCENT = 0.6;
+  const ITEM_GAP = 12;
+  const CARD_WIDTH = Math.round(screenWidth * CARD_PERCENT);
 
+  // ---------- filters (memoized)
   const upcomingFiltered = useMemo(() => {
     if (!activeCategory || activeCategory === "all") return UPCOMING_EVENTS;
     return UPCOMING_EVENTS.filter(
@@ -47,31 +46,32 @@ export default function Bookings() {
     );
   }, [activeCategory]);
 
-  // ---------- Upcoming renderer: card variant, NO heart, but pass category/isLive ----------
-  const renderUpcoming = useCallback(
+  // ---------- renderers (stable)
+  const renderUpcomingItem = useCallback(
     ({ item }: ListRenderItemInfo<(typeof UPCOMING_EVENTS)[number]>) => (
-      <EventCard
-        id={item.id}
-        title={item.title}
-        price={item.price}
-        location={item.location}
-        dateLabel={item.dateLabel}
-        image={item.image}
-        variant="card"
-        category={item.category}
-        isLive={item.isLive}
-        onPress={() =>
-          router.push({
-            pathname: "/Bookings/Booking",
-            params: { id: item.id },
-          })
-        }
-      />
+      <View style={{ width: CARD_WIDTH }}>
+        <EventCard
+          id={item.id}
+          title={item.title}
+          price={item.price}
+          location={item.location}
+          dateLabel={item.dateLabel}
+          image={item.image}
+          variant="card"
+          category={item.category}
+          isLive={item.isLive}
+          onPress={() =>
+            router.push({
+              pathname: "/Bookings/Booking",
+              params: { id: item.id },
+            })
+          }
+        />
+      </View>
     ),
-    [router]
+    [router, CARD_WIDTH]
   );
 
-  // ---------- Popular renderer: compact variant, WITH heart/favorite support, and pass category/isLive ----------
   const renderPopularItem = useCallback(
     ({ item }: ListRenderItemInfo<(typeof POPULAR_EVENTS)[number]>) => (
       <View className="px-3">
@@ -98,100 +98,122 @@ export default function Bookings() {
     [router, isFavorite, toggleFavorite]
   );
 
-  // ---------- card sizing & spacing for Upcoming only ----------
-  const CARD_PERCENT = 0.48; // adjust to taste (0.48 ~ two cards)
-  const MIN_CARD_WIDTH = 240;
-  const MAX_CARD_WIDTH = 520;
-  const rawCardWidth = Math.round(sw * CARD_PERCENT);
-  const CARD_WIDTH = Math.max(
-    MIN_CARD_WIDTH,
-    Math.min(rawCardWidth, MAX_CARD_WIDTH)
+  const horizontalGetItemLayout = useCallback(
+    (_: any, index: number) => {
+      const length = CARD_WIDTH + ITEM_GAP;
+      const offset = index * length;
+      return { length, offset, index };
+    },
+    [CARD_WIDTH]
   );
 
-  const SIDE_PADDING = 12;
-  const ITEM_GAP = 12;
+  const listEdgeSpacer = useMemo(
+    () => <View style={{ width: ITEM_GAP }} />,
+    [ITEM_GAP]
+  );
+  const emptyUpcomingComponent = useMemo(
+    () => <Text className="px-3">No upcoming events</Text>,
+    []
+  );
+  const emptyPopularComponent = useMemo(
+    () => <Text className="px-3">No popular events</Text>,
+    []
+  );
 
-  // ---------- Header component for the vertical FlatList ----------
-  const ListTop = () => (
-    <View>
-      {/* Rounded gradient header */}
-      <View className="w-full rounded-b-2xl overflow-hidden">
-        <LinearGradient
-          colors={["#E0DBFF", "#f9fafb"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          className="w-full rounded-b-2xl overflow-hidden">
-          <SafeAreaView edges={["top"]} className="px-3 pb-2">
-            <HomeHeader />
-            <QuickActions />
+  // ---------- memoized header (ListTop)
+  const ListTop = useMemo(() => {
+    return (
+      <View>
+        <View className="w-full rounded-b-2xl overflow-hidden">
+          <LinearGradient
+            colors={["#E0DBFF", "#f9fafb"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            className="w-full rounded-b-2xl overflow-hidden">
+            <SafeAreaView edges={["top"]} className="px-3 pb-2">
+              <HomeHeader />
+              <QuickActions />
+              <TouchableOpacity
+                onPress={() => router.push("/Searchscreen?tab=booking")}
+                activeOpacity={0.8}
+                className="mt-3"
+                accessibilityLabel="Search bookings">
+                <SearchBar placeholder="Search Bookings" readOnly />
+              </TouchableOpacity>
+            </SafeAreaView>
+          </LinearGradient>
+        </View>
+
+        <View className="mt-4">
+          <Categories
+            activeCategory={activeCategory}
+            setActiveCategory={setActiveCategory}
+          />
+        </View>
+
+        {/* Upcoming header */}
+        <View className="mt-4">
+          <View className="flex-row items-center justify-between mb-3 px-3">
+            <Text className="font-semibold text-lg">Upcoming Events</Text>
             <TouchableOpacity
-              onPress={() => router.push("/Searchscreen")}
+              onPress={() => router.push("/Bookings/UpcomingEvents")}
               activeOpacity={0.8}
-              className="mt-3">
-              <SearchBar placeholder="Search" readOnly />
+              accessibilityLabel="See all upcoming events">
+              <Text className="text-base text-[#7952FC]">See all events</Text>
             </TouchableOpacity>
-          </SafeAreaView>
-        </LinearGradient>
-      </View>
+          </View>
 
-      <View className="mt-4">
-        <Categories
-          activeCategory={activeCategory}
-          setActiveCategory={setActiveCategory}
-        />
-      </View>
-
-      {/* Upcoming Events (horizontal) */}
-      <View className="mt-4 ">
-        <View className="flex-row items-center justify-between mb-3 px-3">
-          <Text className="font-semibold text-lg">Upcoming Events</Text>
-          <TouchableOpacity
-            onPress={() => router.push("/Bookings/UpcomingEvents")}
-            activeOpacity={0.8}>
-            <Text className="text-base text-[#7952FC]">See all events</Text>
-          </TouchableOpacity>
+          {/* Horizontal FlatList with responsive card width */}
+          <FlatList
+            data={upcomingFiltered}
+            keyExtractor={(i) => i.id}
+            renderItem={renderUpcomingItem}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            bounces={false}
+            overScrollMode="never"
+            initialNumToRender={3}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            removeClippedSubviews={true}
+            snapToInterval={CARD_WIDTH + ITEM_GAP}
+            decelerationRate="fast"
+            getItemLayout={horizontalGetItemLayout}
+            ListHeaderComponent={listEdgeSpacer}
+            ListFooterComponent={listEdgeSpacer}
+            ItemSeparatorComponent={() => <View style={{ width: ITEM_GAP }} />}
+            ListEmptyComponent={emptyUpcomingComponent}
+          />
         </View>
 
-        <FlatList
-          data={upcomingFiltered}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(i) => i.id}
-          renderItem={({ item, index }) => (
-            <View style={{ width: CARD_WIDTH }}>
-              {renderUpcoming({ item, index, separators: undefined as any })}
-            </View>
-          )}
-          bounces={false}
-          overScrollMode="never"
-          ListHeaderComponent={<View style={{ width: SIDE_PADDING }} />}
-          ListFooterComponent={<View style={{ width: SIDE_PADDING }} />}
-          ItemSeparatorComponent={() => <View style={{ width: ITEM_GAP }} />}
-          contentContainerStyle={{}}
-        />
-      </View>
-
-      {/* Popular header (the vertical list items follow after this) */}
-      <View className="px-3">
-        <View className="flex-row items-center justify-between mb-3">
-          <Text className="font-semibold text-lg">Popular Events</Text>
-          <TouchableOpacity
-            onPress={() => router.push("/Bookings/PopularEvents")}
-            activeOpacity={0.8}>
-            <Text className="text-base text-[#7952FC]">See all events</Text>
-          </TouchableOpacity>
+        <View className="px-3">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="font-semibold text-lg">Popular Events</Text>
+            <TouchableOpacity
+              onPress={() => router.push("/Bookings/PopularEvents")}
+              activeOpacity={0.8}
+              accessibilityLabel="See all popular events">
+              <Text className="text-base text-[#7952FC]">See all events</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  }, [
+    router,
+    activeCategory,
+    renderUpcomingItem,
+    horizontalGetItemLayout,
+    listEdgeSpacer,
+    emptyUpcomingComponent,
+  ]);
 
   return (
-    // top-level vertical FlatList renders Popular events; header contains everything else
     <FlatList
       data={popularFiltered}
       keyExtractor={(i) => i.id}
       renderItem={renderPopularItem}
-      ListHeaderComponent={<ListTop />}
+      ListHeaderComponent={ListTop}
       showsVerticalScrollIndicator={false}
       bounces={false}
       overScrollMode="never"
@@ -199,7 +221,11 @@ export default function Bookings() {
         paddingBottom: 100,
         backgroundColor: "transparent",
       }}
-      ItemSeparatorComponent={() => <View className="h-3" />}
+      initialNumToRender={6}
+      maxToRenderPerBatch={10}
+      windowSize={7}
+      removeClippedSubviews={true}
+      ListEmptyComponent={emptyPopularComponent}
     />
   );
 }

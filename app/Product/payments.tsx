@@ -1,3 +1,4 @@
+// app/product/payments.tsx  (or wherever your payments file lives)
 import OffersCard from "@/components/Productview/OffersCard";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -18,12 +19,20 @@ type UpiMethod = "gpay" | "phonepe" | "paytm" | "manual";
 export default function Payments() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ total?: string }>();
+  const params = useLocalSearchParams<{ total?: string; source?: string }>();
+
+  // Determine source: 'service' or default 'product'
+  const source = (params?.source ?? "product").toString();
+
+  // Default amounts by flow
+  const defaultProductAmount = 71999;
+  const defaultServiceAmount = 1999;
 
   const amount = useMemo(() => {
     const n = Number(params?.total);
-    return Number.isFinite(n) && n > 0 ? n : 71999;
-  }, [params]);
+    if (Number.isFinite(n) && n > 0) return n;
+    return source === "service" ? defaultServiceAmount : defaultProductAmount;
+  }, [params, source]);
 
   const [selectedUpi, setSelectedUpi] = useState<UpiMethod>("gpay");
   const [showSuccess, setShowSuccess] = useState(false);
@@ -34,24 +43,29 @@ export default function Payments() {
     <View
       className={`items-center justify-center rounded-full w-[7%] aspect-square border ${
         active ? "border-black" : "border-gray-300"
-      }`}
-    >
+      }`}>
       {active ? (
         <View className="w-[55%] aspect-square rounded-full bg-black" />
       ) : null}
     </View>
   );
 
+  // Colors / texts by flow
+  const payButtonColor = source === "service" ? "#1B19A8" : "#26FF91";
+  const modalButtonColor = payButtonColor;
+  const modalButtonLabel =
+    source === "service" ? "View Receipt" : "Purchase More";
+  const modalButtonRoute =
+    source === "service" ? "/Services/Receipt" : "/(tabs)/product";
+
   return (
-    // Root View → content can extend under the notch / home indicator
     <View className="flex-1 bg-gray-100">
       <StatusBar style="dark" translucent backgroundColor="transparent" />
 
       {/* Header that paints the notch area */}
       <View
         className="bg-white rounded-b-2xl px-[5%] py-3 shadow"
-        style={{ paddingTop: insets.top }}
-      >
+        style={{ paddingTop: insets.top }}>
         <View className="flex-row items-center">
           <TouchableOpacity onPress={() => router.back()} className="p-1 mr-2">
             <Ionicons name="arrow-back" size={20} color="black" />
@@ -67,8 +81,7 @@ export default function Payments() {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: (insets.bottom || 0) + 96 }}
-        showsVerticalScrollIndicator={false}
-      >
+        showsVerticalScrollIndicator={false}>
         {/* Total Amount (edge-to-edge card) */}
         <View className="mt-3 rounded-2xl overflow-hidden">
           <View className="bg-[#FFFFF9] px-[5%] py-4">
@@ -79,9 +92,10 @@ export default function Payments() {
           </View>
         </View>
 
-        {/* Offers (edge-to-edge). If OffersCard has internal margin, neutralize it with -mx */}
+        {/* Offers (edge-to-edge). keep OffersCard as-is but hide bank offers per your previous preference */}
         <View className="bg-white rounded-2xl py-3 mt-3">
           <View className="">
+            {/* keep OffersCard usage — passing showBankOffers=false to hide bank offers */}
             <OffersCard showBankOffers={false} />
           </View>
         </View>
@@ -107,8 +121,7 @@ export default function Payments() {
               <View key={m.key}>
                 <TouchableOpacity
                   onPress={() => setSelectedUpi(m.key as UpiMethod)}
-                  className="flex-row items-center justify-between px-3 py-3 bg-white"
-                >
+                  className="flex-row items-center justify-between px-3 py-3 bg-white">
                   <View className="flex-row items-center w-[90%]">
                     <View className="w-[9%] aspect-square rounded-md bg-gray-100 items-center justify-center mr-2">
                       <Ionicons name={m.icon} size={16} color="#000" />
@@ -124,8 +137,7 @@ export default function Payments() {
             <View className="bg-gray-200" />
             <TouchableOpacity
               onPress={() => setSelectedUpi("manual")}
-              className="flex-row items-center justify-between px-3 py-3 bg-white"
-            >
+              className="flex-row items-center justify-between px-3 py-3 bg-white">
               <View className="flex-row items-center w-[90%]">
                 <View className="w-[9%] aspect-square rounded-md bg-gray-100 items-center justify-center mr-2">
                   <Ionicons name="add" size={16} color="#000" />
@@ -164,12 +176,10 @@ export default function Payments() {
       {/* --- Bottom total card (matches 430x71) & paints home-indicator --- */}
       <View
         className="absolute inset-x-0 bottom-0"
-        style={{ zIndex: 50, elevation: 50 }}
-      >
+        style={{ zIndex: 50, elevation: 50 }}>
         <View
           className="bg-white w-full rounded-t-xxs border-t border-black/10 aspect-[6.056]"
-          style={{ paddingBottom: insets.bottom }}
-        >
+          style={{ paddingBottom: insets.bottom }}>
           <View className="flex-1 flex-row items-center justify-between px-[5%] pt-2 ">
             <View>
               <Text className="text-[1.25rem] font-semibold">
@@ -180,13 +190,18 @@ export default function Payments() {
               </Text>
             </View>
 
-            {/* Pay Now button: 187x54 → width 43.5% of card, height via aspect */}
+            {/* Pay Now button: color depends on source (service vs product) */}
             <TouchableOpacity
-              className="ml-[3%] mt-2 bg-[#26FF91] rounded-2xl items-center justify-center border border-black/10"
-              style={{ width: "43.5%", aspectRatio: 3.463 }}
-              onPress={() => setShowSuccess(true)}
-            >
-              <Text className="text-[1rem] font-semibold">Pay Now</Text>
+              className="ml-[3%] mt-2 rounded-2xl items-center justify-center border border-black/10"
+              style={{
+                width: "43.5%",
+                aspectRatio: 3.463,
+                backgroundColor: payButtonColor,
+              }}
+              onPress={() => setShowSuccess(true)}>
+              <Text className="text-[1rem] font-semibold text-white">
+                Pay Now
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -197,25 +212,19 @@ export default function Payments() {
         visible={showSuccess}
         transparent
         animationType="fade"
-        presentationStyle="overFullScreen" // iOS: draw over everything
-        statusBarTranslucent // ANDROID: cover the status bar area
-        onRequestClose={() => setShowSuccess(false)}
-      >
-        {/* Dim background that closes on tap */}
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        onRequestClose={() => setShowSuccess(false)}>
         <TouchableWithoutFeedback onPress={() => setShowSuccess(false)}>
           <View className="flex-1 bg-black/40">
-            {/* Center area; keep overlay full-screen, only space the CARD with insets */}
             <View className="flex-1 items-center justify-center">
-              {/* Tap-catcher to keep taps inside card from closing */}
               <TouchableWithoutFeedback>
                 <View
                   className="w-[80%] bg-white rounded-2xl p-6 space-y-6"
                   style={{
-                    // keep nice breathing room from notch & home indicator
                     marginTop: insets.top,
                     marginBottom: insets.bottom,
-                  }}
-                >
+                  }}>
                   <View className="items-center space-y-3">
                     <View className="w-16 aspect-square rounded-full bg-green-100 items-center justify-center">
                       <Ionicons
@@ -233,13 +242,15 @@ export default function Payments() {
                   </View>
 
                   <TouchableOpacity
-                    className="w-full bg-[#26FF91] rounded-xl py-4 items-center mt-6 justify-center"
+                    className="w-full rounded-xl py-4 items-center mt-6 justify-center"
+                    style={{ backgroundColor: modalButtonColor }}
                     onPress={() => {
                       setShowSuccess(false);
-                      router.push("/(tabs)/product");
-                    }}
-                  >
-                    <Text className="text-sm font-semibold">Purchase More</Text>
+                      router.push(modalButtonRoute);
+                    }}>
+                    <Text className="text-sm font-semibold text-white">
+                      {modalButtonLabel}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </TouchableWithoutFeedback>

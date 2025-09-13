@@ -48,6 +48,10 @@ export default function RootLayout() {
               options={{ headerShown: false }}
             />
             <Stack.Screen
+              name="Address/ShippingAddress"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
               name="Searchscreen"
               options={{ headerShown: false }}
             />
@@ -97,6 +101,22 @@ export default function RootLayout() {
             />
             <Stack.Screen
               name="Notifications"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Services/serviceDetails"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Services/BookingTable"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Services/PersonalDetails"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Services/Receipt"
               options={{ headerShown: false }}
             />
             <Stack.Screen name="+not-found" />

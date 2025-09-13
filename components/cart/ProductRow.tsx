@@ -3,14 +3,14 @@ import QuantitySelector from "@/components/cart/QuantitySelector";
 import { CartItemT, WishlistItemT } from "@/constants/cart";
 import { Ionicons } from "@expo/vector-icons";
 import { Truck } from "lucide-react-native";
-import React from "react";
+import React, { useEffect } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 
 type CartRowItem = CartItemT & { quantity?: number };
 type WishlistRowItem = WishlistItemT;
 
 type Props = {
-  item: CartRowItem | WishlistRowItem;
+  item?: CartRowItem | WishlistRowItem | null; // made optional to be defensive
   variant: "cart" | "wishlist";
   onIncrement?: () => void;
   onDecrement?: () => void;
@@ -19,7 +19,7 @@ type Props = {
   onPress?: () => void;
 };
 
-/* local INR helper (kept inside file as requested) */
+/* local INR helper (kept inside file) */
 const INR = (n?: number | null) => {
   const num = typeof n === "number" ? n : Number(n ?? 0);
   if (!isFinite(num)) return "₹0";
@@ -34,12 +34,34 @@ export default React.memo(function ProductRow({
   onRemove,
   onAddToCart,
 }: Props) {
-  const quantity = (item as any).quantity ?? 1;
-  const reviews = (item as any).reviews ?? 0;
+  // Defensive: warn if item missing and avoid crash
+  useEffect(() => {
+    if (item == null) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "ProductRow: received undefined/null `item`. Check data source.",
+        {
+          variant,
+        }
+      );
+    }
+  }, [item, variant]);
 
-  // Variant-specific classes
-  const contentWrapClass =
-    variant === "cart" ? "w-[90%] self-center p-2" : "w-[90%] self-center p-2";
+  if (!item) {
+    // don't render a broken row — return null to avoid crashes
+    return null;
+  }
+
+  // normalize fields safely with fallbacks
+  const name = (item as any).name ?? "";
+  const price = Number((item as any).price ?? 0);
+  const mrp = Number((item as any).mrp ?? price);
+  const image = (item as any).image;
+  const quantity = Number((item as any).quantity ?? 1);
+  const reviews = Number((item as any).reviews ?? 0);
+
+  // Variant-specific classes (kept but simple)
+  const contentWrapClass = "w-[90%] self-center p-2";
   const imageBasisClass = variant === "cart" ? "basis-[33%]" : "basis-[16%]";
   const imageAspectClass =
     variant === "cart" ? "aspect-[0.9]" : "aspect-[0.78]";
@@ -52,11 +74,17 @@ export default React.memo(function ProductRow({
         <View
           className={`${imageBasisClass} rounded-xl overflow-hidden bg-gray-50`}>
           <View className={`w-full ${imageAspectClass}`}>
-            <Image
-              source={(item as any).image}
-              className="w-full h-full"
-              resizeMode="contain"
-            />
+            {image ? (
+              <Image
+                source={image}
+                className="w-full h-full"
+                resizeMode="contain"
+              />
+            ) : (
+              <View className="w-full h-full items-center justify-center">
+                <Ionicons name="image-outline" size={28} color="#9CA3AF" />
+              </View>
+            )}
           </View>
         </View>
 
@@ -71,16 +99,14 @@ export default React.memo(function ProductRow({
             numberOfLines={2}
             ellipsizeMode="tail"
             accessibilityRole="header">
-            {(item as any).name}
+            {name}
           </Text>
 
           {/* Price row */}
           <View className="flex-row items-center">
-            <Text className="text-lg font-bold mr-2">
-              {INR((item as any).price)}
-            </Text>
+            <Text className="text-lg font-bold mr-2">{INR(price)}</Text>
             <Text className="text-xs line-through text-gray-400 mr-2">
-              {INR((item as any).mrp ?? (item as any).price)}
+              {INR(mrp)}
             </Text>
             <Text className="text-xs font-semibold text-green-600">50%</Text>
           </View>
@@ -88,13 +114,17 @@ export default React.memo(function ProductRow({
           {/* Cart-only metadata */}
           {variant === "cart" && (
             <>
-              <View className="flex-row items-center ">
+              <View className="flex-row items-center mt-2">
                 {/* stars: render according to reviews if you have rating value; static fallback */}
-                {[...Array(4)].map((_, i) => (
-                  <Ionicons key={i} name="star" size={14} color="#FFD700" />
-                ))}
-                <Ionicons name="star-half" size={14} color="#FFD700" />
-                <Text className="ml-1 text-sm text-gray-600">{`${4.5} (${reviews.toLocaleString()} reviews)`}</Text>
+                <View className="flex-row items-center">
+                  {[...Array(4)].map((_, i) => (
+                    <Ionicons key={i} name="star" size={14} color="#FFD700" />
+                  ))}
+                  <Ionicons name="star-half" size={14} color="#FFD700" />
+                </View>
+                <Text className="ml-1 text-sm text-gray-600">
+                  {`${4.5} (${reviews.toLocaleString()} reviews)`}
+                </Text>
               </View>
 
               <View className="mt-2 flex-row items-center bg-[#26FF91] px-2 py-0.5 rounded-full self-start">
@@ -147,7 +177,6 @@ export default React.memo(function ProductRow({
     </View>
   );
 });
-
 /* ------------------ PriceDetails ------------------ */
 export function PriceDetails({
   itemsCount,
@@ -161,7 +190,7 @@ export function PriceDetails({
   tax?: number;
 }) {
   // local INR helper here too for footer (kept local per your request)
-  const INR = (n?: number | null) => {
+  const INR2 = (n?: number | null) => {
     const num = typeof n === "number" ? n : Number(n ?? 0);
     if (!isFinite(num)) return "₹0";
     return `₹${num.toLocaleString("en-IN")}`;
@@ -172,20 +201,18 @@ export function PriceDetails({
   function Row({
     label,
     value,
-    labelClass,
-    valueClass,
+    labelClass = "",
+    valueClass = "",
   }: {
     label: string;
     value: string;
-    labelClass?: any;
-    valueClass?: any;
+    labelClass?: string;
+    valueClass?: string;
   }) {
     return (
       <View className="flex-row justify-between items-center">
-        <Text className="text-sm text-black" style={labelClass}>
-          {label}
-        </Text>
-        <Text className="text-sm font-semibold text-black" style={valueClass}>
+        <Text className={`text-sm text-black ${labelClass}`}>{label}</Text>
+        <Text className={`text-sm font-semibold text-black ${valueClass}`}>
           {value}
         </Text>
       </View>
@@ -197,21 +224,21 @@ export function PriceDetails({
       <Text className="text-lg font-semibold">Price Details</Text>
 
       <View className="mt-3 space-y-3">
-        <Row label={`Price (${itemsCount} item)`} value={INR(subtotal)} />
+        <Row label={`Price (${itemsCount} item)`} value={INR2(subtotal)} />
         <Row
           label="Discount"
-          value={`- ${INR(discount)}`}
-          valueClass={{ color: "#059669", fontWeight: "700" }}
+          value={`- ${INR2(discount)}`}
+          valueClass="text-green-600 font-bold"
         />
-        <Row label="Tax Included" value={INR(tax)} />
+        <Row label="Tax Included" value={INR2(tax)} />
       </View>
 
       <View className="mt-4 border-t border-black/10 pt-3">
         <Row
           label="Total"
-          value={INR(total)}
-          labelClass={{ fontSize: 18, fontWeight: "700" }}
-          valueClass={{ fontSize: 18, fontWeight: "700" }}
+          value={INR2(total)}
+          labelClass="text-lg font-bold"
+          valueClass="text-lg font-bold"
         />
       </View>
     </View>

@@ -1,4 +1,5 @@
 // components/CategoryList.tsx
+import { useCategoryTheme } from "@/stores/useThemeStore"; // new store
 import { LinearGradient } from "expo-linear-gradient";
 import {
   BookOpen,
@@ -14,6 +15,7 @@ import { FlatList, Text, TouchableOpacity, View } from "react-native";
 
 type Orientation = "horizontal" | "vertical";
 
+/** fallback default categories (kept exactly as before) */
 const CATS = [
   { name: "All", icon: LayoutGrid },
   { name: "Mobiles", icon: Smartphone },
@@ -41,7 +43,14 @@ const Tile = React.memo(
     isFirst?: boolean;
     isLast?: boolean;
   }) => {
-    const stroke = active ? "#26FF91" : "#7C8797";
+    // read theme values from store (keeps behavior but makes color configurable)
+    const { activeColor, gradientActive, gradientInactive, underlineColor } =
+      useCategoryTheme();
+
+    // if store is not present for some reason, fallback to original hardcoded color
+    const activeStroke = active ? (activeColor ?? "#26FF91") : "#7C8797";
+    const underlineCol = active ? (underlineColor ?? "#26FF91") : "transparent";
+
     const tileMargin = [
       !isVertical && "mr-3",
       !isVertical && isFirst && "ml-3",
@@ -60,11 +69,7 @@ const Tile = React.memo(
           <View className={`relative w-16 h-16 rounded-10 overflow-hidden`}>
             {/* Base background – gradient for BOTH states */}
             <LinearGradient
-              colors={
-                active
-                  ? ["#BEFBE0", "#FFFFFF"] // mint -> white
-                  : ["#FFFFFF", "#F6F8FB"] // soft card gradient (inactive)
-              }
+              colors={active ? gradientActive : gradientInactive}
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
               style={{ position: "absolute", inset: 0 }}
@@ -78,7 +83,7 @@ const Tile = React.memo(
                 end={{ x: 0.5, y: 0.5 }}
                 style={{
                   position: "absolute",
-                  top: 0, // <— no 1px inset
+                  top: 0,
                   left: 0,
                   right: 0,
                   height: 18,
@@ -130,7 +135,7 @@ const Tile = React.memo(
                 end={{ x: 0.5, y: 0 }} // fade upward
                 style={{
                   position: "absolute",
-                  bottom: 0, // anchor to bottom instead of top
+                  bottom: 0,
                   left: 0,
                   right: 0,
                   height: 1,
@@ -142,13 +147,18 @@ const Tile = React.memo(
 
             {/* CONTENT */}
             <View className="flex-1 items-center justify-center px-1 pb-1.5">
-              <Icon size={22} color={stroke} strokeWidth={active ? 2.5 : 2} />
+              <Icon
+                size={22}
+                color={activeStroke}
+                strokeWidth={active ? 2.5 : 2}
+              />
               <Text
                 numberOfLines={1}
-                className={`mt-1 font-worksans-400 ${
-                  active ? "text-emerald-600" : "text-gray-500"
-                }`}
-                style={{ fontSize: 8 }}>
+                className={`mt-1 font-worksans-400`}
+                style={{
+                  fontSize: 8,
+                  color: active ? activeColor : "#6B7280",
+                }}>
                 {name}
               </Text>
             </View>
@@ -156,7 +166,8 @@ const Tile = React.memo(
             {/* UNDERLINE (INSIDE the card) */}
             <View
               pointerEvents="none"
-              className={`${active ? "bg-[#26FF91]" : "bg-transparent"} absolute left-3 right-3 bottom-0 h-1.5 rounded-t-full`}
+              className={`absolute left-3 right-3 bottom-0 h-1.5 rounded-t-full`}
+              style={{ backgroundColor: underlineCol }}
             />
           </View>
         </View>
@@ -180,6 +191,11 @@ export default function CategoryList({
   useEffect(() => setActive(activeDefault), [activeDefault]);
 
   const isVertical = orientation === "vertical";
+
+  // read categories from store — fallback to your original CATS
+  const storeCategories = useCategoryTheme((s) => s.categories);
+  const categories =
+    storeCategories && storeCategories.length ? storeCategories : CATS;
 
   const handlePress = useCallback((name: string) => {
     setActive(name);
@@ -205,7 +221,7 @@ export default function CategoryList({
     <View className={className}>
       {isVertical ? (
         <FlatList
-          data={CATS}
+          data={categories}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           showsVerticalScrollIndicator={false}
@@ -224,7 +240,7 @@ export default function CategoryList({
         />
       ) : (
         <FlatList
-          data={CATS}
+          data={categories}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           horizontal

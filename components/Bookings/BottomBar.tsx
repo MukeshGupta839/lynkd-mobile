@@ -44,7 +44,7 @@ export default function BottomNavBar({
     : Math.max(insets.bottom, 12);
 
   return (
-    <View className="absolute left-0 right-0 bottom-4 px-4">
+    <View className="absolute left-0 right-0 bottom-2 px-4">
       {variant === "default" ? (
         // --- Default with heart + button ---
         <View className="flex-row items-center space-x-4">

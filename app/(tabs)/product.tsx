@@ -1,6 +1,7 @@
+// app/(tabs)/ProductHome.tsx
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import React from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback } from "react";
 import { FlatList, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -17,15 +18,17 @@ import { bestDeals } from "@/constants/BestDeals";
 import { topDeals } from "@/constants/Deal";
 import { products } from "@/constants/Product";
 
+import { useCategoryTheme } from "@/stores/useThemeStore";
+
 function GradientWrapper({
   children,
-  colors = ["#C5F8CE", "#ffffff"],
+  colors = ["#C5F8CE", "#ffffff"] as const,
   start = { x: 0, y: 0 },
   end = { x: 0, y: 1 },
   className = "rounded-b-3xl overflow-hidden",
 }: {
   children?: React.ReactNode;
-  colors?: [string, string];
+  colors?: readonly [string, string]; // tuple required by expo-linear-gradient types
   start?: { x: number; y: number };
   end?: { x: number; y: number };
   className?: string;
@@ -44,6 +47,15 @@ function GradientWrapper({
 const ProductHome = () => {
   const router = useRouter();
 
+  // ensure ProductHome uses the green preset when mounted (Option 1)
+  const setPreset = useCategoryTheme((s) => s.setThemePreset);
+  useFocusEffect(
+    useCallback(() => {
+      setPreset("green");
+      // no cleanup here — ProductHome will set green on focus (or you can restore if preferred)
+      return () => {};
+    }, [setPreset])
+  );
   // Data array for FlatList - each item represents a section
   const contentSections = [
     { id: "categories", type: "categories" },
@@ -95,7 +107,7 @@ const ProductHome = () => {
       {/* Rounded gradient header with safe area INSIDE */}
       <View className="w-full rounded-b-2xl overflow-hidden">
         <GradientWrapper
-          colors={["#C5F8CE", "#f9fafb"]}
+          colors={["#C5F8CE", "#f9fafb"] as const}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           className="rounded-b-2xl overflow-hidden">
@@ -103,7 +115,7 @@ const ProductHome = () => {
             <HomeHeader />
             <QuickActions />
             <TouchableOpacity
-              onPress={() => router.push("/Searchscreen")}
+              onPress={() => router.push("/Searchscreen?tab=product")}
               activeOpacity={0.8}
               className="mt-3">
               <SearchBar placeholder="Search" readOnly />

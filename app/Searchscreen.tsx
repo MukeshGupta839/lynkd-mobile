@@ -1,33 +1,109 @@
+// app/Search.tsx
 import SearchBar from "@/components/Searchbar";
-import { allProducts, recentSearchIds } from "@/constants/Search";
+import {
+  allBookings,
+  allProducts,
+  allServices,
+  recentBookingIds,
+  recentSearchIds,
+  recentServiceIds,
+} from "@/constants/Search";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
 import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+type TabKey = "product" | "service" | "booking";
+
 export default function SearchPage() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const tab = ((params?.tab as TabKey) || "product") as TabKey;
   const [search, setSearch] = useState("");
 
-  const recentItems = allProducts.filter((item) =>
-    recentSearchIds.includes(item.id)
+  // Configure dataset & behavior per tab
+  const config = useMemo(() => {
+    if (tab === "service") {
+      return {
+        items: allServices,
+        recentIds: recentServiceIds,
+        placeholder: "Search Services",
+        headerGradient: ["#E5E0FF", "#FFFFFF"] as const,
+        matcher: (item: any, q: string) =>
+          (
+            (item.title ?? "") +
+            " " +
+            (item.category ?? "") +
+            " " +
+            (item.tag ?? "")
+          )
+            .toLowerCase()
+            .includes(q),
+        labelOf: (item: any) => item.title,
+        imageOf: (item: any) => item.image,
+        gradientOf: (item: any) => item.gradient,
+        onPress: (item: any) => {},
+      };
+    }
+    if (tab === "booking") {
+      return {
+        items: allBookings,
+        recentIds: recentBookingIds,
+        placeholder: "Search Bookings",
+        headerGradient: ["#E5EOFF", "#FFFFFF"] as const,
+        matcher: (item: any, q: string) =>
+          (
+            (item.title ?? "") +
+            " " +
+            (item.category ?? "") +
+            " " +
+            (item.status ?? "")
+          )
+            .toLowerCase()
+            .includes(q),
+        labelOf: (item: any) => item.title ?? item.category,
+        imageOf: (item: any) => item.image,
+        gradientOf: (item: any) => item.gradient,
+        onPress: (item: any) => {},
+      };
+    }
+
+    // default: product
+    return {
+      items: allProducts,
+      recentIds: recentSearchIds,
+      placeholder: "Search Mobile",
+      headerGradient: ["#C4FFCA", "#FFFFFF"] as const,
+      matcher: (item: any, q: string) =>
+        ((item.name ?? "") + " " + (item.category ?? ""))
+          .toLowerCase()
+          .includes(q),
+      labelOf: (item: any) => item.name,
+      imageOf: (item: any) => item.image,
+      gradientOf: (item: any) => item.gradient,
+      onPress: (item: any) => {},
+    };
+  }, [tab, router]);
+
+  // recent items derived by matching ids in config.recentIds
+  const recentItems = config.items.filter((item: any) =>
+    config.recentIds.includes(item.id)
   );
 
-  const filteredProducts =
+  const filteredItems =
     search.trim().length > 0
-      ? allProducts.filter((item) =>
-          (item.name + " " + item.category)
-            .toLowerCase()
-            .includes(search.toLowerCase())
+      ? config.items.filter((item: any) =>
+          config.matcher(item, search.toLowerCase())
         )
       : [];
 
   return (
     <>
+      {/* 🔹 Header gradient is now dynamic */}
       <LinearGradient
-        colors={["#C4FFCA", "#FFFFFF"]}
+        colors={config.headerGradient}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         className="w-full rounded-b-2xl">
@@ -40,7 +116,7 @@ export default function SearchPage() {
               <SearchBar
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search Mobile"
+                placeholder={config.placeholder}
               />
             </View>
           </View>
@@ -58,24 +134,27 @@ export default function SearchPage() {
               {/* Recent search header */}
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-sm font-semibold">Recent Search</Text>
-                <TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    console.log("Clear recent for tab:", tab);
+                  }}>
                   <Text className="text-xs text-green-500">Clear all</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Recent Searches */}
-              {recentItems.map((item) => (
+              {/* Recent list */}
+              {recentItems.map((item: any) => (
                 <TouchableOpacity
                   key={item.id}
+                  onPress={() => config.onPress(item)}
                   className="w-full flex-row items-center bg-white rounded-full px-3 py-2 mb-3">
-                  {/* Circle with unique gradient per item */}
                   <LinearGradient
-                    colors={item.gradient}
+                    colors={config.gradientOf(item)}
                     start={{ x: 0.5, y: 0 }}
                     end={{ x: 0.5, y: 1 }}
                     className="w-[12%] aspect-square rounded-full items-center justify-center mr-3">
                     <Image
-                      source={item.image}
+                      source={config.imageOf(item)}
                       className="w-[60%] h-[70%]"
                       resizeMode="contain"
                     />
@@ -83,7 +162,7 @@ export default function SearchPage() {
 
                   <View className="flex-1 flex-row items-center justify-between">
                     <Text className="text-base font-medium" numberOfLines={1}>
-                      {item.name}
+                      {config.labelOf(item)}
                     </Text>
                     <Ionicons
                       name="arrow-forward"
@@ -97,18 +176,19 @@ export default function SearchPage() {
             </>
           ) : (
             <>
-              {/* Filtered Products */}
-              {filteredProducts.map((item) => (
+              {/* Filtered Results */}
+              {filteredItems.map((item: any) => (
                 <TouchableOpacity
                   key={item.id}
+                  onPress={() => config.onPress(item)}
                   className="w-full flex-row items-center bg-white rounded-full px-3 py-2 mb-3">
                   <LinearGradient
-                    colors={item.gradient}
+                    colors={config.gradientOf(item)}
                     start={{ x: 0.5, y: 0 }}
                     end={{ x: 0.5, y: 1 }}
                     className="w-[12%] aspect-square rounded-full items-center justify-center mr-3">
                     <Image
-                      source={item.image}
+                      source={config.imageOf(item)}
                       className="w-[60%] h-[70%]"
                       resizeMode="contain"
                     />
@@ -116,7 +196,7 @@ export default function SearchPage() {
 
                   <View className="flex-1 flex-row items-center justify-between">
                     <Text className="text-sm font-medium" numberOfLines={1}>
-                      {item.name}
+                      {config.labelOf(item)}
                     </Text>
                     <Ionicons
                       name="arrow-forward"
@@ -127,6 +207,15 @@ export default function SearchPage() {
                   </View>
                 </TouchableOpacity>
               ))}
+
+              {/* No results */}
+              {filteredItems.length === 0 && (
+                <View className="mt-6 items-center">
+                  <Text className="text-sm text-gray-500">
+                    No results found
+                  </Text>
+                </View>
+              )}
             </>
           )}
         </ScrollView>

@@ -2,7 +2,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   FlatList,
   ListRenderItemInfo,
@@ -25,17 +31,42 @@ import { useFavorites } from "@/context/FavoritesContext";
 export default function FavoritesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
+  const { favoriteIds, isFavorite, toggleFavorite, setFavoriteIds } =
+    useFavorites();
 
+  // Combine all events
   const allEvents = useMemo(() => [...POPULAR_EVENTS, ...UPCOMING_EVENTS], []);
 
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
+  // Default suggestions (mix 3 items: 2 popular + 1 upcoming)
+  const defaultFavorites = useMemo(
+    () => [...POPULAR_EVENTS.slice(0, 2), ...UPCOMING_EVENTS.slice(0, 1)],
+    []
+  );
+  const defaultFavoriteIds = useMemo(
+    () => defaultFavorites.map((e) => e.id),
+    [defaultFavorites]
+  );
+
+  // --- Seed defaults ONCE on first mount if favorites are empty
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (!seededRef.current && favoriteIds.length === 0) {
+      setFavoriteIds(defaultFavoriteIds);
+      seededRef.current = true;
+    }
+    // We intentionally do NOT re-seed when favoriteIds becomes empty later.
+    // Dependencies included so React knows which values are used.
+  }, [favoriteIds, setFavoriteIds, defaultFavoriteIds]);
+
+  // Filter favorites (only items in favoriteIds are shown)
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allEvents
-      .filter((e) => favoriteIds.includes(e.id))
+    const baseList = allEvents.filter((e) => favoriteIds.includes(e.id));
+
+    return baseList
       .filter((e) =>
         activeCategory === "all"
           ? true
@@ -44,24 +75,28 @@ export default function FavoritesScreen() {
       .filter((e) => (q ? e.title.toLowerCase().includes(q) : true));
   }, [allEvents, favoriteIds, search, activeCategory]);
 
-  const renderItem = ({ item }: ListRenderItemInfo<EventT>) => (
-    <EventCard
-      id={item.id}
-      title={item.title}
-      price={item.price}
-      location={item.location}
-      dateLabel={item.dateLabel}
-      image={item.image}
-      variant="compact"
-      isFavorite={isFavorite(item.id)}
-      onToggleFavorite={() => toggleFavorite(item.id)}
-      onPress={() =>
-        router.push({
-          pathname: "/Bookings/Booking",
-          params: { id: item.id },
-        })
-      }
-    />
+  // Stable renderItem
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<EventT>) => (
+      <EventCard
+        id={item.id}
+        title={item.title}
+        price={item.price}
+        location={item.location}
+        dateLabel={item.dateLabel}
+        image={item.image}
+        variant="compact"
+        isFavorite={isFavorite(item.id)} // filled only if truly in favoriteIds
+        onToggleFavorite={() => toggleFavorite(item.id)} // will remove and immediately disappear
+        onPress={() =>
+          router.push({
+            pathname: "/Bookings/Booking",
+            params: { id: item.id },
+          })
+        }
+      />
+    ),
+    [isFavorite, toggleFavorite, router]
   );
 
   const hasAny = filtered.length > 0;
@@ -69,8 +104,8 @@ export default function FavoritesScreen() {
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
       {/* Header */}
-
       <Header title="Favorite" showBackIcon={false} />
+
       {/* Search bar */}
       <View className="px-3">
         <View className="mt-3 flex-row items-center bg-white rounded-xl px-3 border border-gray-200">
@@ -94,7 +129,7 @@ export default function FavoritesScreen() {
       </View>
 
       {/* Content */}
-      <View className=" mt-4 flex-1">
+      <View className="mt-4 flex-1">
         {hasAny ? (
           <FlatList
             data={filtered}
@@ -103,34 +138,33 @@ export default function FavoritesScreen() {
             ItemSeparatorComponent={() => <View className="h-3" />}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 120 }}
+            initialNumToRender={6}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            removeClippedSubviews
           />
         ) : (
-          <View className="flex-1 items-center justify-center ">
-            <View className="w-40 h-40 rounded-xl items-center justify-center bg-white shadow-sm">
-              <View className="w-24 h-24 rounded-full items-center justify-center bg-violet-50">
-                <Ionicons name="alert-circle" size={48} color="#C7B0F6" />
-              </View>
-            </View>
-
+          <View className="flex-1 items-center justify-center">
             <Text className="text-xl font-semibold text-[#111827] mt-2">
-              Oops!
+              No favorites found
             </Text>
             <Text className="text-sm text-gray-400 mt-2 text-center">
-              There are no events you saved
+              Add events to your favorites and they will appear here
             </Text>
           </View>
         )}
       </View>
 
-      {/* Floating Explore Event button */}
+      {/* Explore Events button (only when there are no favorites) */}
       {!hasAny && (
         <View
-          className={`absolute inset-x-0 px-4 mb-3`}
+          className="absolute inset-x-0 px-4 mb-3"
           style={{ bottom: insets.bottom + 45 }}>
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => router.push("/(tabs)/bookings")}
-            className="w-full rounded-2xl overflow-hidden">
+            className="w-full rounded-2xl overflow-hidden"
+            accessibilityLabel="Explore all available events">
             <LinearGradient
               colors={["#7C3AED", "#B15CDE"]}
               start={{ x: 0, y: 0 }}

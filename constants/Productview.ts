@@ -1,56 +1,51 @@
 export const product = {
-    name: "Apple iPhone 16",
-    mainImage: require("../assets/images/Product/iphoneM.png"),
+  name: "Apple iPhone 16",
+  mainImage: require("../assets/images/Product/iphoneM.png"),
 
-    // ✅ Added fields
-    originalPrice: 220000,
-    discount: 55, // %
-    rating: 4.5,
-    reviews: 2495,
+  // ✅ Added fields
+  originalPrice: 220000,
+  discount: 55, // %
+  rating: 4.5,
+  reviews: 2495,
 
-    variants: [
-        {
-            color: "Ultramarine",
-            swatch: require("../assets/images/Product/iphonec1.png"),
-        },
-        {
-            color: "Green",
-            swatch: require("../assets/images/Product/iphonec2.png"),
-        },
-        {
-            color: "White",
-            swatch: require("../assets/images/Product/iphonec3.png"),
-        },
-        {
-            color: "Pink",
-            swatch: require("../assets/images/Product/iphonec4.png"),
-        },
-        {
-            color: "Black",
-            swatch: require("../assets/images/Product/iphonec5.png"),
-        },
-    ],
+  variants: [
+    {
+      color: "Ultramarine",
+      swatch: require("../assets/images/Product/iphonec1.png"),
+    },
+    {
+      color: "Green",
+      swatch: require("../assets/images/Product/iphonec2.png"),
+    },
+    {
+      color: "White",
+      swatch: require("../assets/images/Product/iphonec3.png"),
+    },
+    {
+      color: "Pink",
+      swatch: require("../assets/images/Product/iphonec4.png"),
+    },
+    {
+      color: "Black",
+      swatch: require("../assets/images/Product/iphonec5.png"),
+    },
+  ],
 
-    thumbnails: [
-        require("../assets/images/Product/iphones1.png"),
-        require("../assets/images/Product/iphones2.png"),
-        require("../assets/images/Product/iphones5.png"),
-        require("../assets/images/Product/iphones4.png"),
-        require("../assets/images/Product/iphones5.png"),
-    ],
+  thumbnails: [
+    require("../assets/images/Product/iphones1.png"),
+    require("../assets/images/Product/iphones2.png"),
+    require("../assets/images/Product/iphones3.png"),
+    require("../assets/images/Product/iphones4.png"),
+    require("../assets/images/Product/iphones5.png"),
+  ],
 
-    storages: [
-        { size: "128GB", price: 79999 },
-        { size: "256GB", price: 99999 },
-        { size: "512GB", price: 119999 },
-        { size: "1TB", price: 139999 },
-    ],
+  storages: [
+    { size: "128GB", price: 79999 },
+    { size: "256GB", price: 99999 },
+    { size: "512GB", price: 119999 },
+    { size: "1TB", price: 139999 },
+  ],
 };
-
-
-
-
-
 
 /*
 

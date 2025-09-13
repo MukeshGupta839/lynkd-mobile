@@ -33,3 +33,18 @@ export const CategoriesBannerData: PromoSlide[] = [
     image: require("../assets/images/categoriesBannerAds.png"),
   },
 ];
+
+export const ServicesBannerData: PromoSlide[] = [
+  {
+    id: 1,
+    image: require("../assets/images/BannerAds2.png"),
+  },
+  {
+    id: 2,
+    image: require("../assets/images/BannerAds2.png"),
+  },
+  {
+    id: 3,
+    image: require("../assets/images/BannerAds2.png"),
+  },
+];

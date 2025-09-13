@@ -9,19 +9,20 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import Categories from "@/components/Bookings/Categories";
 import EventCard from "@/components/Bookings/EventCard";
 import type { EventT } from "@/constants/bookings";
 import { POPULAR_EVENTS } from "@/constants/bookings";
 import { useFavorites } from "@/context/FavoritesContext";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function PopularEvents() {
   const router = useRouter();
   const { isFavorite, toggleFavorite } = useFavorites();
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
+  // ---------- Memoized events ----------
   const allEvents = useMemo<EventT[]>(() => [...POPULAR_EVENTS], []);
 
   const filtered = useMemo(() => {
@@ -31,6 +32,7 @@ export default function PopularEvents() {
     );
   }, [activeCategory, allEvents]);
 
+  // ---------- Header (Back + Title + Categories) ----------
   const goBack = useCallback(() => {
     router.back();
   }, [router]);
@@ -38,12 +40,14 @@ export default function PopularEvents() {
   const ListHeader = useCallback(() => {
     return (
       <View>
+        {/* Header bar */}
         <View className="bg-white shadow-md">
           <SafeAreaView edges={["top"]} className="pb-3 bg-transparent">
             <View className="flex-row items-center">
               <TouchableOpacity
                 onPress={goBack}
                 activeOpacity={0.8}
+                accessibilityLabel="Go back"
                 className="p-2">
                 <Ionicons name="chevron-back" size={22} />
               </TouchableOpacity>
@@ -54,6 +58,7 @@ export default function PopularEvents() {
           </SafeAreaView>
         </View>
 
+        {/* Categories below header */}
         <View className="mt-4 pb-3">
           <Categories
             activeCategory={activeCategory}
@@ -64,11 +69,11 @@ export default function PopularEvents() {
     );
   }, [activeCategory, goBack]);
 
+  // ---------- Render event item ----------
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<EventT>) => {
       return (
-        // padding for shadow breathing room
-        <View className="px-3 pb-3">
+        <View className="px-3 ">
           <EventCard
             id={item.id}
             title={item.title}
@@ -79,8 +84,8 @@ export default function PopularEvents() {
             variant="compact"
             category={item.category}
             isLive={item.isLive}
-            isFavorite={isFavorite(item.id)}
-            onToggleFavorite={() => toggleFavorite(item.id)}
+            isFavorite={isFavorite(item.id)} // ✅ favorite state
+            onToggleFavorite={() => toggleFavorite(item.id)} // ✅ toggle
             onPress={() =>
               router.push({
                 pathname: "/Bookings/Booking",
@@ -94,6 +99,7 @@ export default function PopularEvents() {
     [isFavorite, toggleFavorite, router]
   );
 
+  // ---------- UI ----------
   return (
     <View className="flex-1 mt-2 bg-gray-50">
       <FlatList
@@ -101,11 +107,19 @@ export default function PopularEvents() {
         keyExtractor={(i) => i.id}
         renderItem={renderItem}
         ListHeaderComponent={ListHeader}
-        // provide vertical spacing between items and room for shadows
-        ItemSeparatorComponent={() => <View className="h-3" />}
         ListFooterComponent={() => <View className="h-16" />}
+        ListEmptyComponent={() => (
+          <Text className="text-center text-gray-400 mt-10">
+            No events found
+          </Text>
+        )}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 8 }}
+        // FlatList optimization
+        initialNumToRender={6}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        removeClippedSubviews
       />
     </View>
   );

@@ -1,8 +1,7 @@
 // app/Bookings/[ticketId].tsx
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo } from "react";
-import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useMemo } from "react";
+import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -28,26 +27,29 @@ export default function BookingTicketDetail() {
     (params as any)?.ticketNumber ?? (params as any)?.ticketId ?? "";
   const idQuery = params?.id ?? "";
   const eventId = idQuery || pathSegment;
+
   let ticketNumber = ticketNumberFromQuery ?? "";
   if (!ticketNumber) {
-    // If the pathSegment looks numeric, it's probably the ticket number
     if (pathSegment && /^\d+$/.test(decodeURIComponent(pathSegment))) {
       ticketNumber = decodeURIComponent(pathSegment);
     }
-    // else we leave ticketNumber empty — we'll display event id as fallback
   }
 
-  // merge events
+  // Merge events (memoized)
   const allEvents = useMemo(() => [...UPCOMING_EVENTS, ...POPULAR_EVENTS], []);
 
-  // find event by id
+  // Find event by ID (memoized)
   const event = useMemo<EventT | undefined>(() => {
     if (!eventId) return undefined;
     const key = decodeURIComponent(String(eventId));
     return allEvents.find((e) => String(e.id) === key);
   }, [allEvents, eventId]);
 
-  // If event can't be found, show friendly fallback (no redirect during render)
+  const goToMyTickets = useCallback(() => {
+    router.replace("/(tabs)/bookingsTickets");
+  }, [router]);
+
+  // If event missing: friendly fallback UI
   if (!event) {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-white">
@@ -62,12 +64,14 @@ export default function BookingTicketDetail() {
 
           <View className="flex-row space-x-3">
             <TouchableOpacity
-              onPress={() => router.replace("/(tabs)/bookingsTickets")}
+              onPress={goToMyTickets}
+              accessibilityLabel="Go to My Tickets"
               className="px-4 py-2 rounded-lg bg-violet-600">
               <Text className="text-white font-semibold">Go to My Tickets</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.back()}
+              accessibilityLabel="Go back"
               className="px-4 py-2 rounded-lg border border-gray-200">
               <Text className="text-gray-700">Go back</Text>
             </TouchableOpacity>
@@ -77,7 +81,7 @@ export default function BookingTicketDetail() {
     );
   }
 
-  // Demo purchaser & pricing (replace with real)
+  // Demo purchaser & pricing (could come from API)
   const purchaserName = "Franklin Clinton";
   const qty = 1;
   const price = 50.0;
@@ -86,100 +90,117 @@ export default function BookingTicketDetail() {
   const subtotal = price * qty;
   const total = +(subtotal + fees + tax).toFixed(2);
 
-  // CTA handler — you can pass through to checkout / download
-  const onDownload = () => {
-    // TODO: wire actual download / share functionality
-    // For now just navigate back to My Tickets (or show a toast)
+  // CTA handler (stable)
+  const onDownload = useCallback(() => {
     router.back();
-  };
+  }, [router]);
 
-  return (
-    <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
-      {/* Header component you requested */}
-      <Header title="Detail Ticket" />
+  // Memoized fake barcode (small allocation avoided on re-renders)
+  const barcode = useMemo(
+    () => (
+      <View className="w-full aspect-[4/1] flex-row items-stretch justify-center">
+        {Array.from({ length: 50 }).map((_, i) => (
+          <View
+            key={i}
+            className={`h-full ${i % 2 === 0 ? "bg-black" : "bg-white"}`}
+            style={{ width: i % 5 === 0 ? 4 : 2 }}
+          />
+        ))}
+      </View>
+    ),
+    []
+  );
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 200 }}>
-        {/* Hero card */}
-        <View className="mx-4 mt-3 bg-white rounded-xl p-4 shadow-md">
-          <View className="relative w-full h-44 rounded-lg overflow-hidden bg-gray-200">
-            {event.image ? (
-              <Image
-                source={event.image}
-                className="w-full h-full"
-                resizeMode="cover"
-              />
-            ) : null}
+  // FlatList sections
+  const sections = useMemo(
+    () => [{ key: "hero" }, { key: "purchaser" }, { key: "summary" }],
+    []
+  );
 
-            {/* date badge */}
-            <View className="absolute top-3 left-3 bg-black/70 px-3 py-2 rounded-md items-center">
-              {(() => {
-                const [month = "", day = ""] = (event.dateLabel || "").split(
-                  " "
-                );
-                return (
-                  <>
-                    <Text className="text-xs text-white font-semibold">
-                      {month}
-                    </Text>
-                    <Text className="text-sm text-white font-bold">{day}</Text>
-                  </>
-                );
-              })()}
-            </View>
-          </View>
+  const renderItem = useCallback(
+    ({ item }: { item: { key: string } }) => {
+      if (item.key === "hero") {
+        return (
+          <View className="mx-4 mt-3 bg-white rounded-xl p-4 shadow-md">
+            <View className="relative w-full aspect-[16/9] rounded-lg overflow-hidden bg-gray-200">
+              {event.image && (
+                <Image
+                  source={event.image}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
+              )}
 
-          <View className="mt-4">
-            <Text className="text-base font-semibold text-[#111827]">
-              {event.title}
-            </Text>
-            <Text className="text-sm text-gray-400 mt-1">
-              Ticket ID: {ticketNumber ? `#${ticketNumber}` : String(event.id)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Purchaser / Location / Qty & Date */}
-        <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
-          <Text className="text-sm text-gray-500">Name</Text>
-          <Text className="mt-1 text-base font-semibold text-[#111827]">
-            {purchaserName}
-          </Text>
-
-          <View className="mt-4">
-            <Text className="text-sm text-gray-500">Detail Location</Text>
-            <Text className="mt-1 text-base text-[#111827]">
-              {event.location ?? "-"}
-            </Text>
-          </View>
-
-          <View className="mt-4 flex-row">
-            <View className="flex-1">
-              <Text className="text-sm text-gray-500">Number of Ticket</Text>
-              <Text className="mt-1 text-base text-[#111827]">x{qty}</Text>
+              {/* Date badge */}
+              <View className="absolute top-3 left-3 bg-black/70 px-3 py-2 rounded-md items-center">
+                {(() => {
+                  const [month = "", day = ""] = (event.dateLabel || "").split(
+                    " "
+                  );
+                  return (
+                    <>
+                      <Text className="text-xs text-white font-semibold">
+                        {month}
+                      </Text>
+                      <Text className="text-sm text-white font-bold">
+                        {day}
+                      </Text>
+                    </>
+                  );
+                })()}
+              </View>
             </View>
 
-            <View className="flex-1 items-end">
-              <Text className="text-sm text-gray-500">Date</Text>
-              <Text className="mt-1 text-base text-[#111827]">
-                {event.dateLabel ?? "-"}
+            <View className="mt-4">
+              <Text className="text-base font-semibold text-[#111827]">
+                {event.title}
+              </Text>
+              <Text className="text-sm text-gray-400 mt-1">
+                Ticket ID:{" "}
+                {ticketNumber ? `#${ticketNumber}` : String(event.id)}
               </Text>
             </View>
           </View>
+        );
+      }
 
-          {/* QR / Barcode area */}
-          <View className="mx-4 mt-4  rounded-xl p-4  items-center">
-            <View className="w-full h-28 flex-row items-stretch justify-center">
-              {Array.from({ length: 50 }).map((_, i) => (
-                <View
-                  key={i}
-                  className={`h-full ${i % 2 === 0 ? "bg-black" : "bg-white"}`}
-                  style={{ width: i % 5 === 0 ? 4 : 2 }}
-                />
-              ))}
+      if (item.key === "purchaser") {
+        return (
+          <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
+            <Text className="text-sm text-gray-500">Name</Text>
+            <Text className="mt-1 text-base font-semibold text-[#111827]">
+              {purchaserName}
+            </Text>
+
+            <View className="mt-4">
+              <Text className="text-sm text-gray-500">Detail Location</Text>
+              <Text className="mt-1 text-base text-[#111827]">
+                {event.location ?? "-"}
+              </Text>
             </View>
+
+            <View className="mt-4 flex-row">
+              <View className="flex-1">
+                <Text className="text-sm text-gray-500">Number of Ticket</Text>
+                <Text className="mt-1 text-base text-[#111827]">x{qty}</Text>
+              </View>
+
+              <View className="flex-1 items-end">
+                <Text className="text-sm text-gray-500">Date</Text>
+                <Text className="mt-1 text-base text-[#111827]">
+                  {event.dateLabel ?? "-"}
+                </Text>
+              </View>
+            </View>
+
+            {/* QR / Barcode */}
+            <View className="mt-6 items-center">{barcode}</View>
           </View>
-        </View>
-        {/* Order Summary */}
+        );
+      }
+
+      // summary
+      return (
         <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
           <View className="flex-row justify-between py-2">
             <Text className="text-sm text-gray-700">Subtotal</Text>
@@ -203,23 +224,37 @@ export default function BookingTicketDetail() {
             <Text className="font-semibold text-base">${total.toFixed(2)}</Text>
           </View>
         </View>
+      );
+    },
+    [
+      barcode,
+      event,
+      ticketNumber,
+      purchaserName,
+      qty,
+      subtotal,
+      fees,
+      tax,
+      total,
+    ]
+  );
 
-        {/* Payment Method */}
-        <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-sm flex-row justify-between items-center">
-          <View className="flex-row items-center">
-            <View className="w-10 h-10 rounded-lg bg-violet-50 items-center justify-center mr-3">
-              <Ionicons name="logo-apple" size={18} color="#7C3AED" />
-            </View>
-            <Text className="text-sm text-gray-700">Apple Pay</Text>
-          </View>
+  return (
+    <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
+      <Header title="Detail Ticket" />
 
-          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-        </View>
+      <FlatList
+        data={sections}
+        renderItem={renderItem}
+        keyExtractor={(s) => s.key}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingBottom: Math.max(200, insets.bottom + 80),
+        }}
+        ListFooterComponent={() => <View className="h-6" />}
+      />
 
-        <View className="h-6" />
-      </ScrollView>
-
-      {/* Bottom CTA using your BottomNavBar component */}
+      {/* Bottom CTA */}
       <View className="absolute left-0 right-0 bottom-0 px-4">
         <BottomNavBar
           variant="buttonOnly"
