@@ -1588,11 +1588,24 @@ export default function ConsumerHomeUI() {
                 { useNativeDriver: false, listener: handleOnScroll }
               )}
               contentContainerStyle={{
-                top: TOP_BAR_HEIGHT,
+                // On Android we add paddingTop so the feed content sits below
+                // the absolute header. On iOS we use contentInset/contentOffset
+                // so RefreshControl positions correctly.
+                paddingTop: Platform.OS === "android" ? TOP_BAR_HEIGHT : 0,
                 paddingBottom:
-                  Platform.OS === "ios" ? insets.bottom : insets.bottom + 120,
+                  Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
                 backgroundColor: "#F3F4F8",
               }}
+              // On iOS, use contentInset/contentOffset so RefreshControl is
+              // positioned relative to the scrollable area (appears under our
+              // absolute header). contentContainerStyle.top doesn't affect
+              // RefreshControl coordinates reliably on iOS.
+              contentInset={
+                Platform.OS === "ios" ? { top: TOP_BAR_HEIGHT } : undefined
+              }
+              contentOffset={
+                Platform.OS === "ios" ? { x: 0, y: -TOP_BAR_HEIGHT } : undefined
+              }
               // iOS-specific behaviour to keep the refresh spinner visible
               contentInsetAdjustmentBehavior={
                 Platform.OS === "ios" ? "never" : undefined
@@ -1616,8 +1629,8 @@ export default function ConsumerHomeUI() {
                   colors={["#4D70D1"]}
                   tintColor={"#4D70D1"}
                   progressBackgroundColor={"#F3F4F8"}
-                  // Add a small extra offset on iOS so the spinner appears
-                  // clearly below the absolute header while it's visible.
+                  // On iOS we offset the progress so the spinner appears below
+                  // the header; on Android the value is used as a fallback.
                   progressViewOffset={
                     Platform.OS === "ios" ? TOP_BAR_HEIGHT + 8 : TOP_BAR_HEIGHT
                   }
@@ -1671,7 +1684,10 @@ export default function ConsumerHomeUI() {
           }}
         >
           {/* Animated container to move the button up/down when tab bar hides/shows */}
-          <FloatingPostButton insets={insets} />
+          <FloatingPostButton
+            insets={insets}
+            onPressFab={() => router.push("/(modals)")}
+          />
         </Reanimated.View>
       </Reanimated.View>
     </GestureDetector>
@@ -1679,7 +1695,13 @@ export default function ConsumerHomeUI() {
 }
 
 // Floating post button component placed in this file so change stays limited to (tabs)/index.tsx
-function FloatingPostButton({ insets }: { insets: { bottom: number } }) {
+function FloatingPostButton({
+  insets,
+  onPressFab,
+}: {
+  insets: { bottom: number };
+  onPressFab?: () => void;
+}) {
   const { bottom } = insets;
 
   // derive a reanimated value directly from the global mutable shared values
@@ -1710,8 +1732,6 @@ function FloatingPostButton({ insets }: { insets: { bottom: number } }) {
     } as any;
   });
 
-  const router = useRouter();
-
   return (
     <Reanimated.View style={animatedStyle}>
       <View
@@ -1720,7 +1740,7 @@ function FloatingPostButton({ insets }: { insets: { bottom: number } }) {
         pointerEvents="box-none"
       >
         <Pressable
-          onPress={() => router.push("/(tabs)/posts")}
+          onPress={() => onPressFab?.()}
           className="w-14 h-14 rounded-full overflow-hidden items-center justify-center shadow-lg"
         >
           <BlurView

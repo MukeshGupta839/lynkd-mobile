@@ -5,12 +5,13 @@ import {
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
-// import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import "react-native-reanimated";
 import "../global.css";
 
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { Platform } from "react-native";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -31,36 +32,49 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        {/* <KeyboardProvider> */}
-        <Stack>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          {/* <Stack.Screen name="(auth)" options={{ headerShown: false }} /> */}
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(profiles)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="Address/select-address"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Address/AddAddress"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="Searchscreen" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="Product/Productview"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Product/ReviewOrder"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Product/payments"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        {/* </KeyboardProvider> */}
+        <KeyboardProvider>
+          <Stack screenOptions={{ animation: "slide_from_right" }}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(profiles)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="(modals)"
+              options={{
+                presentation:
+                  Platform.OS === "ios" ? "modal" : "transparentModal",
+                animation: "slide_from_bottom",
+                contentStyle: { backgroundColor: "transparent" },
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="Address/select-address"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Address/AddAddress"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Searchscreen"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Product/Productview"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Product/ReviewOrder"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Product/payments"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+        </KeyboardProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );
