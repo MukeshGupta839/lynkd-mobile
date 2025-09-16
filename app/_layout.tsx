@@ -22,6 +22,13 @@ export default function RootLayout() {
     "Poppins-Medium": require("../assets/fonts/Poppins/Poppins-Medium.ttf"),
     "Poppins-SemiBold": require("../assets/fonts/Poppins/Poppins-SemiBold.ttf"),
     "Poppins-Bold": require("../assets/fonts/Poppins/Poppins-Bold.ttf"),
+    "OpenSans-Light": require("../assets/fonts/OpenSans/OpenSans-Light.ttf"),
+    "OpenSans-Regular": require("../assets/fonts/OpenSans/OpenSans-Regular.ttf"),
+    "OpenSans-Bold": require("../assets/fonts/OpenSans/OpenSans-Bold.ttf"),
+    "OpenSans-SemiBold": require("../assets/fonts/OpenSans/OpenSans-SemiBold.ttf"),
+    "OpenSans-Italic": require("../assets/fonts/OpenSans/OpenSans-Italic.ttf"),
+    "OpenSans-SemiBoldItalic": require("../assets/fonts/OpenSans/OpenSans-SemiBoldItalic.ttf"),
+    "OpenSans-BoldItalic": require("../assets/fonts/OpenSans/OpenSans-BoldItalic.ttf"),
   });
 
   if (!loaded) {

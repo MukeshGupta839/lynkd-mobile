@@ -11,7 +11,9 @@ import { FontAwesome6, SimpleLineIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { BlurView } from "expo-blur";
+import { Camera } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
+import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -486,7 +488,7 @@ const PostMedia = ({
   // Handle single image
   if (media.type === "image") {
     return (
-      <View style={{ marginBottom: 8 }}>
+      <View>
         <FacebookStyleImage
           uri={media.uri}
           style={{ marginBottom: 0 }}
@@ -501,7 +503,7 @@ const PostMedia = ({
   // Handle multiple images
   if (media.type === "images" && media.uris?.length) {
     return (
-      <View style={{ marginBottom: 8 }}>
+      <View>
         <MultiImageCollage
           images={media.uris}
           onPressImage={handlePressImage}
@@ -631,14 +633,14 @@ const PostCard = ({
           }}
         >
           <View
-            className="bg-white py-3"
+            className="bg-white py-3 gap-2.5"
             style={{
               borderRadius: 16,
               overflow: "hidden",
             }}
           >
             {/* Header */}
-            <View className="flex-row px-3 items-center mb-2">
+            <View className="flex-row px-3 items-center h-10">
               {/* LEFT group takes remaining space, but doesn't overgrow */}
               <GestureDetector gesture={openProfileTap}>
                 <TouchableOpacity
@@ -649,10 +651,10 @@ const PostCard = ({
                 >
                   <Image
                     source={{ uri: item.userProfilePic }}
-                    className="w-13 h-13 rounded-full mr-2"
+                    className="w-10 h-10 rounded-full mr-2"
                   />
                   {/* REMOVE flex-1 here */}
-                  <View /* className="flex-1" */>
+                  <View>
                     <View className="flex-row items-center">
                       <Text className="font-semibold text-lg">
                         {item.username}
@@ -664,6 +666,19 @@ const PostCard = ({
                           color="#000"
                           style={{ marginLeft: 4 }}
                         />
+                      )}
+                    </View>
+                    <View className="flex-row items-center">
+                      {item.location && (
+                        <Text className="text-xs text-[#257AF1] mr-2 font-opensans-regular">
+                          {item.location}
+                        </Text>
+                      )}
+                      <View className="w-1 h-1 rounded-full bg-black mr-1.5" />
+                      {item.postDate && (
+                        <Text className="text-xs text-black font-opensans-regular">
+                          {item.postDate}
+                        </Text>
                       )}
                     </View>
                   </View>
@@ -845,7 +860,7 @@ const PostCard = ({
             {item.affiliated && item.affiliation && (
               <GestureDetector gesture={openProductTap}>
                 <TouchableOpacity
-                  className="px-3 mt-2"
+                  className="px-3"
                   // onPress={
                   //   isGestureActive
                   //     ? undefined
@@ -962,7 +977,7 @@ const PostCard = ({
             )}
 
             {/* Actions */}
-            <View className="flex-row items-center justify-between mt-3 px-3">
+            <View className="flex-row items-center justify-between px-3">
               <View className="flex-row items-center gap-x-4">
                 <TouchableOpacity
                   className="flex-row items-center"
@@ -1095,6 +1110,27 @@ export default function ConsumerHomeUI() {
     setTabBarHidden(false);
     tabBarHiddenSV.value = false;
   };
+
+  useEffect(() => {
+    const requestPermissions = async () => {
+      try {
+        const cameraResponse = await Camera.requestCameraPermissionsAsync();
+        const mediaLibraryResponse =
+          await MediaLibrary.requestPermissionsAsync();
+
+        if (cameraResponse.status !== "granted") {
+          console.warn("Camera permission not granted");
+        }
+        if (mediaLibraryResponse.status !== "granted") {
+          console.warn("Media library permission not granted");
+        }
+      } catch (error) {
+        console.error("Error requesting permissions:", error);
+      }
+    };
+
+    requestPermissions();
+  }, []);
 
   // Ensure tab bar is visible when component mounts/unmounts
   useEffect(() => {
