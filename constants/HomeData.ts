@@ -26,6 +26,8 @@ export const POSTS = [
       productRegularPrice: 14990,
       productSalePrice: 12990,
     },
+    location: "New York, USA",
+    postDate: "2 days ago",
     post_hashtags: ["coffee", "creativity", "inspiration", "morning", "energy"],
   },
   {
@@ -42,6 +44,8 @@ export const POSTS = [
       type: "image",
       uri: "https://media.gettyimages.com/id/2160799152/photo/hamburg-germany-cristiano-ronaldo-of-portugal-looks-dejected-following-the-teams-defeat-in.jpg?s=612x612&w=gi&k=20&c=ffUaAF9km23q47SkX57MtxQIy2no1KrCIeGpihNbR1s=",
     },
+    location: "New York, USA",
+    postDate: "2h ago",
     post_hashtags: ["coffee", "creativity", "inspiration", "morning", "energy"],
   },
   {
@@ -59,6 +63,8 @@ export const POSTS = [
       type: "image",
       uri: "https://images.unsplash.com/photo-1533422902779-aff35862e462?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
+    location: "New York, USA",
+    postDate: "2h ago",
     post_hashtags: ["coffee", "creativity", "inspiration", "morning", "energy"],
   },
   {
@@ -81,6 +87,8 @@ export const POSTS = [
         "https://images.unsplash.com/photo-1533422902779-aff35862e462?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
       ],
     },
+    location: "New York, USA",
+    postDate: "2h ago",
     post_hashtags: ["coffee", "creativity", "inspiration", "morning", "energy"],
   },
   {
@@ -102,6 +110,8 @@ export const POSTS = [
         "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0",
       ],
     },
+    location: "New York, USA",
+    postDate: "2h ago",
   },
   {
     id: "p11",
@@ -118,5 +128,7 @@ export const POSTS = [
         "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0",
       ],
     },
+    location: "New York, USA",
+    postDate: "2h ago",
   },
 ];

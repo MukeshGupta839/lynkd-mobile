@@ -32,6 +32,13 @@ module.exports = {
         "poppins-medium": ["Poppins-Medium"],
         "poppins-semibold": ["Poppins-SemiBold"],
         "poppins-bold": ["Poppins-Bold"],
+        "opensans-light": ["OpenSans-Light"],
+        "opensans-regular": ["OpenSans-Regular"],
+        "opensans-semibold": ["OpenSans-SemiBold"],
+        "opensans-bold": ["OpenSans-Bold"],
+        "opensans-italic": ["OpenSans-Italic"],
+        "opensans-semibolditalic": ["OpenSans-SemiBoldItalic"],
+        "opensans-bolditalic": ["OpenSans-BoldItalic"],
       },
       letterSpacing: {
         "ultra-wide": "30px",
