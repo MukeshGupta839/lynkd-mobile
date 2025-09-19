@@ -1,10 +1,5 @@
-// AddNewAddress.tsx
-// React Native (TypeScript) + nativewind tailwind classes
-// Uses navigator.geolocation (no expo-location).
-// Uses only flex / grid layouts via tailwind className.
-
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   PermissionsAndroid,
@@ -95,14 +90,14 @@ export default function AddNewAddress({
     <SafeAreaView className="flex-1 bg-gray-50">
       <View className="flex-1 w-full max-w-md mx-auto">
         {/* Header */}
-        <View className="flex-row items-center  py-3">
+        <View className="flex-row items-center mb-3  ">
           <TouchableOpacity
             onPress={() => onBack?.()}
-            className="w-9 h-9 rounded-full items-center justify-center"
+            className=" h-7  rounded-full items-center justify-center"
             accessibilityLabel="Back">
             <Ionicons name="chevron-back" size={20} color="#111827" />
           </TouchableOpacity>
-          <Text className="text-base font-medium ml-2">Add New Address</Text>
+          <Text className="text-base font-medium ml-5">Add New Address</Text>
         </View>
 
         {/* Search bar */}

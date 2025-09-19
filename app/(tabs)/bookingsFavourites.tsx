@@ -2,13 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   ListRenderItemInfo,
@@ -135,9 +129,11 @@ export default function FavoritesScreen() {
             data={filtered}
             keyExtractor={(i) => i.id}
             renderItem={renderItem}
-            ItemSeparatorComponent={() => <View className="h-3" />}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 120 }}
+            contentContainerStyle={{
+              paddingBottom: 120,
+              paddingHorizontal: 12,
+            }}
             initialNumToRender={6}
             maxToRenderPerBatch={10}
             windowSize={7}
@@ -158,8 +154,8 @@ export default function FavoritesScreen() {
       {/* Explore Events button (only when there are no favorites) */}
       {!hasAny && (
         <View
-          className="absolute inset-x-0 px-4 mb-3"
-          style={{ bottom: insets.bottom + 45 }}>
+          className="absolute inset-x-0 px-3 mb-3"
+          style={{ bottom: insets.bottom + 40 }}>
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => router.push("/(tabs)/bookings")}

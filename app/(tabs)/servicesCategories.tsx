@@ -3,7 +3,7 @@ import QuickActions from "@/components/Product/QuickActions";
 import SearchBar from "@/components/Searchbar";
 import { NEARBY_DATA, RECOMMENDED_DATA } from "@/constants/services";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   FlatList,
   Image,
@@ -14,6 +14,29 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+function GradientWrapper({
+  children,
+  colors = ["#C5F8CE", "#ffffff"] as const,
+  start = { x: 0, y: 0 },
+  end = { x: 0, y: 1 },
+  className = "rounded-b-3xl",
+}: {
+  children?: React.ReactNode;
+  colors?: readonly [string, string];
+  start?: { x: number; y: number };
+  end?: { x: number; y: number };
+  className?: string;
+}) {
+  return (
+    <LinearGradient
+      colors={colors}
+      start={start}
+      end={end}
+      className={`w-full ${className}`}>
+      {children}
+    </LinearGradient>
+  );
+}
 /* ---------- CATEGORY_TILES ---------- */
 const CATEGORY_TILES = [
   {
@@ -70,7 +93,7 @@ function HeroImageUnderSearch({
   const hero = require("@/assets/images/ServicesCategories.png");
 
   return (
-    <View className="px-4 ">
+    <View className="px-3 ">
       <Image
         source={hero}
         style={{ width: innerWidth, height }}
@@ -188,7 +211,7 @@ function RecommendedList({ recommended }: { recommended: any[] }) {
             />
           </View>
 
-          <View className="px-4 py-3">
+          <View className="px-3 py-3">
             <Text className="text-lg font-semibold text-gray-900">
               {r.title}
             </Text>
@@ -221,14 +244,20 @@ export default function ServicesCategories() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      <SafeAreaView edges={["top"]}>
-        <View className="px-3">
-          <QuickActions />
-          <View className="mt-3">
-            <SearchBar />
+      <GradientWrapper
+        colors={["#E0DBFF", "#f9fafb"] as const}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        className="rounded-b-2xl overflow-hidden">
+        <SafeAreaView edges={["top"]}>
+          <View className="px-3 ">
+            <QuickActions />
+            <View className="mt-3">
+              <SearchBar />
+            </View>
           </View>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </GradientWrapper>
 
       <FlatList
         data={[{ key: "content" }]}
@@ -249,6 +278,8 @@ export default function ServicesCategories() {
         keyExtractor={(it) => String(it.key)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 70 }}
+        bounces={false}
+        overScrollMode="never"
       />
     </View>
   );

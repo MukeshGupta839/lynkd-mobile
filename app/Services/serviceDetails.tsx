@@ -1,6 +1,6 @@
 // app/service/serviceDetails.tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   ScrollView,
   Text,
@@ -125,11 +125,11 @@ export default function ServiceDetails() {
       />
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 160 }}
+        contentContainerStyle={{ paddingBottom: 30 }}
         showsVerticalScrollIndicator={false}>
-        <SafeAreaView edges={["left", "right", "bottom"]} className="px-3 pt-4">
+        <SafeAreaView edges={["left", "right", "bottom"]} className="px-3 ">
           {/* Summary card placed normally BELOW the hero image */}
-          <View className="mt-4 z-10">{summaryCard}</View>
+          <View className="mt-3 z-10">{summaryCard}</View>
 
           {/* Description card */}
           <View
@@ -170,7 +170,7 @@ export default function ServiceDetails() {
       </ScrollView>
 
       {/* Sticky CTA */}
-      <View className="absolute left-0 right-0 bottom-4 px-4">
+      <View className="absolute left-0 right-0 bottom-4 px-3 ">
         <View className="flex-row items-center">
           <TouchableOpacity
             activeOpacity={0.95}
@@ -182,7 +182,7 @@ export default function ServiceDetails() {
                 });
               }
             }}
-            className="flex-1 ml-3 rounded-xl items-center justify-center h-14 bg-[#1B19A8] mb-1">
+            className="flex-1 rounded-xl items-center justify-center h-14 bg-[#1B19A8] mb-1">
             <Text className="text-white font-semibold text-lg">Book Table</Text>
           </TouchableOpacity>
         </View>

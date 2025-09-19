@@ -31,8 +31,7 @@ const Slide = React.memo(
           backgroundColor: "#f8f9fa", // Light background to see bounds
         }}
         onPress={onPress}
-        activeOpacity={0.9}
-      >
+        activeOpacity={0.9}>
         <Image
           source={data.image}
           style={{
@@ -341,8 +340,7 @@ export default function PromoBannerCarousel({
           height: finalCardH,
           alignSelf: "center",
           overflow: "hidden", // Prevent showing parts of adjacent banners
-        }}
-      >
+        }}>
         <FlatList
           ref={flatListRef}
           data={slides}

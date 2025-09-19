@@ -3,7 +3,7 @@ import SearchBar from "@/components/Searchbar";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { LocateFixed } from "lucide-react-native";
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
 import {
   SafeAreaView,
@@ -99,7 +99,7 @@ export default function SelectAddress() {
       edges={["top", "left", "right", "bottom"]}
       className="flex-1 bg-white">
       {/* Header */}
-      <View className="flex-row items-center justify-between px-3 py-2">
+      <View className="flex-row items-center justify-between px-3 ">
         <TouchableOpacity
           onPress={goBack}
           accessibilityLabel="Go back"
@@ -155,7 +155,7 @@ export default function SelectAddress() {
             </View>
           </View>
         )}
-        contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 20 }}
+        contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 12 }}
         showsVerticalScrollIndicator={false}
       />
 

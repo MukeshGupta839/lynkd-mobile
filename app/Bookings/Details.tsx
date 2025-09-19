@@ -1,6 +1,6 @@
 // app/book/Details.tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -100,7 +100,7 @@ export default function Details() {
       switch (item.key) {
         case "hero":
           return (
-            <View className="mx-4 mt-3 bg-white rounded-xl p-4 shadow-md">
+            <View className="mx-3 mt-3 bg-white rounded-xl p-4 shadow-md">
               <View className="rounded-lg overflow-hidden bg-gray-200">
                 {event.image ? (
                   <Image
@@ -138,7 +138,7 @@ export default function Details() {
 
         case "details":
           return (
-            <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
+            <View className="mx-3 mt-4 bg-white rounded-xl p-4 shadow-md">
               <Text className="text-sm text-gray-500">Name</Text>
               <TextInput
                 placeholder="Full name"
@@ -178,7 +178,7 @@ export default function Details() {
 
         case "summary":
           return (
-            <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
+            <View className="mx-3 mt-2 bg-white rounded-xl p-4 shadow-md">
               <View className="flex-row justify-between py-2">
                 <Text className="text-sm text-gray-700">Subtotal</Text>
                 <Text className="text-sm text-gray-700">
@@ -215,7 +215,7 @@ export default function Details() {
   );
 
   return (
-    <SafeAreaView edges={[]} className="flex-1 bg-white">
+    <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
       <View className="flex-1">
         <Header title="Detail Booking" />
 

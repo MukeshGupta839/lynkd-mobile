@@ -2,7 +2,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -37,34 +37,27 @@ export default function BookingsEventDetail() {
   );
 
   // ---------- Handlers ----------
-  const handleGoBack = useCallback(() => {
-    router.back();
-  }, [router]);
+  const handleGoBack = useCallback(() => router.back(), [router]);
 
   const handleShare = useCallback(() => {
-    console.log("Share pressed:", title);
+    console.log("Share:", title);
   }, [title]);
 
   const handleWatchLive = useCallback(() => {
     console.log("Watch live:", id);
     // router.push(`/LivePlayer?id=${encodeURIComponent(id)}`);
-  }, [id, router]);
+  }, [id]);
 
   const handleBook = useCallback(() => {
     router.push(`/Bookings/BookingForm?id=${encodeURIComponent(id)}`);
   }, [id, router]);
 
-  const toggleExpand = useCallback(() => {
-    setExpanded((prev) => !prev);
-  }, []);
+  const toggleExpand = useCallback(() => setExpanded((p) => !p), []);
+  const toggleLike = useCallback(() => setLiked((p) => !p), []);
 
-  const toggleLike = useCallback(() => {
-    setLiked((prev) => !prev);
-  }, []);
-
-  // ---------- Render detail content ----------
+  // ---------- Detail content ----------
   const renderDetailContent = () => (
-    <View className="mt-4 px-4">
+    <View className="px-3">
       {/* Title */}
       <Text className="text-lg font-bold text-[#0F172A]">{title}</Text>
 
@@ -129,12 +122,7 @@ export default function BookingsEventDetail() {
             ? `Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.`
             : `Lorem ipsum dolor sit amet, consectetur adipiscing elit...`}
         </Text>
-        <TouchableOpacity
-          onPress={toggleExpand}
-          accessibilityLabel={
-            expanded ? "Show less about event" : "Read more about event"
-          }
-          className="mt-2">
+        <TouchableOpacity onPress={toggleExpand} className="mt-2">
           <Text className="text-sm text-violet-600 underline font-medium">
             {expanded ? "Show less" : "Read more"}
           </Text>
@@ -142,7 +130,7 @@ export default function BookingsEventDetail() {
       </View>
 
       {/* Location / map */}
-      <View className="mt-6">
+      <View className="mt-6 mb-4">
         <Text className="font-semibold text-sm text-[#111827] mb-1">
           Location:
         </Text>
@@ -161,81 +149,83 @@ export default function BookingsEventDetail() {
   // ---------- UI ----------
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
-      {/* Hero */}
-      <View className="w-full">
-        <View className="w-full aspect-[11/9] relative">
-          {image ? (
-            <Image
-              source={image}
-              className="w-full h-full"
-              resizeMode="cover"
-              accessibilityLabel={`${title} banner image`}
-            />
-          ) : (
-            <View className="w-full h-full bg-gray-200" />
-          )}
-
-          {/* gradient overlay */}
-          <View className="absolute left-0 right-0 bottom-0 h-[36%]">
-            <LinearGradient
-              colors={["transparent", "rgba(255,255,255,0.98)"]}
-              start={{ x: 0.5, y: 0.3 }}
-              end={{ x: 0.5, y: 1 }}
-              style={{ flex: 1 }}
-            />
-          </View>
-
-          {/* top buttons */}
-          <SafeAreaView
-            edges={["top"]}
-            className="absolute inset-x-0 top-0 px-4">
-            <View className="flex-row justify-between items-center py-3">
-              <TouchableOpacity
-                onPress={handleGoBack}
-                accessibilityLabel="Go back"
-                className="bg-white/80 w-10 h-10 rounded-full items-center justify-center"
-                activeOpacity={0.85}>
-                <Ionicons name="chevron-back" size={20} color="#111827" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleShare}
-                accessibilityLabel="Share this event"
-                className="bg-white/80 w-10 h-10 rounded-full items-center justify-center"
-                activeOpacity={0.85}>
-                <Feather name="share-2" size={18} color="#7952FC" />
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-
-          {/* category pill + live badge */}
-          {category ? (
-            <View className="absolute left-4 bottom-6 flex-row items-center space-x-3">
-              <View className="flex-row items-center bg-[#8554F5] px-3 py-1.5 rounded-full shadow-sm">
-                <Text className="text-xs text-white font-semibold">
-                  {category}
-                </Text>
-              </View>
-              {isLiveApplicable && (
-                <View className="bg-red-600 px-3 py-1 rounded-full items-center justify-center">
-                  <Text className="text-xs font-semibold text-white">LIVE</Text>
-                </View>
-              )}
-            </View>
-          ) : null}
-        </View>
-      </View>
-
-      {/* FlatList for details */}
       <FlatList
-        data={[{ key: "detail" }]} // dummy data
+        data={[{ key: "detail" }]}
         renderItem={renderDetailContent}
         keyExtractor={(item) => item.key}
         showsVerticalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
         contentContainerStyle={{ paddingBottom: 160 }}
+        ListHeaderComponent={
+          // Hero section is now part of scroll
+          <View className="w-full">
+            <View className="w-full aspect-[11/9] relative">
+              {image ? (
+                <Image
+                  source={image}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                  accessibilityLabel={`${title} banner image`}
+                />
+              ) : (
+                <View className="w-full h-full bg-gray-200" />
+              )}
+
+              {/* gradient overlay */}
+              <View className="absolute left-0 right-0 bottom-0 h-[36%]">
+                <LinearGradient
+                  colors={["transparent", "rgba(255,255,255,0.98)"]}
+                  start={{ x: 0.5, y: 0.3 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={{ flex: 1 }}
+                />
+              </View>
+
+              {/* top buttons */}
+              <SafeAreaView
+                edges={["top"]}
+                className="absolute inset-x-0 top-0 px-3">
+                <View className="flex-row justify-between items-center py-1">
+                  <TouchableOpacity
+                    onPress={handleGoBack}
+                    className="bg-white/80 w-10 h-10 rounded-full items-center justify-center"
+                    activeOpacity={0.85}>
+                    <Ionicons name="chevron-back" size={20} color="#111827" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleShare}
+                    className="bg-white/80 w-10 h-10 rounded-full items-center justify-center"
+                    activeOpacity={0.85}>
+                    <Feather name="share-2" size={18} color="#7952FC" />
+                  </TouchableOpacity>
+                </View>
+              </SafeAreaView>
+
+              {/* category pill + live badge */}
+              {category ? (
+                <View className="absolute left-4 bottom-6 flex-row items-center space-x-3">
+                  <View className="flex-row items-center bg-[#8554F5] px-3 py-1.5 rounded-full shadow-sm">
+                    <Text className="text-xs text-white font-semibold">
+                      {category}
+                    </Text>
+                  </View>
+                  {isLiveApplicable && (
+                    <View className="bg-red-600 px-3 py-1 rounded-full items-center justify-center">
+                      <Text className="text-xs font-semibold text-white">
+                        LIVE
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : null}
+            </View>
+          </View>
+        }
       />
 
-      {/* Bottom bar */}
+      {/* Bottom bar stays fixed */}
       <View className="mb-3">
         <BottomNavBar
           liked={liked}

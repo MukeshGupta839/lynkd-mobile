@@ -1,7 +1,7 @@
 // app/book/[id].tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -258,7 +258,7 @@ export default function BookTicketScreen() {
           accessibilityLabel={`Select ${item.label}`}
           className="mb-3 rounded-xl overflow-hidden">
           <View
-            className="flex-row items-center px-4 py-4 bg-white rounded-xl"
+            className="flex-row items-center px-3 py-3 bg-white rounded-xl"
             style={{
               borderWidth: isSelected ? 2 : 1,
               borderColor: isSelected ? COLORS.primary : COLORS.border,
@@ -391,7 +391,7 @@ export default function BookTicketScreen() {
       <Header title="Booking Ticket" />
 
       {/* Event summary */}
-      <View className="mx-4 mt-3 bg-white rounded-xl p-4" style={SHADOW.card}>
+      <View className="mx-3 mt-3 bg-white rounded-xl p-4" style={SHADOW.card}>
         <View className="flex-row items-center">
           <View
             className="rounded-lg overflow-hidden"
@@ -469,7 +469,7 @@ export default function BookTicketScreen() {
       </View>
 
       {/* Offers compact row */}
-      <View className="px-4 mt-4">
+      <View className="px-3 mt-4">
         <View className="flex-row items-center justify-between mb-3">
           <Text className="text-sm font-semibold text-[#111827]">Offers</Text>
           <TouchableOpacity
@@ -526,7 +526,7 @@ export default function BookTicketScreen() {
       </View>
 
       {/* Ticket types list */}
-      <View className="px-4 mt-5 flex-1">
+      <View className="px-3 mt-5 flex-1">
         <Text className="text-sm font-semibold text-[#111827] mb-3">
           Ticket Type:
         </Text>
@@ -536,7 +536,7 @@ export default function BookTicketScreen() {
           keyExtractor={(t) => t.id}
           renderItem={renderTicketType}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 140 }}
+          contentContainerStyle={{ paddingBottom: 60 }}
         />
       </View>
 

@@ -18,7 +18,7 @@ import {
   FlatList,
   Image,
   Platform,
-  SafeAreaView,
+  ScrollView,
   Text,
   TouchableOpacity,
   View,
@@ -27,8 +27,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /* ----------------- Memoize heavy pure children globally ----------------- */
-/* Wrap external components with React.memo if they are pure and expensive.
-   This avoids re-renders when parent state changes that don't affect them. */
 const MemoOffersCard = React.memo(OffersCard);
 const MemoDeliveryDetails = React.memo(DeliveryDetails);
 const MemoFeaturesCard = React.memo(FeaturesCard);
@@ -78,14 +76,28 @@ export default function ProductView() {
 
   // content container style for FlatList (keeps bottom CTA visible)
   const contentContainerStyle = useMemo(
-    () => ({ paddingBottom: (insets.bottom || 0) + 40 }),
+    () => ({ paddingBottom: (insets.bottom || 0) + 60 }),
     [insets.bottom]
   );
 
   /* ----------------- UI pieces ----------------- */
+
+  // Thumbnails (horizontal scroll, safe-area aware)
   const ThumbnailsRow = useMemo(() => {
+    const THUMB_SIZE = Math.min(96, Math.round(width * 0.18));
+    const GAP = 10;
+    const padLeft = Math.max(12, (insets.left || 0) + 12);
+    const padRight = Math.max(12, (insets.right || 0) + 12);
+
     return (
-      <View className="flex-row mb-4 px-3">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingLeft: padLeft,
+          paddingRight: padRight,
+          alignItems: "center",
+        }}>
         {product.thumbnails?.map((img: any, idx: number) => {
           const active = selectedThumbnail === idx;
           return (
@@ -95,24 +107,39 @@ export default function ProductView() {
               activeOpacity={0.85}
               accessibilityLabel={`Thumbnail ${idx + 1}`}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              className={`flex-1 mx-1 rounded-lg items-center justify-center ${
-                active
-                  ? "border-2 border-[#26FF91] bg-[#CCFFE5]"
-                  : "border border-[#E5E7EB] bg-white"
-              }`}>
-              <View className="w-full aspect-square flex items-center justify-center p-2">
+              style={{
+                width: THUMB_SIZE,
+                height: THUMB_SIZE,
+                borderRadius: 12,
+                marginRight:
+                  idx === (product.thumbnails?.length ?? 0) - 1 ? 0 : GAP,
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                borderWidth: active ? 2 : 1,
+                borderColor: active ? "#26FF91" : "#E5E7EB",
+                backgroundColor: active ? "#CCFFE5" : "#ffffff",
+              }}>
+              <View style={{ width: "100%", height: "100%", padding: 8 }}>
                 <Image
                   source={img}
-                  className="w-full h-full"
+                  style={{ width: "100%", height: "100%" }}
                   resizeMode="contain"
                 />
               </View>
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
     );
-  }, [product.thumbnails, selectedThumbnail, onSelectThumbnail]);
+  }, [
+    product.thumbnails,
+    selectedThumbnail,
+    onSelectThumbnail,
+    width,
+    insets.left,
+    insets.right,
+  ]);
 
   const ColorOptionsRow = useMemo(() => {
     return (
@@ -183,13 +210,11 @@ export default function ProductView() {
 
     return (
       <View>
-        {/* Header container with runtime top padding */}
-        <View className="bg-white rounded-b-2xl shadow">
-          <View style={{ paddingTop: insets.top + 8 }} className="px-4">
-            <View className="flex-row items-center justify-between">
+        <View className="w-full bg-white pt-safe">
+          <View>
+            <View className="flex-row items-center justify-between px-3">
               <TouchableOpacity
                 onPress={goBack}
-                className="p-2"
                 accessibilityLabel="Go back"
                 accessibilityRole="button"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -223,7 +248,7 @@ export default function ProductView() {
             </View>
           </View>
 
-          {/* Responsive heart & share positioned relative to header area */}
+          {/* floating buttons positioned over the full-bleed image */}
           <View
             style={{
               position: "absolute",
@@ -257,7 +282,6 @@ export default function ProductView() {
                   },
                 })}
                 onPress={() => {
-                  // TODO: toggle wishlist or open modal
                   console.log("Wishlist pressed");
                 }}>
                 <Ionicons name="heart-outline" size={iconSize} color="black" />
@@ -284,7 +308,6 @@ export default function ProductView() {
                   },
                 })}
                 onPress={() => {
-                  // TODO: call Share API
                   console.log("Share pressed");
                 }}>
                 <Ionicons
@@ -296,8 +319,8 @@ export default function ProductView() {
             </View>
           </View>
 
-          {/* main image: responsive aspect ratio */}
-          <View className="w-full items-center mt-4 px-3">
+          {/* main image: full width, no px-3 */}
+          <View className="w-full items-center mt-4">
             <View
               className={
                 isWide
@@ -314,43 +337,47 @@ export default function ProductView() {
           </View>
         </View>
 
-        {/* Thumbnails card and product info */}
-        <View className="bg-white rounded-2xl mt-3 px-3 py-4">
-          {ThumbnailsRow}
+        {/* White card below the full-bleed image — this card is inset with px-3 */}
+        <View className="px-3">
+          <View className="bg-white rounded-2xl mt-3  py-4">
+            {ThumbnailsRow}
 
-          <View className="px-3 py-2">
-            <Text className="text-base font-semibold mb-1">
-              {product.name} ({selectedColor}, {selectedStorage?.size})
-            </Text>
+            <View className="px-3 py-2">
+              <Text className="text-base font-semibold mb-1">
+                {product.name} ({selectedColor}, {selectedStorage?.size})
+              </Text>
 
-            <View className="flex-row items-center space-x-2">
-              <Text className="text-lg font-bold text-black">
-                ₹
-                {Number(selectedStorage?.price ?? 0).toLocaleString("en-IN", {
-                  maximumFractionDigits: 0,
-                })}
-              </Text>
-              <Text className="line-through text-gray-400 text-sm">
-                20,0000
-              </Text>
-              <Text className="text-green-500 text-sm font-semibold">50%</Text>
-            </View>
+              <View className="flex-row items-center space-x-2">
+                <Text className="text-lg font-bold text-black">
+                  ₹
+                  {Number(selectedStorage?.price ?? 0).toLocaleString("en-IN", {
+                    maximumFractionDigits: 0,
+                  })}
+                </Text>
+                <Text className="line-through text-gray-400 text-sm">
+                  20,0000
+                </Text>
+                <Text className="text-green-500 text-sm font-semibold">
+                  50%
+                </Text>
+              </View>
 
-            <View className="flex-row items-center mt-1">
-              {[...Array(4)].map((_, i) => (
-                <Ionicons key={i} name="star" size={14} color="#FFD700" />
-              ))}
-              <Ionicons name="star-half" size={14} color="#FFD700" />
-              <Text className="ml-1 text-sm text-gray-700">
-                4.5 (2,495 reviews)
-              </Text>
-            </View>
+              <View className="flex-row items-center mt-1">
+                {[...Array(4)].map((_, i) => (
+                  <Ionicons key={i} name="star" size={14} color="#FFD700" />
+                ))}
+                <Ionicons name="star-half" size={14} color="#FFD700" />
+                <Text className="ml-1 text-sm text-gray-700">
+                  4.5 (2,495 reviews)
+                </Text>
+              </View>
 
-            <View className="mt-1 flex-row items-center bg-[#26FF91] px-2 py-0.5 rounded-full self-start">
-              <Truck size={14} color="#000" />
-              <Text className="ml-1 text-black font-bold text-xxs">
-                Super Fast
-              </Text>
+              <View className="mt-1 flex-row items-center bg-[#26FF91] px-2 py-0.5 rounded-full self-start">
+                <Truck size={14} color="#000" />
+                <Text className="ml-1 text-black font-bold text-xxs">
+                  Super Fast
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -368,6 +395,8 @@ export default function ProductView() {
     floatingTop,
     iconSize,
     isWide,
+    insets.left,
+    insets.right,
   ]);
 
   /* ----------------- Details Block ----------------- */
@@ -420,7 +449,7 @@ export default function ProductView() {
         </View>
 
         <View className="mt-4">
-          <View className="py-5">
+          <View className="bg-white rounded-xl">
             <MemoBestProductsCarousel title="Best Products" data={products} />
           </View>
         </View>
@@ -430,7 +459,7 @@ export default function ProductView() {
 
   /* ----------------- Render ----------------- */
   return (
-    <SafeAreaView className="flex-1 bg-gray-100">
+    <View className="flex-1 bg-gray-100">
       <StatusBar style="dark" translucent backgroundColor="transparent" />
 
       <FlatList
@@ -490,6 +519,6 @@ export default function ProductView() {
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

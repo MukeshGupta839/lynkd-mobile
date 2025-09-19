@@ -5,7 +5,6 @@ import React, { useCallback, useMemo } from "react";
 import {
   Image,
   ImageSourcePropType,
-  SafeAreaView,
   Text,
   TouchableOpacity,
   View,
@@ -99,11 +98,11 @@ export default function HeroHeader({
       </View>
 
       {/* Top overlay: use SafeAreaView and explicit paddingTop from insets so content sits below notch */}
-      <SafeAreaView
+      <View
         pointerEvents="box-none"
-        style={{ paddingTop: insets.top }}
+        style={{ paddingTop: insets.top + 4 }}
         className="absolute left-0 right-0">
-        <View className="px-4" style={{ paddingBottom: 6 }}>
+        <View className="px-3">
           <View className="flex-row items-center justify-between">
             <TouchableOpacity
               onPress={handleBack}
@@ -132,12 +131,12 @@ export default function HeroHeader({
             </TouchableOpacity>
           </View>
         </View>
-      </SafeAreaView>
+      </View>
 
       {/* Default inline bottom overlay inside image */}
       {!autoDetectOverlap && (
-        <View className="absolute left-4 right-4 bottom-4">
-          <View className="flex-row items-center justify-between bg-black/40 rounded-xl px-4 py-3">
+        <View className="absolute left-0 right-0 bottom-4">
+          <View className="flex-row items-center justify-between bg-black/40 px-4 py-3">
             <View className="flex-1 pr-3">
               <Text
                 className="text-white font-bold text-base"

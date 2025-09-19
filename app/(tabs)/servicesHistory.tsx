@@ -22,7 +22,7 @@ const HistoryCard = React.memo(
     return (
       <TouchableOpacity activeOpacity={0.95} onPress={onPress} className="mb-4">
         <View
-          className="w-full bg-white rounded-2xl overflow-hidden"
+          className="w-full bg-white rounded-2xl overflow-hidden "
           // only shadow inline
           style={{
             shadowColor: "#000",
@@ -117,7 +117,7 @@ export default function ServiceHistoryScreen() {
       <View
         className="w-full bg-white items-center justify-center"
         style={{
-          paddingTop: insets.top + 10,
+          paddingTop: insets.top,
           paddingBottom: 12,
           // shadow inline only
           shadowColor: "#000",
@@ -143,6 +143,8 @@ export default function ServiceHistoryScreen() {
           initialNumToRender={3}
           maxToRenderPerBatch={4}
           windowSize={5}
+          bounces={false}
+          overScrollMode="never"
           removeClippedSubviews={false} // ensures smooth scrolling
         />
       </View>

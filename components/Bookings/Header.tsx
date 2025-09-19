@@ -1,7 +1,6 @@
 // components/BookingHeader.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -28,14 +27,14 @@ export default function BookingHeader({
 
   return (
     <View
-      style={[shadowOnly, { paddingTop: insets.top }]}
-      className="bg-white rounded-b-2xl">
-      <View className="flex-row items-center px-4 py-3">
+      style={[shadowOnly, { paddingTop: insets.top, paddingBottom: 12 }]}
+      className="bg-white rounded-b-2xl pt-safe">
+      <View className="flex-row items-center px-3">
         {showBackIcon && (
           <TouchableOpacity
             onPress={() => router.back()}
             activeOpacity={0.85}
-            className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
+            className=" h-8 bg-white rounded-full items-center justify-center shadow-sm"
             accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={20} color="#111827" />
           </TouchableOpacity>

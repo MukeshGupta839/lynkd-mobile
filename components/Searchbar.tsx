@@ -6,9 +6,9 @@ type Props = {
   placeholder?: string;
   onChangeText?: (t: string) => void;
   onSubmitEditing?: () => void;
-  className?: string; // extra classes for the outer container
-  innerClassName?: string; // extra classes for inner row
-  readOnly?: boolean; // NEW: dummy mode toggle
+  className?: string;
+  innerClassName?: string;
+  readOnly?: boolean;
 };
 
 export default function SearchBar({
@@ -23,23 +23,19 @@ export default function SearchBar({
   return (
     <View
       className={[
-        "w-full h-13 self-center bg-white border border-gray-200 overflow-hidden",
+        "w-full h-13 self-center bg-white border border-gray-200 rounded-xl overflow-hidden",
         className,
-      ].join(" ")}
-    >
+      ].join(" ")}>
       <View
         className={[
           "flex-1 flex-row items-center justify-between px-3",
           innerClassName,
-        ].join(" ")}
-      >
+        ].join(" ")}>
         {readOnly ? (
-          // 👇 Dummy version
           <Text className="flex-1 mr-2 text-lg text-gray-400">
             {placeholder}
           </Text>
         ) : (
-          // 👇 Editable version
           <TextInput
             value={value}
             onChangeText={onChangeText}

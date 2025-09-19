@@ -77,7 +77,7 @@ const ProductHome = () => {
 
       case "banner":
         return (
-          <View className="mt-4">
+          <View className="mt-4 ">
             <Banner
               variant="home"
               data={homeBannerData}
@@ -111,7 +111,7 @@ const ProductHome = () => {
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           className="rounded-b-2xl overflow-hidden">
-          <SafeAreaView edges={["top"]} className="px-3 pb-2">
+          <SafeAreaView edges={["top"]} className="px-3 py-1">
             <HomeHeader />
             <QuickActions />
             <TouchableOpacity

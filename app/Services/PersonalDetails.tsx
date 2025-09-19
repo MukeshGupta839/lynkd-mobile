@@ -1,6 +1,6 @@
 // app/Services/PersonalDetails.tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -104,7 +104,7 @@ export default function PersonalDetails() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         className="flex-1"
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
-        <SafeAreaView edges={["left", "right", "bottom"]} className="px-4 pt-4">
+        <SafeAreaView edges={["left", "right", "bottom"]} className="px-3 pt-4">
           {/* Details form card */}
           <View
             className="bg-white rounded-2xl p-3 mb-3"
@@ -225,7 +225,7 @@ export default function PersonalDetails() {
       </KeyboardAvoidingView>
 
       {/* Sticky Confirm button */}
-      <View className="absolute left-0 right-0 bottom-6 px-4">
+      <View className="absolute left-0 right-0 bottom-6 px-3">
         <TouchableOpacity
           onPress={() =>
             router.push({
@@ -266,7 +266,7 @@ export default function PersonalDetails() {
               <TouchableOpacity
                 onPress={() => setShowCountryModal(false)}
                 activeOpacity={0.9}
-                className="px-4 py-2 rounded-lg">
+                className="px-3 py-2 rounded-lg">
                 <Text className="text-gray-700">Close</Text>
               </TouchableOpacity>
             </View>

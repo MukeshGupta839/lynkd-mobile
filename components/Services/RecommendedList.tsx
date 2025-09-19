@@ -35,7 +35,7 @@ function RecommendedListComponent({
   data,
   onItemPress,
   title = "Recommended For You",
-  horizontalPadding = 12,
+  horizontalPadding = 10,
   gap = 12,
   verticalGap = 16,
   bottomSpacing = 28,
@@ -65,7 +65,7 @@ function RecommendedListComponent({
         <View
           style={{
             width: itemWidthPx,
-            paddingHorizontal: gap / 2,
+            paddingHorizontal: gap / 6,
             paddingBottom: verticalGap,
           }}>
           <TouchableOpacity
@@ -97,7 +97,7 @@ function RecommendedListComponent({
               />
             </View>
 
-            <View className="px-4 py-3">
+            <View className="px-2 py-3">
               <Text
                 className="text-lg font-bold text-gray-900"
                 numberOfLines={1}>

@@ -61,11 +61,10 @@ export default function ReviewOrder() {
   const ListHeader = useMemo(
     () => (
       <View>
-        {/* Header (no px-3, edge to edge) */}
         <View
-          className="bg-white rounded-b-2xl py-3 shadow"
+          className="bg-white rounded-b-2xl  shadow"
           style={{ paddingTop: insets.top }}>
-          <View className="flex-row items-center px-3">
+          <View className="flex-row items-center py-1 pb-2 px-3">
             <TouchableOpacity
               onPress={() => router.back()}
               className="p-1 mr-2"
@@ -86,7 +85,7 @@ export default function ReviewOrder() {
         {/* Content wrapper so all cards get px-3 */}
         <View className="px-3">
           {/* Address card */}
-          <View className="bg-white mt-3 rounded-2xl px-3 py-3">
+          <View className="bg-white mt-2 rounded-2xl px-3 py-3">
             <View className="flex-row items-center">
               <Ionicons name="home" size={18} color="#000" />
               <Text className="ml-2 font-semibold text-sm">HOME</Text>
@@ -107,7 +106,7 @@ export default function ReviewOrder() {
           </View>
 
           {/* Product card */}
-          <View className="bg-white mt-3 rounded-2xl px-3 py-3">
+          <View className="bg-white mt-2 rounded-2xl px-1 py-2">
             <View className="flex-row">
               <View className="w-[22%] aspect-[1/1.2] rounded-lg overflow-hidden bg-gray-50 mr-3 items-center justify-center">
                 <Image
@@ -169,12 +168,11 @@ export default function ReviewOrder() {
           </View>
 
           {/* Offers */}
-          <View className="mt-3">
-            <MemoOffersCard />
-          </View>
+
+          <MemoOffersCard />
 
           {/* Assurances + warranty */}
-          <View className="bg-white mt-3 rounded-2xl py-3 px-3">
+          <View className="bg-white rounded-2xl py-3 px-3">
             <MemoFeaturesCard />
             <View className="mt-3 flex-row items-center bg-gray-100 rounded-xl px-3 py-2">
               <Ionicons name="logo-apple" size={18} color="#000" />
@@ -186,7 +184,7 @@ export default function ReviewOrder() {
           </View>
 
           {/* Price details */}
-          <View className="bg-white mt-3 rounded-2xl px-3 py-3">
+          <View className="bg-white mt-2 rounded-2xl px-3 py-3">
             <Text className="text-sm font-semibold mb-2">Price Details</Text>
 
             <View className="flex-row items-center justify-between py-1">
@@ -275,7 +273,7 @@ export default function ReviewOrder() {
         keyExtractor={(_v, i) => String(i)}
         renderItem={(): null => null}
         ListHeaderComponent={ListHeader}
-        contentContainerStyle={{ paddingBottom: (insets.bottom || 0) + 50 }}
+        contentContainerStyle={{ paddingBottom: (insets.bottom || 0) + 40 }}
         showsVerticalScrollIndicator={false}
         initialNumToRender={1}
         maxToRenderPerBatch={4}

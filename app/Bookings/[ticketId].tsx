@@ -1,6 +1,6 @@
 // app/Bookings/[ticketId].tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import {
   SafeAreaView,
@@ -52,9 +52,9 @@ export default function BookingTicketDetail() {
   // If event missing: friendly fallback UI
   if (!event) {
     return (
-      <SafeAreaView edges={["top"]} className="flex-1 bg-white">
+      <SafeAreaView edges={["top"]} className="flex-1 bg-gray-50">
         <Header title="Detail Ticket" />
-        <View className="flex-1 items-center justify-center px-6">
+        <View className="flex-1 items-center justify-center px-3">
           <Text className="text-lg font-semibold text-[#111827] mb-2">
             Ticket not found
           </Text>
@@ -66,13 +66,13 @@ export default function BookingTicketDetail() {
             <TouchableOpacity
               onPress={goToMyTickets}
               accessibilityLabel="Go to My Tickets"
-              className="px-4 py-2 rounded-lg bg-violet-600">
+              className="px-3 py-2 rounded-lg bg-violet-600">
               <Text className="text-white font-semibold">Go to My Tickets</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.back()}
               accessibilityLabel="Go back"
-              className="px-4 py-2 rounded-lg border border-gray-200">
+              className="px-3 py-2 rounded-lg border border-gray-200">
               <Text className="text-gray-700">Go back</Text>
             </TouchableOpacity>
           </View>
@@ -121,7 +121,7 @@ export default function BookingTicketDetail() {
     ({ item }: { item: { key: string } }) => {
       if (item.key === "hero") {
         return (
-          <View className="mx-4 mt-3 bg-white rounded-xl p-4 shadow-md">
+          <View className="mx-3 mt-3 bg-white rounded-xl p-4 shadow-md">
             <View className="relative w-full aspect-[16/9] rounded-lg overflow-hidden bg-gray-200">
               {event.image && (
                 <Image
@@ -166,7 +166,7 @@ export default function BookingTicketDetail() {
 
       if (item.key === "purchaser") {
         return (
-          <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
+          <View className="mx-3 mt-4 bg-white rounded-xl p-4 shadow-md">
             <Text className="text-sm text-gray-500">Name</Text>
             <Text className="mt-1 text-base font-semibold text-[#111827]">
               {purchaserName}
@@ -201,7 +201,7 @@ export default function BookingTicketDetail() {
 
       // summary
       return (
-        <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
+        <View className="mx-3 mt-4 bg-white rounded-xl p-4 shadow-md">
           <View className="flex-row justify-between py-2">
             <Text className="text-sm text-gray-700">Subtotal</Text>
             <Text className="text-sm text-gray-700">

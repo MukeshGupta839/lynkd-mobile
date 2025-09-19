@@ -1,7 +1,7 @@
 // app/Services/Receipt.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   Alert,
   Image,
@@ -75,7 +75,7 @@ export default function ReceiptScreen() {
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header (flat — no shadow) */}
       <View className="w-full border-b border-gray-100 bg-white">
-        <View className="px-4 py-3">
+        <View className="px-3 py-3">
           <View className="relative items-center">
             <TouchableOpacity
               onPress={() => router.back()}
@@ -105,7 +105,7 @@ export default function ReceiptScreen() {
         </View>
 
         {/* Info rows rendered directly (no white card, no shadow) */}
-        <View className="px-4 mt-6">
+        <View className="px-3 mt-6">
           {/* first group */}
           <View className="pb-3">
             {[
@@ -176,7 +176,7 @@ export default function ReceiptScreen() {
       </ScrollView>
 
       {/* Sticky Download button (flat) */}
-      <View className="absolute left-0 right-0 bottom-5 px-4">
+      <View className="absolute left-0 right-0 bottom-5 px-3">
         <TouchableOpacity
           onPress={onDownload}
           accessibilityRole="button"

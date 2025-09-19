@@ -4,7 +4,6 @@ import React from "react";
 import { ScrollView, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import CategoryList from "@/components/Product/CategoryList";
 import HomeHeader from "@/components/Product/HomeHeader";
 import QuickActions from "@/components/Product/QuickActions";
 import SearchBar from "@/components/Searchbar";
@@ -41,11 +40,11 @@ export default function Home() {
       {/* Rounded gradient header with safe area INSIDE */}
       <View className="w-full rounded-b-2xl overflow-hidden">
         <GradientWrapper
-          colors={["#C5F8CE", "#ffffffff"]}
+          colors={["#bcb9ffff", "#ffffffff"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           className="rounded-b-2xl overflow-hidden">
-          <SafeAreaView edges={["top"]} className="px-4 py-2">
+          <SafeAreaView edges={["top"]} className=" px-3 py-1">
             <HomeHeader />
             <QuickActions />
             <TouchableOpacity
@@ -66,10 +65,6 @@ export default function Home() {
           showsVerticalScrollIndicator={false}
           scrollIndicatorInsets={{ bottom: 0 }}
           contentContainerStyle={{ paddingBottom: 70 }}>
-          {/* Categories */}
-          <View className="px-4">
-            <CategoryList orientation="horizontal" />
-          </View>
           <View className="mt-4">
             <TouchableOpacity
               onPress={() =>

@@ -1,18 +1,11 @@
 // app/Bookings/popularEvents/index.tsx
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
-import {
-  FlatList,
-  ListRenderItemInfo,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useCallback, useMemo, useState } from "react";
+import { FlatList, ListRenderItemInfo, Text, View } from "react-native";
 
 import Categories from "@/components/Bookings/Categories";
 import EventCard from "@/components/Bookings/EventCard";
+import Header from "@/components/Bookings/Header";
 import type { EventT } from "@/constants/bookings";
 import { POPULAR_EVENTS } from "@/constants/bookings";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -41,22 +34,8 @@ export default function PopularEvents() {
     return (
       <View>
         {/* Header bar */}
-        <View className="bg-white shadow-md">
-          <SafeAreaView edges={["top"]} className="pb-3 bg-transparent">
-            <View className="flex-row items-center">
-              <TouchableOpacity
-                onPress={goBack}
-                activeOpacity={0.8}
-                accessibilityLabel="Go back"
-                className="p-2">
-                <Ionicons name="chevron-back" size={22} />
-              </TouchableOpacity>
-              <Text className="ml-1 text-lg font-semibold text-[#13123A]">
-                Popular Event
-              </Text>
-            </View>
-          </SafeAreaView>
-        </View>
+
+        <Header title="Popular Events" showBackIcon={true} />
 
         {/* Categories below header */}
         <View className="mt-4 pb-3">

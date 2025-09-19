@@ -2,7 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -177,10 +177,10 @@ export default function BookingsTickets() {
     <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
       <Header title="My Ticket" showBackIcon={false} />
 
-      <View className="flex-1 px-4">
+      <View className="flex-1 ">
         {/* Tabs */}
         <View
-          className="flex-row mt-4 mb-4 bg-gray-100 p-1 rounded-full overflow-hidden"
+          className="flex-row px-3 mt-4 mb-4 bg-gray-100 p-1 rounded-full overflow-hidden"
           style={{ height: TAB_HEIGHT }}>
           {/* Active Tab */}
           <View className="flex-1 h-full">
@@ -249,7 +249,7 @@ export default function BookingsTickets() {
           keyExtractor={(item) => item.ticketId}
           renderItem={renderTicket}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 12 }}
           ListEmptyComponent={() => (
             <Text className="text-center text-gray-400 mt-10">
               No tickets found

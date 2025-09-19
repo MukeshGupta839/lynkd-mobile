@@ -12,9 +12,9 @@ import {
 export default React.memo(function NearbyList({
   data,
   onItemPress,
-  title = "Near By You",
+  title = "",
   onActionPress,
-  horizontalPadding = 8,
+  horizontalPadding = 12,
   gap = 12,
   maxCardWidth = 200,
   minCardWidth = 120,
@@ -70,15 +70,21 @@ export default React.memo(function NearbyList({
   );
 
   // list padding top so overlapping images don't hit header
-  const listPaddingTop = Math.abs(imageTop) + 8;
+  const listPaddingTop = Math.abs(imageTop);
 
   const renderItem = useCallback(
     ({ item, index }: { item: any; index: number }) => {
-      const leftOffset = Math.round((cardWidth * (1 - 0.92)) / 2);
       const innerImageW = Math.round(cardWidth * 0.92);
+      const leftOffset = Math.round((cardWidth - innerImageW) / 2);
+      const isLast = index === (data?.length ?? 0) - 1;
+
+      const itemStyle: any = {
+        width: cardWidth,
+        marginRight: isLast ? 0 : gap,
+      };
 
       return (
-        <View style={{ width: cardWidth }} className="overflow-visible mx-1.5">
+        <View style={itemStyle}>
           <View className="relative overflow-visible">
             <TouchableOpacity
               activeOpacity={0.95}
@@ -90,25 +96,22 @@ export default React.memo(function NearbyList({
                   : `Open nearby item ${index + 1}`
               }
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              className="overflow-visible rounded-2xl">
-              {/* card (visual) - keep only shadow inline (platform specific) */}
+              className="rounded-2xl">
               <View
-                className="rounded-2xl bg-white overflow-hidden"
+                className="rounded-2xl bg-white"
                 style={{
-                  // Shadow kept inline only (iOS shadow + Android elevation)
                   shadowColor: "#000",
                   shadowOpacity: 0.06,
                   shadowRadius: 14,
                   shadowOffset: { width: 0, height: 12 },
                   elevation: 6,
                 }}>
-                {/* spacer for image overlap */}
                 <View
                   style={{
                     height: Math.max(imageHeight * (1 - overlapRatio), 10),
                   }}
                 />
-                <View className="px-4 pt-3 pb-4">
+                <View className="px-3 pt-3 pb-4">
                   <Text
                     numberOfLines={1}
                     className="text-lg font-bold text-gray-900">
@@ -123,7 +126,6 @@ export default React.memo(function NearbyList({
               </View>
             </TouchableOpacity>
 
-            {/* overlapping image; pointerEvents="box-none" so touch falls through */}
             <View
               pointerEvents="box-none"
               style={{
@@ -146,10 +148,9 @@ export default React.memo(function NearbyList({
         </View>
       );
     },
-    [cardWidth, imageHeight, imageTop, overlapRatio, onItemPress]
+    [cardWidth, imageHeight, imageTop, overlapRatio, onItemPress, gap, data]
   );
 
-  // stable key: use id/key if present, otherwise index
   const keyExtractor = useCallback(
     (i: any, index: number) => String(i?.id ?? i?.key ?? index),
     []
@@ -165,9 +166,10 @@ export default React.memo(function NearbyList({
 
   return (
     <View className="overflow-visible">
-      {/* Header using Tailwind */}
-      <View className="pb-2 px-3 pt-2 bg-gray-50">
-        <View className="flex-row justify-between items-center">
+      <View className="pb-2 pt-2 bg-gray-50">
+        <View
+          className="flex-row justify-between items-center"
+          style={{ paddingHorizontal: horizontalPadding }}>
           <Text className="text-lg font-bold text-gray-900">{title}</Text>
           <TouchableOpacity
             activeOpacity={0.8}
@@ -187,6 +189,7 @@ export default React.memo(function NearbyList({
         contentContainerStyle={{
           paddingTop: listPaddingTop,
           paddingHorizontal: horizontalPadding,
+          paddingBottom: 12,
         }}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
@@ -194,8 +197,10 @@ export default React.memo(function NearbyList({
         initialNumToRender={4}
         maxToRenderPerBatch={6}
         windowSize={6}
-        removeClippedSubviews={true}
+        removeClippedSubviews={false}
         getItemLayout={getItemLayout}
+        bounces={false}
+        overScrollMode="never"
       />
     </View>
   );

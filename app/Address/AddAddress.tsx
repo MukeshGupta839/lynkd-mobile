@@ -2,7 +2,7 @@
 import FormInput from "@/components/FormInput";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -55,7 +55,7 @@ export default function AddAddress() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}>
         {/* Header */}
-        <View className="flex-row items-center px-[5%] py-[4%] bg-white shadow-sm">
+        <View className="flex-row items-center px-3  bg-white shadow-sm">
           <TouchableOpacity
             onPress={goBack}
             accessibilityLabel="Go back"
@@ -69,7 +69,7 @@ export default function AddAddress() {
 
         {/* Form (scrollable) */}
         <ScrollView
-          className="flex-1 px-[5%] mt-4"
+          className="flex-1 px-3 mt-4"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}>
           <FormInput

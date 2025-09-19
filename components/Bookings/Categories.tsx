@@ -5,7 +5,7 @@ import {
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   FlatList,
   ListRenderItemInfo,
@@ -27,7 +27,7 @@ export default function Categories({
 }: Props) {
   const categories = useMemo(() => CATEGORIES, []);
 
-  const renderCategory = ({ item, index }: ListRenderItemInfo<CategoryT>) => {
+  const renderCategory = ({ item }: ListRenderItemInfo<CategoryT>) => {
     const isActive = item.key === activeCategory;
     const iconColor = isActive ? "#FFFFFF" : "#111827";
 
@@ -51,51 +51,47 @@ export default function Categories({
       return null;
     };
 
-    if (isActive) {
-      return (
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => setActiveCategory(item.key)}
-          className=" px-3">
-          <View className="rounded-full overflow-hidden">
-            <LinearGradient
-              colors={["#7952FC", "#B15CDE"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="px-3 py-2">
-              <View className="flex-row items-center">
-                <View className="mr-2">
-                  <Icon />
-                </View>
-                <Text className="text-white font-semibold text-base">
-                  {item.label}
-                </Text>
-              </View>
-            </LinearGradient>
-          </View>
-        </TouchableOpacity>
-      );
-    }
-
     return (
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={() => setActiveCategory(item.key)}
-        className=" px-2">
-        <View className="flex-row items-center rounded-full px-3 py-2 border border-gray-300 bg-white">
-          <View className="mr-2">
-            <Icon />
-          </View>
-          <Text className="text-gray-800 font-medium text-base">
-            {item.label}
-          </Text>
+        className="mx-1"
+        accessibilityRole="button"
+        accessibilityState={{ selected: isActive }}>
+        {/* OUTER wrapper: same for both states to guarantee identical shape */}
+        <View className="rounded-full overflow-hidden border border-gray-300">
+          {isActive ? (
+            // active: gradient fill inside same rounded, border-visible container
+            <LinearGradient
+              colors={["#7952FC", "#B15CDE"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              className="px-3 py-2 flex-row items-center">
+              <View className="mr-2">
+                <Icon />
+              </View>
+              <Text className="text-white font-semibold text-base">
+                {item.label}
+              </Text>
+            </LinearGradient>
+          ) : (
+            // inactive: white fill inside same rounded, bordered container
+            <View className="px-3 py-2 flex-row items-center bg-white">
+              <View className="mr-2">
+                <Icon />
+              </View>
+              <Text className="text-gray-800 font-medium text-base">
+                {item.label}
+              </Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
   };
 
   return (
-    <View className=" bg-transparent">
+    <View className="bg-transparent">
       <FlatList
         data={categories}
         horizontal
@@ -104,8 +100,9 @@ export default function Categories({
         renderItem={renderCategory}
         bounces={false}
         overScrollMode="never"
-        contentContainerStyle={{ paddingRight: 12 }}
-        ListFooterComponent={() => <View className="w-2" />}
+        removeClippedSubviews={false}
+        extraData={activeCategory}
+        contentContainerStyle={{ paddingHorizontal: 8 }}
       />
     </View>
   );

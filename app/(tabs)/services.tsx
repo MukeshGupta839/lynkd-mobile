@@ -73,11 +73,9 @@ export default function Services() {
   useFocusEffect(
     useCallback(() => {
       setPreset("blue");
-      // no cleanup necessary
     }, [setPreset])
   );
 
-  // unified navigation handler
   const handleItemPress = useCallback(
     (item: { id: string | number; title?: string }) => {
       router.push({
@@ -92,7 +90,6 @@ export default function Services() {
     [router]
   );
 
-  // header as memoized component for FlatList ListHeaderComponent
   const ListHeader = useMemo(
     () => (
       <View className="w-full rounded-b-2xl overflow-hidden">
@@ -101,13 +98,13 @@ export default function Services() {
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           className="rounded-b-2xl overflow-hidden">
-          <SafeAreaView edges={["top"]} className="px-3 pb-2">
+          <SafeAreaView edges={["top"]} className="px-3 py-1">
             <HomeHeader />
             <QuickActions />
             <TouchableOpacity
               onPress={() => router.push("/Searchscreen?tab=service")}
               activeOpacity={0.8}
-              className="mt-3">
+              className="mt-3 ">
               <SearchBar placeholder="Search Services" readOnly />
             </TouchableOpacity>
           </SafeAreaView>
@@ -117,8 +114,7 @@ export default function Services() {
     [router]
   );
 
-  // small wrapper to render sections inside FlatList's header
-  const contentContainerStyle = { paddingBottom: insets.bottom + 70 };
+  const contentContainerStyle = { paddingBottom: insets.bottom + 40 };
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -127,16 +123,17 @@ export default function Services() {
         ListHeaderComponent={
           <View>
             {ListHeader}
-            <View className="mt-3 px-3">
+            <View className="mt-3">
               <CategoryList orientation="horizontal" />
             </View>
 
-            <View className="mt-4 px-3">
+            <View className="mt-4">
               <PromoBannerCarousel variant="home" data={ServicesBannerData} />
             </View>
 
-            <View className=" mt-4">
+            <View className="mt-4">
               <NearbyList
+                title="Near by You"
                 data={NEARBY_DATA}
                 largeMode={false}
                 imageAspect={1.25}
@@ -157,6 +154,9 @@ export default function Services() {
         keyExtractor={() => "services-root"}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={contentContainerStyle}
+        // 👇 disable stretch/bounce here
+        bounces={false}
+        overScrollMode="never"
       />
     </View>
   );

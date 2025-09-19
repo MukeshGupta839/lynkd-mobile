@@ -1,7 +1,7 @@
 // app/Services/BookingTable.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   ScrollView,
@@ -178,9 +178,9 @@ export default function BookingTable() {
       />
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
         showsVerticalScrollIndicator={false}>
-        <SafeAreaView edges={["left", "right"]} className="px-4 pt-4">
+        <SafeAreaView edges={["left", "right"]} className="px-3 pt-4">
           {/* Pickup Date (horizontal FlatList) */}
           <View className="mb-6">
             <Text className="text-lg font-semibold text-gray-900 mb-3">
@@ -302,7 +302,7 @@ export default function BookingTable() {
       </ScrollView>
 
       {/* Sticky Next button */}
-      <View className="absolute bottom-6 left-0 right-0 px-4">
+      <View className="absolute bottom-6 left-0 right-0 px-3">
         <TouchableOpacity
           onPress={onNext}
           activeOpacity={0.95}

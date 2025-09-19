@@ -61,7 +61,7 @@ export default function RootLayout() {
                 }}
               />
               <Stack.Screen
-                name="Address/select-address"
+                name="Address/selectAddress"
                 options={{ headerShown: false }}
               />
               <Stack.Screen

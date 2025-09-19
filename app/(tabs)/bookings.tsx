@@ -1,7 +1,7 @@
 // app/(tabs)/bookings.tsx
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   ListRenderItemInfo,
@@ -130,7 +130,7 @@ export default function Bookings() {
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
             className="w-full rounded-b-2xl overflow-hidden">
-            <SafeAreaView edges={["top"]} className="px-3 pb-2">
+            <SafeAreaView edges={["top"]} className="px-3 py-1">
               <HomeHeader />
               <QuickActions />
               <TouchableOpacity
@@ -218,7 +218,7 @@ export default function Bookings() {
       bounces={false}
       overScrollMode="never"
       contentContainerStyle={{
-        paddingBottom: 100,
+        paddingBottom: 70,
         backgroundColor: "transparent",
       }}
       initialNumToRender={6}
