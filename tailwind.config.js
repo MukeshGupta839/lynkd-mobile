@@ -13,6 +13,8 @@ module.exports = {
       },
       borderRadius: {
         10: "0.625rem",
+        "4xl": "2rem",
+        "5xl": "2.5rem",
       },
       fontSize: {
         xxs: ["10px", { lineHeight: "12px" }],

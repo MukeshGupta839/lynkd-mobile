@@ -1,13 +1,14 @@
 import BlockUserPopup from "@/components/BlockUserPopup";
 import CameraPost from "@/components/CameraPost";
 import CreatePostHeader from "@/components/CreatePostHeader";
+import { FacebookStyleImage } from "@/components/FacebookStyleImage";
 import { MultiImageCollage } from "@/components/MultiImageCollage";
 import { MultiImageViewer } from "@/components/MultiImageViewer";
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
 import { POSTS } from "@/constants/HomeData";
 import { cameraActiveSV, tabBarHiddenSV } from "@/lib/tabBarVisibility";
-import { FontAwesome6, SimpleLineIcons } from "@expo/vector-icons";
+import { FontAwesome6 } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { BlurView } from "expo-blur";
@@ -15,6 +16,7 @@ import { Camera } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -27,7 +29,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StatusBar,
   Text,
   TouchableOpacity,
   Vibration,
@@ -146,7 +147,7 @@ const FacebookImageViewer = ({
     >
       <StatusBar
         backgroundColor="transparent"
-        barStyle="light-content"
+        style="light"
         translucent={Platform.OS === "android"}
       />
       <View
@@ -244,134 +245,6 @@ const FacebookImageViewer = ({
   );
 };
 
-// ----- Facebook-style Image Component -----
-const FacebookStyleImage = ({
-  uri,
-  style,
-  onLongPress,
-  isGestureActive = false,
-  panGesture,
-}: {
-  uri: string;
-  style?: any;
-  onLongPress?: () => void;
-  isGestureActive?: boolean;
-  panGesture: GestureType;
-}) => {
-  const [imageSize, setImageSize] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-  const [showViewer, setShowViewer] = useState(false);
-  const containerWidth = windowWidth - 24; // Account for padding
-
-  // Facebook-style aspect ratio constraints
-  const getClampedHeight = (originalWidth: number, originalHeight: number) => {
-    const originalRatio = originalWidth / originalHeight;
-
-    // Facebook's constraints (approximate)
-    const MAX_RATIO = 1.91; // Landscape limit (1.91:1)
-    const MIN_RATIO = 0.8; // Portrait limit (4:5 = 0.8)
-
-    let clampedRatio = originalRatio;
-
-    if (originalRatio > MAX_RATIO) {
-      clampedRatio = MAX_RATIO; // Too wide, clamp to landscape limit
-    } else if (originalRatio < MIN_RATIO) {
-      clampedRatio = MIN_RATIO; // Too tall, clamp to portrait limit
-    }
-
-    return containerWidth / clampedRatio;
-  };
-
-  useEffect(() => {
-    Image.getSize(
-      uri,
-      (width, height) => {
-        setImageSize({ width, height });
-      },
-      (error) => {
-        console.error("Failed to get image size:", error);
-        setImageSize({ width: containerWidth, height: containerWidth }); // Fallback to square
-      }
-    );
-  }, [uri, containerWidth]);
-
-  const makeTapThatYieldsToPan = (onEnd: () => void) =>
-    Gesture.Tap()
-      .maxDuration(220)
-      .maxDeltaX(10)
-      .maxDeltaY(10)
-      .requireExternalGestureToFail(panGesture)
-      .onEnd((_e, success) => {
-        "worklet";
-        if (success) {
-          // hop to JS before calling anything that touches React/router
-          // runOnJS(onEnd)();
-          scheduleOnRN(onEnd);
-        }
-      });
-
-  const openImageTap = makeTapThatYieldsToPan(() => {
-    if (isGestureActive) return;
-    setShowViewer(true);
-  });
-
-  if (!imageSize) {
-    return (
-      <View
-        style={[
-          {
-            width: containerWidth,
-            height: 200,
-            backgroundColor: "#f0f0f0",
-            justifyContent: "center",
-            alignItems: "center",
-          },
-          style,
-        ]}
-      >
-        <Text style={{ color: "#666", fontSize: 12 }}>Loading...</Text>
-      </View>
-    );
-  }
-
-  const clampedHeight = getClampedHeight(imageSize.width, imageSize.height);
-
-  return (
-    <>
-      <GestureDetector gesture={openImageTap}>
-        <TouchableOpacity
-          // onPress={isGestureActive ? undefined : () => setShowViewer(true)}
-          onLongPress={onLongPress}
-          delayLongPress={500}
-          activeOpacity={0.95}
-          className="overflow-hidden bg-[#f0f0f0] w-full"
-          disabled={isGestureActive}
-          style={[
-            {
-              height: clampedHeight,
-            },
-            style,
-          ]}
-        >
-          <Image
-            source={{ uri }}
-            className="w-full h-full"
-            resizeMode="cover" // This creates the Facebook "crop" effect
-          />
-        </TouchableOpacity>
-      </GestureDetector>
-
-      <FacebookImageViewer
-        imageUri={uri}
-        visible={showViewer}
-        onClose={() => setShowViewer(false)}
-      />
-    </>
-  );
-};
-
 // ----- Dummy data (replace with your API data later) -----
 const STORIES = Array.from({ length: 10 }).map((_, i) => ({
   id: String(i + 1),
@@ -459,7 +332,7 @@ const PostMedia = ({
   isGestureActive = false,
   panGesture,
 }: {
-  media?: { type: "image"; uri: string } | { type: "images"; uris: string[] };
+  media?: { type: "images"; uris: string[] };
   isVisible: boolean;
   postId: string;
   onLongPress?: () => void;
@@ -486,11 +359,11 @@ const PostMedia = ({
   }
 
   // Handle single image
-  if (media.type === "image") {
+  if (media.type === "images" && media.uris?.length === 1) {
     return (
       <View>
         <FacebookStyleImage
-          uri={media.uri}
+          uri={media.uris[0]}
           style={{ marginBottom: 0 }}
           onLongPress={onLongPress}
           isGestureActive={isGestureActive}
@@ -501,14 +374,13 @@ const PostMedia = ({
   }
 
   // Handle multiple images
-  if (media.type === "images" && media.uris?.length) {
+  if (media.type === "images" && media.uris?.length > 1) {
     return (
       <View>
         <MultiImageCollage
           images={media.uris}
           onPressImage={handlePressImage}
           onLongPress={onLongPress}
-          panGesture={panGesture}
         />
 
         <MultiImageViewer
@@ -687,20 +559,21 @@ const PostCard = ({
 
               {/* RIGHT button: fixed size, don’t let it shrink */}
               {item.affiliated && item.affiliation && (
-                <TouchableOpacity
-                  className="w-11 h-11 rounded-lg items-center justify-center ml-2"
-                  style={{ flexShrink: 0 }} // tailwind: shrink-0 (if available)
-                  onPress={
-                    isGestureActive
-                      ? undefined
-                      : () => {
-                          /* ... */
-                        }
-                  }
-                  disabled={isGestureActive}
-                >
-                  <SimpleLineIcons name="handbag" size={20} color="#000" />
-                </TouchableOpacity>
+                <View />
+                // <TouchableOpacity
+                //   className="w-11 h-11 rounded-lg items-center justify-center ml-2"
+                //   style={{ flexShrink: 0 }} // tailwind: shrink-0 (if available)
+                //   onPress={
+                //     isGestureActive
+                //       ? undefined
+                //       : () => {
+                //           /* ... */
+                //         }
+                //   }
+                //   disabled={isGestureActive}
+                // >
+                //   <SimpleLineIcons name="handbag" size={20} color="#000" />
+                // </TouchableOpacity>
               )}
             </View>
 
@@ -1082,7 +955,6 @@ export default function ConsumerHomeUI() {
   const SHOW_THRESHOLD = 10; // pixels to scroll up before showing header
   const TAB_BAR_HIDE_THRESHOLD = 50; // pixels to scroll down before hiding tab bar
   const TAB_BAR_SHOW_THRESHOLD = 30; // pixels to scroll up before showing tab bar
-
   // Header animation functions
   const hideHeader = () => {
     setHeaderHidden(true);
@@ -1543,6 +1415,11 @@ export default function ConsumerHomeUI() {
   return (
     <GestureDetector gesture={panGesture}>
       <Reanimated.View style={{ flex: 1 }}>
+        <StatusBar
+          backgroundColor="transparent"
+          style="dark"
+          translucent={Platform.OS === "android"}
+        />
         {/* UNDERLAYS — rendered first so they sit behind the feed */}
         <Reanimated.View
           style={[
@@ -1722,7 +1599,7 @@ export default function ConsumerHomeUI() {
           {/* Animated container to move the button up/down when tab bar hides/shows */}
           <FloatingPostButton
             insets={insets}
-            onPressFab={() => router.push("/(modals)")}
+            onPressFab={() => router.push("/(compose)/post-create")}
           />
         </Reanimated.View>
       </Reanimated.View>

@@ -13,7 +13,7 @@ export default function ModalLayout() {
         gestureEnabled: true, // iOS: swipe down to close
       }}
     >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="post-create" options={{ headerShown: false }} />
     </Stack>
   );
 }

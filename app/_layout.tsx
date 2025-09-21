@@ -12,7 +12,12 @@ import "../global.css";
 
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { Platform } from "react-native";
+import {
+  askNotificationPermissionAndGetFcmToken,
+  attachForegroundListener,
+} from "@/utils/fcm";
+import { useEffect } from "react";
+import { Alert } from "react-native";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -31,6 +36,28 @@ export default function RootLayout() {
     "OpenSans-SemiBoldItalic": require("../assets/fonts/OpenSans/OpenSans-SemiBoldItalic.ttf"),
     "OpenSans-BoldItalic": require("../assets/fonts/OpenSans/OpenSans-BoldItalic.ttf"),
   });
+
+  useEffect(() => {
+    let unsub: undefined | (() => void);
+    (async () => {
+      const token = await askNotificationPermissionAndGetFcmToken();
+      console.log("[FCM] device token:", token);
+      // send token to your backend if you have a user
+      unsub = attachForegroundListener((rm) => {
+        const title = rm?.notification?.title ?? "Notification";
+        const body = rm?.notification?.body ?? "You have a new message.";
+        Alert.alert(title, body);
+      });
+    })();
+    return () => {
+      unsub?.();
+    };
+  }, []);
+
+  if (!loaded) {
+    // Async font loading only occurs in development.
+    return null;
+  }
 
   if (!loaded) {
     // Async font loading only occurs in development.
@@ -51,10 +78,8 @@ export default function RootLayout() {
                 options={{ headerShown: false }}
               />
               <Stack.Screen
-                name="(modals)"
+                name="(compose)"
                 options={{
-                  presentation:
-                    Platform.OS === "ios" ? "modal" : "transparentModal",
                   animation: "slide_from_bottom",
                   contentStyle: { backgroundColor: "transparent" },
                   headerShown: false,

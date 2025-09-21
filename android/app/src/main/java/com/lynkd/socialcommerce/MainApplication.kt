@@ -1,4 +1,4 @@
-package com.mukesh2000.lynkdmobile
+package com.lynkd.socialcommerce
 
 import android.app.Application
 import android.content.res.Configuration

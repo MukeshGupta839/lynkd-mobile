@@ -1,4 +1,4 @@
-package com.mukesh2000.lynkdmobile
+package com.lynkd.socialcommerce
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
