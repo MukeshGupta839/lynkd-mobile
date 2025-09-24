@@ -13,11 +13,19 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       },
+      "podfileProperties": {
+        "ios.buildReactNativeFromSource": "true",
+        "ios.useModularHeaders": "false"
+      },
       "entitlements": {
-        "com.apple.developer.applesignin": ["Default"],
+        "com.apple.developer.applesignin": [
+          "Default"
+        ],
         "aps-environment": "production"
       },
       "usesAppleSignIn": true,
@@ -83,7 +91,10 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
           "isAccessMediaLocationEnabled": true,
-          "granularPermissions": ["audio", "photo"]
+          "granularPermissions": [
+            "audio",
+            "photo"
+          ]
         }
       ],
       [
@@ -115,10 +126,7 @@
         "expo-build-properties",
         {
           "ios": {
-            "podfileProperties": {
-              "ios.buildReactNativeFromSource": "true",
-              "ios.useFrameworks": "dynamic"
-            }
+            "useFrameworks": "static"
           }
         }
       ],
