@@ -1,5 +1,6 @@
 // PostCreate.tsx - Smart Mention Popover with Auto-positioning
 import { FacebookStyleImage } from "@/components/FacebookStyleImage";
+import Mention from "@/components/Mention";
 import ProductModal from "@/components/PostCreation/ProductModal";
 import CreatePostImageViewer from "@/components/Product/CreatePostImageViewer";
 import { USERS } from "@/constants/PostCreation";
@@ -18,6 +19,7 @@ import {
   Keyboard,
   Platform,
   Pressable,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -42,10 +44,10 @@ interface RNFile {
 
 const INPUT_LINE_HEIGHT = 20; // keep in sync with TextInput's lineHeight
 const INPUT_FONT_SIZE = 14;
-const POPOVER_HEIGHT = 80; // Approximate height of the mention popover
-const POPOVER_PADDING = 10;
+// (popover constants removed — not used in current implementation)
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+// Access dimensions for side-effects if needed later
+void Dimensions.get("window");
 interface Product {
   id: string;
   name: string;
@@ -56,6 +58,42 @@ interface Product {
   rating: number;
   reviewCount: number;
 }
+const MENTION_RE = /([@#][A-Za-z0-9_]{1,30})/g;
+
+const styles = StyleSheet.create({
+  base: {
+    fontSize: INPUT_FONT_SIZE,
+    lineHeight: INPUT_LINE_HEIGHT,
+    letterSpacing: 0,
+    includeFontPadding: false, // Android: align baselines
+  },
+  mention: { color: "#1b74e4" }, // ← no fontWeight change
+});
+
+// split helper (unchanged logic)
+const splitParts = (t: string) => t.split(MENTION_RE);
+
+function HighlightedText({ value }: { value: string }) {
+  const parts = splitParts(value);
+  return (
+    <Text
+      style={styles.base}
+      allowFontScaling={false}
+      // Android: keep the same break algorithm as TextInput
+      textBreakStrategy="simple"
+    >
+      {parts.map((part, i) => {
+        const isMention = part.startsWith("@") || part.startsWith("#");
+        return (
+          <Text key={i} style={isMention ? styles.mention : undefined}>
+            {part}
+          </Text>
+        );
+      })}
+      {"\u200B"}
+    </Text>
+  );
+}
 
 export default function PostCreate() {
   const router = useRouter();
@@ -64,9 +102,9 @@ export default function PostCreate() {
   const [text, setText] = useState("");
   const [image, setImage] = useState<RNFile[]>([]);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-  const [disablePostButton, setDisablePostButton] = useState(true);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [scrollOffset, setScrollOffset] = useState(0);
+  const [, setDisablePostButton] = useState(true);
+  const [, setKeyboardHeight] = useState(0);
+  const [, setScrollOffset] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -75,16 +113,13 @@ export default function PostCreate() {
   const keyboardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const layoutRef = useRef<{ width: number; height: number } | null>(null);
   const containerRef = useRef<View>(null);
-  const [containerLayout, setContainerLayout] = useState({
-    x: 0,
-    y: 0,
-    width: 0,
-    height: 0,
-  });
+  const [, setContainerLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
   // mention logic
   const [mentionQuery, setMentionQuery] = useState(""); // chars after @
   const [mentioning, setMentioning] = useState(false);
+  // mention trigger ('@' or '#') to preserve which symbol the user typed
+  const [mentionTrigger, setMentionTrigger] = useState<string | null>(null);
   const [selection, setSelection] = useState<{ start: number; end: number }>({
     start: 0,
     end: 0,
@@ -93,17 +128,9 @@ export default function PostCreate() {
   // caret measurement
   const inputRef = useRef<TextInput>(null);
   const [inputLayout, setInputLayout] = useState({ x: 0, y: 0, w: 0, h: 0 });
-  const [caretAnchor, setCaretAnchor] = useState<{ x: number; y: number }>({
-    x: 0,
-    y: 0,
-  });
-  const [scrollViewLayout, setScrollViewLayout] = useState({
-    x: 0,
-    y: 0,
-    width: 0,
-    height: 0,
-  });
-  const [mainContainerLayout, setMainContainerLayout] = useState({
+  const [, setCaretAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // layouts reserved for future positioning improvements
+  const [, setMainContainerLayout] = useState({
     x: 0,
     y: 0,
     width: 0,
@@ -111,8 +138,7 @@ export default function PostCreate() {
   });
 
   const normalizeUri = (u: string) => u.split("?")[0];
-  const assetKey = (a: ImagePicker.ImagePickerAsset) =>
-    a.assetId ?? normalizeUri(a.uri);
+  // assetKey helper removed (not used)
 
   const keyboardPadding = useAnimatedStyle(() => {
     return {
@@ -304,22 +330,28 @@ export default function PostCreate() {
   }, [mentioning, text, selection.start, inputLayout.w]);
 
   // Mention parsing + selection tracking
-  const handleChangeText = (input: string) => {
+  const handleChangeText = useCallback((input: string) => {
     setText(input);
+  }, []);
 
-    const caret = selection.start || 0;
-    const beforeCaret = input.slice(0, caret);
-    const match = beforeCaret.match(/@([A-Za-z0-9_]{0,30})$/);
-    if (match) {
+  // 2) parse after both text & selection are current
+  useEffect(() => {
+    // if Android hasn’t fired onSelectionChange yet, assume caret at end
+    const caret = selection?.start ?? text.length;
+    const before = text.slice(0, caret);
+
+    // find an unfinished mention right before the caret
+    const m = before.match(/(^|\s)([@#])([A-Za-z0-9_]{0,30})$/);
+    if (m) {
       setMentioning(true);
-      setMentionQuery(match[1]);
-      // Update caret position after a short delay
-      setTimeout(() => updateCaretPosition(), 50);
+      setMentionTrigger(m[2]);
+      setMentionQuery(m[3]); // <- always in sync with what’s typed
     } else {
       setMentioning(false);
+      setMentionTrigger(null);
       setMentionQuery("");
     }
-  };
+  }, [text, selection]);
 
   // Update caret position when selection or text changes
   useEffect(() => {
@@ -330,60 +362,7 @@ export default function PostCreate() {
     u.username.toLowerCase().startsWith(mentionQuery.toLowerCase())
   );
 
-  // Simplified and more accurate positioning
-  const calculatePopoverPosition = useCallback(() => {
-    if (!mentioning || !containerLayout.width) {
-      return { left: 0, top: 0, showAbove: false };
-    }
-
-    const inputPadding = 12;
-    const popoverWidth = Math.min(
-      filteredUsers.length * 72 + 24,
-      SCREEN_W - 40
-    );
-    const popoverHeight = 80;
-
-    // Calculate position accounting for scroll offset
-    let finalX = inputLayout.x + caretAnchor.x + inputPadding;
-    let finalY = inputLayout.y + caretAnchor.y - scrollOffset + 35;
-    let showAbove = false;
-
-    // Horizontal bounds
-    if (finalX + popoverWidth > SCREEN_W - 20) {
-      finalX = SCREEN_W - popoverWidth - 20;
-    }
-    if (finalX < 20) {
-      finalX = 20;
-    }
-
-    // Vertical bounds - check against keyboard
-    const keyboardSpace = SCREEN_H - keyboardHeight - 100;
-    const containerTop = containerLayout.y || 0;
-
-    if (containerTop + finalY + popoverHeight > keyboardSpace) {
-      // Show above
-      showAbove = true;
-      finalY =
-        inputLayout.y + caretAnchor.y - scrollOffset - popoverHeight - 10;
-
-      // Don't go above screen
-      if (containerTop + finalY < 70) {
-        finalY = 70 - containerTop;
-      }
-    }
-
-    return { left: finalX, top: finalY, showAbove };
-  }, [
-    mentioning,
-    containerLayout,
-    inputLayout,
-    caretAnchor,
-    filteredUsers.length,
-    keyboardHeight,
-    scrollOffset,
-  ]);
-
-  const popoverPosition = calculatePopoverPosition();
+  // Absolute popover positioning removed — mentions are rendered in the bottom selector for a stable UX
 
   const onSelectProduct = (p: Product) => {
     setSelectedProduct(p);
@@ -479,25 +458,30 @@ export default function PostCreate() {
                   />
                 </View>
               </View>
+              <View style={{ position: "relative" }} className="flex-1 mx-3">
+                {/* Highlighter behind */}
+                <View
+                  pointerEvents="none"
+                  style={[StyleSheet.absoluteFillObject, { padding: 8 }]} // matches p-2
+                >
+                  <HighlightedText value={text} />
+                </View>
 
-              <View
-                className="flex-1"
-                style={{ position: "relative" }}
-                onLayout={(e) => {
-                  const { x, y, width, height } = e.nativeEvent.layout;
-                  setInputLayout({ x, y, w: width, h: height });
-                }}
-              >
+                {/* Real input on top */}
                 <TextInput
                   ref={inputRef}
-                  className="border flex-1 border-gray-300 rounded-lg p-2 mx-3"
+                  className="border flex-1 border-gray-300 rounded-lg p-2"
                   placeholder="What's on your mind?"
-                  style={{
-                    textAlignVertical: "top",
-                    minHeight: Platform.OS === "android" ? 200 : undefined,
-                    fontSize: INPUT_FONT_SIZE,
-                    lineHeight: INPUT_LINE_HEIGHT,
-                  }}
+                  style={[
+                    styles.base,
+                    {
+                      textAlignVertical: "top",
+                      minHeight: Platform.OS === "android" ? 200 : undefined,
+                      // Use *almost* transparent to avoid Android composition artifacts
+                      color: "rgba(0,0,0,0.01)",
+                      backgroundColor: "transparent",
+                    },
+                  ]}
                   multiline
                   scrollEnabled={false}
                   autoFocus
@@ -507,10 +491,15 @@ export default function PostCreate() {
                     setSelection(e.nativeEvent.selection);
                     setTimeout(() => updateCaretPosition(), 50);
                   }}
+                  selectionColor="#000"
+                  placeholderTextColor="#8E8E93"
+                  allowFontScaling={false}
+                  textBreakStrategy="simple" // ← match the highlighter
+                  underlineColorAndroid="transparent"
                 />
-
-                {/* Remove the old hidden text measurement */}
               </View>
+
+              {/* Remove the old hidden text measurement */}
             </View>
 
             {image.length === 1 && (
@@ -592,160 +581,88 @@ export default function PostCreate() {
           </ScrollView>
         </View>
 
-        {/* Bottom selector with stable positioning */}
+        {/* Bottom selector with stable positioning. When mentioning, show smart mention list here */}
         <Animated.View
           style={[keyboardPadding, { minHeight: 60 }]}
           className="bg-white flex flex-row items-center px-3 gap-2"
         >
-          <View className="flex-1 flex-row justify-between p-2.5 items-center bg-[#F2F2F4] rounded-full">
-            <TouchableOpacity
-              className="items-center justify-center bg-white p-2.5 rounded-full"
-              onPress={async () => {
-                await dismissKeyboardAndWait();
-                console.log("Camera");
-              }}
-            >
-              <Camera width={22} height={22} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="items-center justify-center bg-white p-2.5 rounded-full"
-              onPress={pickImage}
-            >
-              <Gallery width={22} height={22} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="items-center justify-center bg-white p-2.5 rounded-full"
-              onPress={async () => {
-                await dismissKeyboardAndWait();
-                openProductModal();
-                console.log("GIF picker");
-              }}
-            >
-              <Cart width={22} height={22} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="items-center justify-center bg-white p-2.5 rounded-full"
-              onPress={async () => {
-                await dismissKeyboardAndWait();
-                console.log("Mention");
-              }}
-            >
-              <Poll width={22} height={22} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="items-center justify-center bg-white p-2.5 rounded-full"
-              onPress={async () => {
-                await dismissKeyboardAndWait();
-                console.log("Location");
-              }}
-            >
-              <Location width={22} height={22} />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            className="bg-black flex-row rounded-full items-center justify-center px-3 py-2.5 gap-1"
-            onPress={() => console.log("Post")}
-          >
-            <Send width={16} height={16} />
-            <Text className="text-white text-sm font-opensans-semibold">
-              POST
-            </Text>
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Smart Mention Popover */}
-        {mentioning && filteredUsers.length > 0 && (
-          <View
-            style={{
-              position: "absolute",
-              left: popoverPosition.left,
-              top: popoverPosition.top,
-              zIndex: 1000,
-              backgroundColor: "#fff",
-              borderRadius: 20,
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderWidth: 1,
-              borderColor: "rgba(0,0,0,0.08)",
-              shadowColor: "#000",
-              shadowOpacity: 0.15,
-              shadowRadius: 8,
-              shadowOffset: {
-                width: 0,
-                height: popoverPosition.showAbove ? -2 : 2,
-              },
-              elevation: 5,
-              maxWidth: SCREEN_W - 40,
-            }}
-          >
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ alignItems: "center" }}
-            >
-              {filteredUsers.map((user) => (
+          {mentioning && filteredUsers.length > 0 ? (
+            <Mention
+              users={filteredUsers}
+              selection={selection}
+              text={text}
+              mentionTrigger={mentionTrigger}
+              setText={setText}
+              setMentioning={setMentioning}
+              setSelection={setSelection}
+              inputRef={inputRef}
+            />
+          ) : (
+            <>
+              <View className="flex-1 flex-row justify-between p-2.5 items-center bg-[#F2F2F4] rounded-full">
                 <TouchableOpacity
-                  key={user.id}
-                  style={{
-                    alignItems: "center",
-                    width: 72,
-                    paddingHorizontal: 4,
-                  }}
-                  onPress={() => {
-                    const caret = selection.start || 0;
-                    const before = text.slice(0, caret);
-                    const after = text.slice(caret);
-                    const newBefore = before.replace(
-                      /@\w*$/,
-                      `@${user.username} `
-                    );
-                    const next = newBefore + after;
-
-                    setText(next);
-                    setMentioning(false);
-
-                    const newCaret = newBefore.length;
-                    setSelection({ start: newCaret, end: newCaret });
-
-                    // Focus back to input
-                    setTimeout(() => {
-                      inputRef.current?.focus();
-                    }, 100);
+                  className="items-center justify-center bg-white p-2.5 rounded-full"
+                  onPress={async () => {
+                    await dismissKeyboardAndWait();
+                    console.log("Camera");
                   }}
                 >
-                  <Image
-                    source={{ uri: user.avatar }}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      borderWidth: 2,
-                      borderColor: "#fff",
-                    }}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      marginTop: 4,
-                      textAlign: "center",
-                      color: "#333",
-                      fontWeight: "500",
-                    }}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {user.username}
-                  </Text>
+                  <Camera width={22} height={22} />
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+
+                <TouchableOpacity
+                  className="items-center justify-center bg-white p-2.5 rounded-full"
+                  onPress={pickImage}
+                >
+                  <Gallery width={22} height={22} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="items-center justify-center bg-white p-2.5 rounded-full"
+                  onPress={async () => {
+                    await dismissKeyboardAndWait();
+                    openProductModal();
+                    console.log("GIF picker");
+                  }}
+                >
+                  <Cart width={22} height={22} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="items-center justify-center bg-white p-2.5 rounded-full"
+                  onPress={async () => {
+                    await dismissKeyboardAndWait();
+                    console.log("Mention");
+                  }}
+                >
+                  <Poll width={22} height={22} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className="items-center justify-center bg-white p-2.5 rounded-full"
+                  onPress={async () => {
+                    await dismissKeyboardAndWait();
+                    console.log("Location");
+                  }}
+                >
+                  <Location width={22} height={22} />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                className="bg-black flex-row rounded-full items-center justify-center px-3 py-2.5 gap-1"
+                onPress={() => console.log("Post")}
+              >
+                <Send width={16} height={16} />
+                <Text className="text-white text-sm font-opensans-semibold">
+                  POST
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </Animated.View>
+
+        {/* Smart Mention is rendered in the bottom selector now */}
       </View>
     </View>
   );

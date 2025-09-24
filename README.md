@@ -48,3 +48,12 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## iOS: modular headers flag
+
+This project enables CocoaPods `use_modular_headers!` conditionally to allow some Swift-based Firebase pods to import Objective-C dependencies that don't ship module maps (for example, `GoogleUtilities`).
+
+- Controlled by the repository property: `ios.useModularHeaders` in `ios/Podfile.properties.json` (set to `"true"` to enable).
+- Alternatively, set the environment variable `USE_MODULAR_HEADERS=1` when running `pod install` or CI to enable it per-machine.
+
+If you'd rather enable modular headers only for specific pods, remove the repository flag and add `:modular_headers => true` to those pod declarations in `ios/Podfile`.

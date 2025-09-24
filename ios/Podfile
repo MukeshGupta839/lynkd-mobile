@@ -10,6 +10,9 @@ ENV['RCT_USE_RN_DEP'] ||= '1' if podfile_properties['ios.buildReactNativeFromSou
 ENV['RCT_USE_PREBUILT_RNCORE'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
 platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 
+# Added by with-ios-podfile-properties plugin
+use_modular_headers!
+
 prepare_react_native_project!
 
 target 'LYNKD' do
@@ -48,5 +51,26 @@ target 'LYNKD' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
+    # Workaround: allow non-modular includes inside framework modules for pods that
+    # import React headers (e.g. @react-native-firebase). This avoids "include of
+    # non-modular header inside framework module" Xcode errors by relaxing the
+    # compiler check. See Podfile comments and RNFB troubleshooting docs.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      end
+    end
+    # Enable module-related flags for React and Firebase related pods so that
+    # React headers (RCT_EXTERN, RCTPromiseRejectBlock, etc.) are visible to
+    # other pods compiled as frameworks. This helps with type and macro errors
+    # that occur when headers are treated as non-modular.
+    installer.pods_project.targets.each do |target|
+      if target.name.start_with?('React') || target.name.start_with?('RNFB') || target.name.start_with?('Firebase') || target.name.start_with?('Expo') || target.name.include?('React-Core')
+        target.build_configurations.each do |config|
+          config.build_settings['DEFINES_MODULE'] = 'YES'
+          config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+        end
+      end
+    end
   end
 end

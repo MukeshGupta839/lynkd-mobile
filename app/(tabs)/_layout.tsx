@@ -1,7 +1,6 @@
 import CustomTabBar from "@/components/CustomTabBar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
-import React from "react";
 
 export default function TabLayout() {
   return (
@@ -10,7 +9,8 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
-      }}>
+      }}
+    >
       {/* === Main App Tabs === */}
       <Tabs.Screen
         name="index"
@@ -102,50 +102,11 @@ export default function TabLayout() {
         }}
       />
 
-      {/* === Shop: Products === */}
-      <Tabs.Screen
-        name="products-home"
-        options={{
-          title: "Products Home",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "home" : "home-outline"}
-              size={28}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="products-categories"
-        options={{
-          title: "Products Categories",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "grid" : "grid-outline"}
-              size={28}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="products-cart"
-        options={{
-          title: "Products Cart",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "cart" : "cart-outline"}
-              size={28}
-              color={color}
-            />
-          ),
-        }}
-      />
+      {/* Products are already declared earlier (product, categories, cart) */}
 
       {/* === Shop: Services === */}
       <Tabs.Screen
-        name="services-home"
+        name="services"
         options={{
           title: "Services Home",
           tabBarIcon: ({ color, focused }) => (
@@ -186,7 +147,7 @@ export default function TabLayout() {
 
       {/* === Shop: Bookings === */}
       <Tabs.Screen
-        name="bookings-home"
+        name="bookings"
         options={{
           title: "Bookings Home",
           tabBarIcon: ({ color, focused }) => (
@@ -227,7 +188,7 @@ export default function TabLayout() {
 
       {/* === Shop: Pay === */}
       <Tabs.Screen
-        name="pay-home"
+        name="pay"
         options={{
           title: "Pay Home",
           tabBarIcon: ({ color, focused }) => (

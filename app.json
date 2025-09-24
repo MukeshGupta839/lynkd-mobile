@@ -95,6 +95,9 @@
       "expo-notifications",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-firebase/crashlytics",
       [
         "expo-secure-store",
         {
@@ -107,7 +110,19 @@
         {
           "userTrackingPermission": "This identifier will be used to deliver personalized ads to you."
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "podfileProperties": {
+              "ios.buildReactNativeFromSource": "true",
+              "ios.useFrameworks": "dynamic"
+            }
+          }
+        }
+      ],
+      "./plugins/ios-podfile-properties.js"
     ],
     "experiments": {
       "typedRoutes": true
