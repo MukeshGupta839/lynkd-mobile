@@ -49,8 +49,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider
-          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-        >
+          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
           <KeyboardProvider>
             <FavoritesProvider>
               <Stack screenOptions={{ animation: "slide_from_right" }}>
@@ -147,6 +146,10 @@ export default function RootLayout() {
                 />
                 <Stack.Screen
                   name="Services/Receipt"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="chat/UserChatScreen"
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen name="+not-found" />

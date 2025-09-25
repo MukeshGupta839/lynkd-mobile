@@ -37,7 +37,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import ChatOptionsBottomSheet from "../Chat/ChatOptionsBottomSheet";
+import ChatOptionsBottomSheet from "../chat/ChatOptionsBottomSheet";
 
 import { useGradualAnimation } from "@/hooks/useGradualAnimation"; // your PostCreate hook
 import Animated, { useAnimatedStyle } from "react-native-reanimated";

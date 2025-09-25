@@ -3,5 +3,12 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  // ✅ Prevent Java extension from scanning node_modules
+  "java.import.exclusions": ["**/node_modules/**"],
+  "files.watcherExclude": {
+    "**/node_modules/**": true
+  },
+  // ✅ Hide non-project files (like node_modules/android)
+  "java.project.explorer.showNonProjectFiles": false
 }
