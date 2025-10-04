@@ -133,13 +133,17 @@
       "./plugins/ios-podfile-properties.js"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "tsconfigPaths": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "origin": false
+      },
       "eas": {
         "projectId": "71e00d65-93bb-462f-b62a-4538e8b89aa2"
-      }
+      },
+      "API_URL": "http://192.168.1.61:5000"
     }
   }
 }

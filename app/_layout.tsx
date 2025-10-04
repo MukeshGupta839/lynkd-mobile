@@ -11,9 +11,25 @@ import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 
+import { AuthProvider } from "@/context/AuthContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useInitializeFCM } from "@/utils/fcm";
+
+// Suppress expo-router tutorial errors
+if (__DEV__) {
+  const originalConsoleError = console.error;
+  console.error = (...args) => {
+    if (
+      args[0]?.includes?.('Cannot read property') &&
+      args[0]?.includes?.('match')
+    ) {
+      // Suppress the expo-router tutorial match error
+      return;
+    }
+    originalConsoleError(...args);
+  };
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -51,110 +67,112 @@ export default function RootLayout() {
         <ThemeProvider
           value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
           <KeyboardProvider>
-            <FavoritesProvider>
-              <Stack screenOptions={{ animation: "slide_from_right" }}>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="(profiles)"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="(compose)"
-                  options={{
-                    animation: "slide_from_bottom",
-                    contentStyle: { backgroundColor: "transparent" },
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="Address/selectAddress"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Address/AddAddress"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Address/ShippingAddress"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Searchscreen"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Product/Productview"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Product/ReviewOrder"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Product/payments"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Bookings/UpcomingEvents"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Bookings/PopularEvents"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Bookings/Booking"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Bookings/BookingForm"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Bookings/Details"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Bookings/Payments"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Bookings/sucess"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Bookings/[ticketId]"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Notifications"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Services/serviceDetails"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Services/BookingTable"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Services/PersonalDetails"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Services/Receipt"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="chat/UserChatScreen"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-            </FavoritesProvider>
+            <AuthProvider>
+              <FavoritesProvider>
+                <Stack screenOptions={{ animation: "slide_from_right" }}>
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                  <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="(profiles)"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="(compose)"
+                    options={{
+                      animation: "slide_from_bottom",
+                      contentStyle: { backgroundColor: "transparent" },
+                      headerShown: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="Address/selectAddress"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Address/AddAddress"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Address/ShippingAddress"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Searchscreen"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Product/Productview"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Product/ReviewOrder"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Product/payments"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Bookings/UpcomingEvents"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Bookings/PopularEvents"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Bookings/Booking"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Bookings/BookingForm"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Bookings/Details"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Bookings/Payments"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Bookings/sucess"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Bookings/[ticketId]"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Notifications"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Services/serviceDetails"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Services/BookingTable"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Services/PersonalDetails"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="Services/Receipt"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="chat/UserChatScreen"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen name="+not-found" />
+                </Stack>
+              </FavoritesProvider>
+            </AuthProvider>
           </KeyboardProvider>
         </ThemeProvider>
       </SafeAreaProvider>

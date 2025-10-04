@@ -7,7 +7,9 @@ import { MultiImageViewer } from "@/components/MultiImageViewer";
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
 import { POSTS } from "@/constants/HomeData";
+import { AuthContext } from "@/context/AuthContext";
 import { cameraActiveSV, tabBarHiddenSV } from "@/lib/tabBarVisibility";
+import useAuthTokenStore from "@/stores/authTokenStore";
 import { FontAwesome6 } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
@@ -17,8 +19,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -33,7 +36,7 @@ import {
   TouchableOpacity,
   Vibration,
   View,
-  ViewToken,
+  ViewToken
 } from "react-native";
 import {
   Gesture,
@@ -260,9 +263,8 @@ const STORIES = Array.from({ length: 10 }).map((_, i) => ({
     "emma_clarke",
     "lucas_williams",
   ][i],
-  avatar: `https://randomuser.me/api/portraits/${i % 2 ? "women" : "men"}/${
-    i + 1
-  }.jpg`,
+  avatar: `https://randomuser.me/api/portraits/${i % 2 ? "women" : "men"}/${i + 1
+    }.jpg`,
 }));
 
 // ----- Header -----
@@ -615,11 +617,11 @@ const PostCard = ({
                                   isGestureActive
                                     ? undefined
                                     : () =>
-                                        router.push(
-                                          `/(profiles)?mentionedUsername=${part.slice(
-                                            1
-                                          )}`
-                                        )
+                                      router.push(
+                                        `/(profiles)?mentionedUsername=${part.slice(
+                                          1
+                                        )}`
+                                      )
                                 }
                                 onLongPress={openPostOptions}
                               >
@@ -636,10 +638,10 @@ const PostCard = ({
                                   isGestureActive
                                     ? undefined
                                     : () =>
-                                        console.log(
-                                          "Navigate to hashtag:",
-                                          part
-                                        )
+                                      console.log(
+                                        "Navigate to hashtag:",
+                                        part
+                                      )
                                 }
                                 onLongPress={openPostOptions}
                               >
@@ -821,7 +823,7 @@ const PostCard = ({
                           </View>
                         </View>
                         <TouchableOpacity
-                          onPress={isGestureActive ? undefined : () => {}}
+                          onPress={isGestureActive ? undefined : () => { }}
                           className="self-start"
                           disabled={isGestureActive}
                         >
@@ -905,7 +907,7 @@ const NotificationBell = ({
         <View
           className="absolute -top-1 -right-1 bg-black rounded-full h-6 w-6 px-1
                      items-center justify-center border border-white"
-          // If your Tailwind doesn't support min-w, use style={{ minWidth: 16 }}
+        // If your Tailwind doesn't support min-w, use style={{ minWidth: 16 }}
         >
           <Text className="text-white text-[10px] font-bold">
             {count > 99 ? "99+" : count}
@@ -1411,6 +1413,26 @@ export default function ConsumerHomeUI() {
       transform: [{ translateY: headerTranslateY.value }],
     };
   });
+  const { resetUserState } = useContext(AuthContext);
+  const logoutUser = useAuthTokenStore(state => state.logoutUser);
+
+  const logout = async () => {
+    try {
+      // await resetUserState(() =>
+      //     navigator.reset({
+      //         index: 0,
+      //         routes: [{ name: 'AuthHome' }],
+      //     })
+      // );
+      await resetUserState();
+      await logoutUser();
+      Alert.alert("Signed out", "You have been signed out.");
+      router.replace('/(auth)');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      Alert.alert('Logout Failed', error.message || 'An unexpected error occurred.');
+    }
+  };
 
   return (
     <GestureDetector gesture={panGesture}>
@@ -1479,11 +1501,22 @@ export default function ConsumerHomeUI() {
                   }}
                 >
                   <Text className="text-2xl font-bold">LYNKD</Text>
+                  <TouchableOpacity
+                    className="w-20 h-9 rounded-full items-center justify-center bg-gray-200"
+                    onPress={() => {
+                      // Add your logout logic here
+                      console.log('Logout pressed');
+                      logout();
+                      // Example: router.push('/login');
+                    }}
+                  >
+                    <Text className="text-base font-semibold">Logout</Text>
+                  </TouchableOpacity>
                   <View className="flex-row items-center space-x-3">
                     <TouchableOpacity className="w-9 h-9 rounded-full items-center justify-center">
                       <Ionicons name="search-outline" size={24} color="#000" />
                     </TouchableOpacity>
-                    <NotificationBell count={12} onPress={() => {}} />
+                    <NotificationBell count={12} onPress={() => { }} />
                   </View>
                 </View>
               </View>
@@ -1631,8 +1664,8 @@ function FloatingPostButton({
     // when shouldHide -> translate down off-screen and fade out
     const translateY = shouldHide.value
       ? withTiming(BUTTON_LIFT + (bottom || 0) + 24, {
-          duration: ANIM_DURATION,
-        })
+        duration: ANIM_DURATION,
+      })
       : withTiming(-(BUTTON_LIFT + (bottom || 0)), { duration: ANIM_DURATION });
     const opacity = shouldHide.value
       ? withTiming(0, { duration: ANIM_DURATION })

@@ -1,9 +1,17 @@
 import OrDivider from "@/components/OrDivider";
+import { AuthContext } from "@/context/AuthContext";
+import { apiCall } from "@/lib/api/apiService";
+import useAuthTokenStore from "@/stores/authTokenStore";
+import { getAuth } from "@/utils/firebase";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Keyboard,
   Platform,
   Text as RNText,
@@ -16,7 +24,14 @@ import {
   Text,
   TextInput,
 } from "react-native-paper";
+import { v4 as uuid } from "uuid";
 import GoogleLogo from "../../assets/svg/google-icon-logo.svg";
+
+// Configure Google Sign In
+GoogleSignin.configure({
+  webClientId: "504427351394-3o0mhui0o5j2u7nselgekbgakfplppsk.apps.googleusercontent.com",
+  offlineAccess: true,
+});
 
 interface FormContentProps {
   email: React.RefObject<string>;
@@ -32,6 +47,7 @@ interface FormContentProps {
   isKeyboardVisible: boolean;
   onAppleSignIn: () => void;
   onGoogleSignIn: () => void;
+  onEmailPasswordLogin: () => void;
   socialLoginError: string;
 }
 
@@ -43,6 +59,12 @@ const UsernameSetupContent = ({
   onSaveUsername,
   onToggleAgreement,
   disableButton,
+  setupPassword,
+  setSetupPassword,
+  setupPasswordError,
+  referralCode,
+  setReferralCode,
+  referralCodeIsValid,
 }: {
   username: string;
   usernameError: string;
@@ -51,24 +73,13 @@ const UsernameSetupContent = ({
   onSaveUsername: () => void;
   onToggleAgreement: () => void;
   disableButton: boolean;
+  setupPassword: string;
+  setSetupPassword: (text: string) => void;
+  setupPasswordError: string;
+  referralCode: string;
+  setReferralCode: (text: string) => void;
+  referralCodeIsValid: boolean;
 }) => {
-  const [setupPassword, setSetupPassword] = useState("");
-  const [setupPasswordError, setSetupPasswordError] = useState("");
-  const [referralCode, setReferralCode] = useState("");
-
-  const handlePasswordChange = (text: string) => {
-    setSetupPassword(text);
-    setSetupPasswordError("");
-
-    // Basic password validation
-    if (text.length < 6) {
-      setSetupPasswordError("Password must be at least 6 characters long.");
-    } else if (!/(?=.*[A-Za-z])(?=.*\d)/.test(text)) {
-      setSetupPasswordError(
-        "Password must contain at least one letter and one number."
-      );
-    }
-  };
 
   return (
     <View className="bg-white p-4 rounded-2xl">
@@ -94,7 +105,7 @@ const UsernameSetupContent = ({
               username === ""
                 ? "#bdbdbd"
                 : usernameError === "" ||
-                    usernameError === "Username is available."
+                  usernameError === "Username is available."
                   ? "green"
                   : "red"
             }
@@ -121,7 +132,7 @@ const UsernameSetupContent = ({
           <TextInput
             label="Password"
             value={setupPassword}
-            onChangeText={handlePasswordChange}
+            onChangeText={setSetupPassword}
             mode="outlined"
             secureTextEntry={true}
             error={!!setupPasswordError}
@@ -144,11 +155,19 @@ const UsernameSetupContent = ({
             label="Referral Code (Optional)"
             value={referralCode}
             onChangeText={setReferralCode}
-            mode="flat" // 👈 underline-only
-            style={{ backgroundColor: "white" }} // match your card bg
-            underlineColor="#bdbdbd" // inactive underline
-            activeUnderlineColor="#1b1b1b" // focused underline
+            mode="flat"
+            style={{ backgroundColor: "white" }}
+            underlineColor="#bdbdbd"
+            activeUnderlineColor="#1b1b1b"
             theme={{ colors: { background: "white" } }}
+            right={
+              referralCode.length > 0 ? (
+                <TextInput.Icon
+                  icon={referralCodeIsValid ? "check-circle" : "close-circle"}
+                  color={referralCodeIsValid ? "green" : "red"}
+                />
+              ) : undefined
+            }
           />
         </View>
 
@@ -186,11 +205,10 @@ const UsernameSetupContent = ({
         <TouchableOpacity
           disabled={!clearToMove || disableButton || !!setupPasswordError}
           activeOpacity={0.8}
-          className={`h-13 px-4 items-center justify-center rounded-xl mt-6 ${
-            clearToMove && !disableButton && !setupPasswordError
-              ? "bg-black"
-              : "bg-gray-400"
-          } shadow-sm`}
+          className={`h-13 px-4 items-center justify-center rounded-xl mt-6 ${clearToMove && !disableButton && !setupPasswordError
+            ? "bg-black"
+            : "bg-gray-400"
+            } shadow-sm`}
           onPress={onSaveUsername}
         >
           {disableButton ? (
@@ -218,6 +236,7 @@ const FormContent = ({
   isKeyboardVisible,
   onAppleSignIn,
   onGoogleSignIn,
+  onEmailPasswordLogin,
   socialLoginError,
 }: FormContentProps) => {
   return (
@@ -292,10 +311,9 @@ const FormContent = ({
         <TouchableOpacity
           disabled={disableButton}
           activeOpacity={0.8}
-          className={`h-13 px-4 items-center justify-center rounded-xl ${
-            disableButton ? "bg-gray-400" : "bg-black"
-          } shadow-sm`}
-          onPress={() => router.push("/(tabs)")}
+          className={`h-13 px-4 items-center justify-center rounded-xl ${disableButton ? "bg-gray-400" : "bg-black"
+            } shadow-sm`}
+          onPress={onEmailPasswordLogin}
         >
           {disableButton ? (
             <PaperSpinner size="small" color="white" />
@@ -375,67 +393,525 @@ export default function LoginScreen() {
   const [usernameError, setUsernameError] = useState("");
   const [clearToMove, setClearToMove] = useState(false);
 
-  // Social login handlers
-  const handleAppleSignIn = async () => {
+  // Additional states for username setup
+  const [setupPassword, setSetupPassword] = useState("");
+  const [setupPasswordError, setSetupPasswordError] = useState("");
+  const [referralCode, setReferralCode] = useState("");
+  const [referralCodeIsValid, setReferralCodeIsValid] = useState(false);
+
+  // Debounce timeout ref
+  const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Get auth context and stores
+  const {
+    setFirebaseUser,
+    setUser,
+    setIsCreator,
+    setCompletedRegistration,
+    setSignedInWithGoogle,
+    user,
+  } = useContext(AuthContext)!;
+
+  const { registerUser, loginUser } = useAuthTokenStore();
+
+  // Validate referral code
+  const validateReferralCode = async (code: string) => {
     try {
-      setSocialLoginError("");
-      setDisableButton(true);
-
-      // TODO: Implement Apple Sign In logic here
-      // For now, simulating success
-      console.log("Apple Sign In initiated");
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // On success, show username setup
-      setShowUsernameSetup(true);
+      const response = await apiCall(`/api/referrals/validate/${code.toUpperCase()}`, "GET");
+      setReferralCodeIsValid(response.isValid || false);
     } catch (error) {
-      console.error("Apple Sign In Error:", error);
-      setSocialLoginError("Failed to sign in with Apple. Please try again.");
+      console.error("Error validating referral code:", error);
+      setReferralCodeIsValid(false);
+    }
+  };
+
+  // Redeem referral code
+  const redeemReferralCode = async (userID: number) => {
+    if (!referralCode) return;
+
+    try {
+      const formData = new FormData();
+      formData.append("referral_code", referralCode.toUpperCase());
+      formData.append("user_id", userID.toString());
+      const response = await apiCall("/api/referrals/use", "POST", formData);
+      console.log("Referral code redeemed:", response.message);
+    } catch (error) {
+      console.error("Error redeeming referral code:", error);
+    }
+  };
+
+  // Effect for referral code validation with debounce
+  useEffect(() => {
+    if (referralCode.length > 0) {
+      const timeout = setTimeout(() => {
+        validateReferralCode(referralCode);
+      }, 300);
+      return () => clearTimeout(timeout);
+    } else {
+      setReferralCodeIsValid(false);
+    }
+  }, [referralCode]);
+
+  // Check username availability
+  const checkUsernameAvailability = async (text: string) => {
+    try {
+      const response = await apiCall(`/api/users/usernameCheck/${text}`, "GET");
+      return !response.user;
+    } catch (error) {
+      console.error("Error checking username availability:", error);
+      return false;
+    }
+  };
+
+  // Handle username change with validation and debouncing
+  const handleUsernameChange = (text: string) => {
+    setUsername(text);
+
+    // Clear previous debounce timeout
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+
+    // Debounce the API call to avoid multiple requests
+    debounceTimeout.current = setTimeout(async () => {
+      if (text.trim().length > 0) {
+        // Check for invalid characters first
+        if (!/^[a-zA-Z0-9._]+$/.test(text)) {
+          setUsernameError("Only letters, numbers, dots and underscores allowed.");
+          return;
+        }
+
+        if (text.length < 6) {
+          setUsernameError("Username must be 6 or more characters.");
+          return;
+        }
+
+        if (text.length > 20) {
+          setUsernameError("Username must be 20 or fewer characters.");
+          return;
+        }
+
+        const isAvailable = await checkUsernameAvailability(text.trim().toLowerCase());
+        setUsernameError(
+          text.trim() !== "" && isAvailable
+            ? "Username is available."
+            : "Username is already taken."
+        );
+      } else {
+        setUsernameError("");
+      }
+    }, 300);
+  };
+
+  // Handle password change with validation
+  const handlePasswordChange = (text: string) => {
+    setSetupPassword(text);
+
+    if (text.trim().length === 0) {
+      setSetupPasswordError("");
+      return;
+    }
+
+    if (!/[A-Z]/.test(text)) {
+      setSetupPasswordError("Password must contain at least one uppercase letter.");
+      return;
+    }
+
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(text)) {
+      setSetupPasswordError("Password must contain at least one special character.");
+      return;
+    }
+
+    if (text.length < 6) {
+      setSetupPasswordError("Password must be 6 or more characters.");
+      return;
+    }
+
+    setSetupPasswordError("");
+  };
+
+  // Email/Password Login handler
+  const handleEmailPasswordLogin = async () => {
+    try {
+      // Reset errors
+      setEmailError("");
+      setPasswordError("");
+      setSocialLoginError("");
+
+      // Validate email
+      if (!email.current || !validateEmail(email.current)) {
+        setEmailError("Please enter a valid email address.");
+        return;
+      }
+
+      // Validate password
+      if (!password.current || password.current.trim().length === 0) {
+        setPasswordError("Please enter your password.");
+        return;
+      }
+
+      setDisableButton(true);
+      console.log("Starting email/password login...");
+
+      // Get Firebase auth instance
+      const auth = await getAuth();
+      if (!auth) {
+        throw new Error("Firebase Auth not available");
+      }
+
+      // Sign in with Firebase
+      const userCredential = await auth.signInWithEmailAndPassword(
+        email.current,
+        password.current
+      );
+      const firebaseUser = userCredential.user;
+
+      if (!firebaseUser) {
+        throw new Error("User information is missing after login.");
+      }
+
+      // Set Firebase user in context
+      setFirebaseUser(firebaseUser);
+
+      // Attempt Login via Backend to get auth token
+      let response2;
+      try {
+        response2 = await loginUser({
+          username: email.current,
+          password: firebaseUser.uid
+        });
+        console.log("Login Response", response2);
+      } catch (loginError) {
+        console.log("Login failed, attempting to register:", loginError);
+
+        // Fallback to Registration
+        try {
+          await registerUser({
+            username: email.current,
+            password: firebaseUser.uid,
+            user_id: firebaseUser.uid,
+          });
+          console.log("Registration successful, logging in...");
+
+          // Immediately log in the newly registered user to get the token
+          response2 = await loginUser({
+            username: email.current,
+            password: firebaseUser.uid
+          });
+          console.log("Post-registration Login Response", response2);
+        } catch (registerError) {
+          console.error("Registration failed:", registerError);
+          throw new Error("User registration failed.");
+        }
+      }
+
+      // Fetch user data from backend
+      const userDataResponse = await apiCall(`/api/users/${firebaseUser.uid}`, "GET");
+
+      if (userDataResponse?.user) {
+        const userData = userDataResponse.user;
+
+        // Set the user object from the backend in the context
+        setUser({
+          id: userData.id,
+          firstName: userData.first_name,
+          lastName: userData.last_name,
+          email: userData.email,
+          username: userData.username,
+          bio: userData.bio,
+          profilePicture: userData.profile_picture,
+          isVerified: userData.is_verified,
+          isPrivate: userData.is_private,
+          createdAt: userData.created_at,
+        });
+
+        // Set isCreator in the context based on the response
+        setIsCreator(userData.is_creator);
+
+        // Set registration as complete
+        setCompletedRegistration(true);
+
+        // Store user data in SecureStore
+        await SecureStore.setItemAsync("user", JSON.stringify(userData));
+
+        // Navigate to main app
+        router.push("/(tabs)");
+
+        console.log("Login successful!");
+      } else {
+        throw new Error("User data not found.");
+      }
+    } catch (error: any) {
+      console.error("Login failed:", error);
+
+      // Check for network/backend errors
+      if (error.message && error.message.includes('Cannot connect to server')) {
+        setSocialLoginError(
+          "Cannot reach the server. Please ensure:\n" +
+          "1. Backend server is running on http://localhost:5000\n" +
+          "2. You're connected to the internet\n" +
+          "3. Firewall is not blocking the connection"
+        );
+      } else if (error.message && error.message.includes('Network error')) {
+        setSocialLoginError(
+          "Network error: Cannot connect to backend server. " +
+          "Please start your backend server and try again."
+        );
+      } else if (error.code === "auth/user-not-found") {
+        setEmailError("No account found with this email.");
+      } else if (error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
+        setPasswordError("Incorrect password. Please try again.");
+      } else if (error.code === "auth/invalid-email") {
+        setEmailError("Invalid email address.");
+      } else if (error.code === "auth/too-many-requests") {
+        setSocialLoginError("Too many failed login attempts. Please try again later.");
+      } else {
+        setSocialLoginError(error.message || "Login failed. Please try again.");
+      }
     } finally {
       setDisableButton(false);
     }
   };
 
+  // Google Sign In handler
   const handleGoogleSignIn = async () => {
     try {
       setSocialLoginError("");
       setDisableButton(true);
 
-      // TODO: Implement Google Sign In logic here
-      // For now, simulating success
-      console.log("Google Sign In initiated");
+      // Ensure Google Play Services are available
+      await GoogleSignin.hasPlayServices();
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Perform the Google Sign-In
+      const userInfo = await GoogleSignin.signIn();
+      const { idToken } = await GoogleSignin.getTokens();
 
-      // On success, show username setup
-      setShowUsernameSetup(true);
-    } catch (error) {
-      console.error("Google Sign In Error:", error);
-      setSocialLoginError("Failed to sign in with Google. Please try again.");
+      // Get Firebase auth instance
+      const auth = await getAuth();
+      if (!auth) {
+        throw new Error("Firebase Auth not available");
+      }
+
+      // Create Google credential dynamically
+      const authModule = await import("@react-native-firebase/auth");
+      const GoogleAuthProvider = authModule.default.GoogleAuthProvider;
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+
+      const userCredential = await auth.signInWithCredential(googleCredential);
+      const firebaseUser = userCredential.user;
+
+      if (!userInfo || !firebaseUser) {
+        throw new Error("User information is missing after Google Sign-In.");
+      }
+
+      // Set the Firebase user in AuthContext
+      setFirebaseUser(firebaseUser);
+
+      // Attempt Login via Backend
+      let response2;
+      try {
+        response2 = await loginUser({
+          username: firebaseUser.email!,
+          password: firebaseUser.uid
+        });
+        console.log("Login Response", response2);
+      } catch (loginError) {
+        console.log("Login failed, attempting to register:", loginError);
+
+        // Fallback to Registration
+        try {
+          await registerUser({
+            username: firebaseUser.email!,
+            password: firebaseUser.uid,
+            user_id: firebaseUser.uid,
+          });
+          console.log("Registration successful, logging in...");
+
+          // Immediately log in the newly registered user to get the token
+          response2 = await loginUser({
+            username: firebaseUser.email!,
+            password: firebaseUser.uid
+          });
+          console.log("Post-registration Login Response", response2);
+        } catch (registerError) {
+          console.error("Registration failed:", registerError);
+          throw new Error("User registration failed.");
+        }
+      }
+
+      // Prepare form data
+      const formData = new FormData();
+      formData.append("uid", firebaseUser.uid);
+      formData.append("email", firebaseUser.email!);
+
+      // Call the backend to get or create the user
+      const response = await apiCall("/api/users/create/google", "POST", formData);
+      const userData = response.user;
+
+      setUser({
+        id: userData.id,
+        firstName: userData.first_name,
+        lastName: userData.last_name,
+        email: userData.email,
+        username: userData.username,
+        bio: userData.bio,
+        profilePicture: userData.profile_picture,
+        isVerified: userData.is_verified,
+        isPrivate: userData.is_private,
+        createdAt: userData.created_at,
+      });
+
+      setSignedInWithGoogle(true);
+
+      // Check for missing fields and navigate accordingly
+      if (!userData.username || userData.username === "" ||
+        userData.username === firebaseUser.email!.split("@")[0]) {
+        setShowUsernameSetup(true);
+      } else {
+        setIsCreator(userData.is_creator);
+        setCompletedRegistration(true);
+        router.push("/(tabs)");
+      }
+    } catch (error: any) {
+      console.error("Google Sign-In Error:", error);
+      setSocialLoginError(error.message || "Failed to sign in with Google. Please try again.");
     } finally {
       setDisableButton(false);
     }
   };
 
-  const handleUsernameChange = (text: string) => {
-    setUsername(text);
-    setUsernameError("");
+  // Apple Sign In handler
+  const handleAppleSignIn = async () => {
+    try {
+      setSocialLoginError("");
+      setDisableButton(true);
 
-    // Basic username validation
-    if (text.length < 3) {
-      setUsernameError("Username must be at least 3 characters long.");
-    } else if (!/^[a-zA-Z0-9._]+$/.test(text)) {
-      setUsernameError(
-        "Username can only contain letters, numbers, dots, and underscores."
+      // Check if Apple Authentication is available
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Apple Sign-In is not supported on this device.");
+        return;
+      }
+
+      // Perform Apple Sign In
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      // Get Firebase auth instance
+      const auth = await getAuth();
+      if (!auth) {
+        throw new Error("Firebase Auth not available");
+      }
+
+      // Create Apple credential for Firebase
+      const authModule = await import("@react-native-firebase/auth");
+      const AppleAuthProvider = authModule.default.AppleAuthProvider;
+      const appleCredential = AppleAuthProvider.credential(
+        credential.identityToken!,
+        uuid()
       );
-    } else {
-      setUsernameError("Username is available.");
+
+      const userCredential = await auth.signInWithCredential(appleCredential);
+      const firebaseUser = userCredential.user;
+
+      if (!firebaseUser) {
+        throw new Error("User information is missing after Apple Sign-In.");
+      }
+
+      // Set the Firebase user in AuthContext
+      setFirebaseUser(firebaseUser);
+
+      // Try to login with existing account
+      let response2;
+      try {
+        response2 = await loginUser({
+          username: firebaseUser.email!,
+          password: firebaseUser.uid
+        });
+        console.log("Login Response", response2);
+      } catch (loginError) {
+        console.log("Login failed, attempting to register:", loginError);
+
+        // Fallback to Registration if login fails
+        try {
+          await registerUser({
+            username: firebaseUser.email!,
+            password: firebaseUser.uid,
+            user_id: firebaseUser.uid,
+          });
+          console.log("Registration successful, logging in...");
+
+          // Login the newly registered user
+          response2 = await loginUser({
+            username: firebaseUser.email!,
+            password: firebaseUser.uid
+          });
+          console.log("Post-registration Login Response", response2);
+        } catch (registerError) {
+          console.error("Registration failed:", registerError);
+          throw new Error("User registration failed.");
+        }
+      }
+
+      // Prepare and send user data to backend
+      const formData = new FormData();
+      formData.append("uid", firebaseUser.uid);
+      formData.append("email", firebaseUser.email!);
+
+      // If we have fullName from Apple
+      if (credential.fullName) {
+        if (credential.fullName.givenName) {
+          formData.append("firstName", credential.fullName.givenName);
+        }
+        if (credential.fullName.familyName) {
+          formData.append("lastName", credential.fullName.familyName);
+        }
+      }
+
+      // Call the backend to get or create the user
+      const response = await apiCall("/api/users/create/google", "POST", formData);
+      const userData = response.user;
+
+      setUser({
+        id: userData.id,
+        firstName: userData.first_name,
+        lastName: userData.last_name,
+        email: userData.email,
+        username: userData.username,
+        bio: userData.bio,
+        profilePicture: userData.profile_picture,
+        isVerified: userData.is_verified,
+        isPrivate: userData.is_private,
+        createdAt: userData.created_at,
+      });
+
+      // Similar logic to Google sign-in for navigation
+      if (!userData.username || userData.username === "" ||
+        userData.username === firebaseUser.email!.split("@")[0]) {
+        setShowUsernameSetup(true);
+      } else {
+        setIsCreator(userData.is_creator);
+        setCompletedRegistration(true);
+        router.push("/(tabs)");
+      }
+    } catch (error: any) {
+      if (error.code === "ERR_REQUEST_CANCELED") {
+        // User canceled the sign-in
+        console.log("Apple Sign-In canceled by user");
+      } else {
+        console.error("Apple Sign-In Error:", error);
+        setSocialLoginError(
+          error.message || "Failed to sign in with Apple. Please try again."
+        );
+      }
+    } finally {
+      setDisableButton(false);
     }
   };
 
+  // Save username and complete setup
   const handleSaveUsername = async () => {
     try {
       if (usernameError && usernameError !== "Username is available.") {
@@ -448,17 +924,83 @@ export default function LoginScreen() {
 
       setDisableButton(true);
 
-      // TODO: Implement save username API call
-      console.log("Saving username:", username);
+      // Get current Firebase user
+      const auth = await getAuth();
+      const currentUser = auth?.currentUser;
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!currentUser) {
+        Alert.alert("Error", "No user is currently authenticated.");
+        return;
+      }
 
-      // Navigate to main app or next step
+      // If password is set, link it to the Firebase account
+      if (setupPassword) {
+        try {
+          const authModule = await import("@react-native-firebase/auth");
+          const EmailAuthProvider = authModule.default.EmailAuthProvider;
+          const credential = EmailAuthProvider.credential(
+            currentUser.email!,
+            setupPassword
+          );
+
+          await currentUser.linkWithCredential(credential);
+          console.log("Password added successfully");
+
+          // Send email verification if needed
+          if (!currentUser.emailVerified) {
+            await currentUser.sendEmailVerification();
+          }
+        } catch (error: any) {
+          console.error("Error adding password:", error);
+          Alert.alert("Error", "Failed to add password. " + error.message);
+        }
+      }
+
+      // Redeem referral code if provided
+      if (user?.id) {
+        await redeemReferralCode(user.id);
+      }
+
+      // Update username on backend
+      const formData = new FormData();
+      formData.append("username", username.trim().toLowerCase());
+      formData.append("first_name", currentUser?.displayName?.trim()?.split(" ")[0] || "");
+      formData.append("last_name", currentUser?.displayName?.trim()?.split(" ")[1] || "");
+
+      const response = await apiCall(
+        `/api/users/update-username/${currentUser.uid}`,
+        "PUT",
+        formData
+      );
+
+      // Update user in context
+      const userData = response.user;
+      setUser({
+        id: userData.id,
+        firstName: userData.first_name,
+        lastName: userData.last_name,
+        email: userData.email,
+        username: userData.username,
+        bio: userData.bio,
+        profilePicture: userData.profile_picture,
+        isVerified: userData.is_verified,
+        isPrivate: userData.is_private,
+        createdAt: userData.created_at,
+      });
+
+      setIsCreator(userData.is_creator);
+      setCompletedRegistration(true);
+
+      // Save to secure storage
+      await SecureStore.setItemAsync("user", JSON.stringify(userData));
+
+      // Navigate to main app
+      router.push("/(tabs)");
+
       console.log("Username saved successfully!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Save Username Error:", error);
-      setUsernameError("Failed to save username. Please try again.");
+      Alert.alert("Error", "Failed to save username. Please try again.");
     } finally {
       setDisableButton(false);
     }
@@ -483,6 +1025,7 @@ export default function LoginScreen() {
       hideSub.remove();
     };
   }, []);
+
   const validateEmail = (str: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
 
   return (
@@ -520,6 +1063,12 @@ export default function LoginScreen() {
             onSaveUsername={handleSaveUsername}
             onToggleAgreement={() => setClearToMove(!clearToMove)}
             disableButton={disableButton}
+            setupPassword={setupPassword}
+            setSetupPassword={setSetupPassword}
+            setupPasswordError={setupPasswordError}
+            referralCode={referralCode}
+            setReferralCode={setReferralCode}
+            referralCodeIsValid={referralCodeIsValid}
           />
         ) : (
           <FormContent
@@ -536,6 +1085,7 @@ export default function LoginScreen() {
             isKeyboardVisible={isKeyboardVisible}
             onAppleSignIn={handleAppleSignIn}
             onGoogleSignIn={handleGoogleSignIn}
+            onEmailPasswordLogin={handleEmailPasswordLogin}
             socialLoginError={socialLoginError}
           />
         )}
