@@ -27,15 +27,15 @@ export const CART_DATA: CartItemT[] = [
     name: "Apple iPhone 16 (Ultramarine, 128 GB)",
     image: require("@/assets/images/Product/iphonesmall.png"),
     price: 79999,
-    mrp: 20000,
+    mrp: 2000,
     reviews: 2495,
   },
   {
     id: "2",
     name: "Samsung S25 Ultra Titanium 12/512BG",
-    image: require("@/assets/images/Product/phone.png"),
+    image: require("@/assets/images/Product/iphonec2.png"),
     price: 79999,
-    mrp: 20000,
+    mrp: 1000,
     reviews: 2495,
   },
   {
@@ -43,7 +43,7 @@ export const CART_DATA: CartItemT[] = [
     name: "Apple iPhone 16 (Mint, 128 GB)",
     image: require("@/assets/images/Product/iphonec4.png"),
     price: 79999,
-    mrp: 20000,
+    mrp: 200,
   },
 ];
 
@@ -53,7 +53,7 @@ export const WISHLIST_DATA: WishlistItemT[] = [
     name: "Apple iPhone 16 (Ultramarine, 128 GB)",
     image: require("@/assets/images/Product/iphonec1.png"),
     price: 79999,
-    mrp: 20000,
+    mrp: 2000,
     dis: 50,
   },
   {
@@ -61,7 +61,7 @@ export const WISHLIST_DATA: WishlistItemT[] = [
     name: "Samsung S25 Ultra Titanium 12/512BG",
     image: require("@/assets/images/Product/iphonec2.png"),
     price: 79999,
-    mrp: 20000,
+    mrp: 2000,
     dis: 50,
   },
   {
@@ -69,7 +69,7 @@ export const WISHLIST_DATA: WishlistItemT[] = [
     name: "Apple iPhone 16 (Mint, 128 GB)",
     image: require("@/assets/images/Product/iphonec3.png"),
     price: 79999,
-    mrp: 20000,
+    mrp: 2000,
     dis: 50,
   },
   {
@@ -77,7 +77,7 @@ export const WISHLIST_DATA: WishlistItemT[] = [
     name: "Samsung S25 Ultra Titanium 12/512BG",
     image: require("@/assets/images/Product/iphonec4.png"),
     price: 79999,
-    mrp: 20000,
+    mrp: 2000,
     dis: 50,
   },
   {
@@ -85,7 +85,7 @@ export const WISHLIST_DATA: WishlistItemT[] = [
     name: "Samsung S25 Ultra Titanium 12/512BG",
     image: require("@/assets/images/Product/iphonec4.png"),
     price: 79999,
-    mrp: 20000,
+    mrp: 1000,
     dis: 50,
   },
   {
@@ -93,7 +93,7 @@ export const WISHLIST_DATA: WishlistItemT[] = [
     name: "Samsung S25 Ultra Titanium 12/512GB",
     image: require("@/assets/images/Product/iphonec4.png"),
     price: 79999,
-    mrp: 20000,
+    mrp: 200,
     dis: 50,
   },
 ];

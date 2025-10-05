@@ -2,12 +2,15 @@
 import QuantitySelector from "@/components/cart/QuantitySelector";
 import { CartItemT, WishlistItemT } from "@/constants/cart";
 import { Ionicons } from "@expo/vector-icons";
-import { Truck } from "lucide-react-native";
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 
-type CartRowItem = CartItemT & { quantity?: number };
-type WishlistRowItem = WishlistItemT;
+type CartRowItem = CartItemT & {
+  quantity?: number;
+  mrp?: number;
+  rating?: number;
+};
+type WishlistRowItem = WishlistItemT & { mrp?: number; rating?: number };
 
 type Props = {
   item?: CartRowItem | WishlistRowItem | null; // made optional to be defensive
@@ -21,7 +24,7 @@ type Props = {
 
 /* local INR helper (kept inside file) */
 const INR = (n?: number | null) => {
-  const num = typeof n === "number" ? n : Number(n ?? 0);
+  const num = typeof n === "number" ? Math.round(n) : Number(n ?? 0);
   if (!isFinite(num)) return "₹0";
   return `₹${num.toLocaleString("en-IN")}`;
 };
@@ -59,12 +62,30 @@ export default React.memo(function ProductRow({
   const image = (item as any).image;
   const quantity = Number((item as any).quantity ?? 1);
   const reviews = Number((item as any).reviews ?? 0);
+  const rating =
+    typeof (item as any).rating === "number" ? (item as any).rating : 4.5;
+
+  // compute discount percent (rounded, no decimals)
+  const discountPercent = useMemo(() => {
+    if (!isFinite(mrp) || mrp <= 0) return 0;
+    const pct = Math.round((1 - price / mrp) * 100);
+    return Math.max(0, pct);
+  }, [price, mrp]);
+
+  // star rendering: compute full/half/empty counts from rating (0..5)
+  const starCounts = useMemo(() => {
+    const normalized = Math.max(0, Math.min(5, Number(rating) || 0));
+    const full = Math.floor(normalized);
+    const half = normalized - full >= 0.5 ? 1 : 0;
+    const empty = 5 - full - half;
+    return { full, half, empty, normalized };
+  }, [rating]);
 
   // Variant-specific classes (kept but simple)
   const contentWrapClass = "w-[90%] self-center p-2";
   const imageBasisClass = variant === "cart" ? "basis-[33%]" : "basis-[16%]";
   const imageAspectClass =
-    variant === "cart" ? "aspect-[0.9]" : "aspect-[0.78]";
+    variant === "cart" ? "aspect-[0.92]" : "aspect-[0.78]";
 
   return (
     <View className="w-full bg-white rounded-2xl mt-3 overflow-hidden">
@@ -108,28 +129,39 @@ export default React.memo(function ProductRow({
             <Text className="text-xs line-through text-gray-400 mr-2">
               {INR(mrp)}
             </Text>
-            <Text className="text-xs font-semibold text-green-600">50%</Text>
+            <Text className="text-lg font-semibold text-green-600">
+              {discountPercent}%{/* computed discount */}
+            </Text>
           </View>
 
           {/* Cart-only metadata */}
           {variant === "cart" && (
             <>
               <View className="flex-row items-center mt-2">
-                {/* stars: render according to reviews if you have rating value; static fallback */}
                 <View className="flex-row items-center">
-                  {[...Array(4)].map((_, i) => (
-                    <Ionicons key={i} name="star" size={14} color="#FFD700" />
+                  {[...Array(starCounts.full)].map((_, i) => (
+                    <Ionicons
+                      key={`f-${i}`}
+                      name="star"
+                      size={14}
+                      color="#FFD700"
+                    />
                   ))}
-                  <Ionicons name="star-half" size={14} color="#FFD700" />
+                  {starCounts.half === 1 && (
+                    <Ionicons name="star-half" size={14} color="#FFD700" />
+                  )}
+                  {[...Array(starCounts.empty)].map((_, i) => (
+                    <Ionicons
+                      key={`e-${i}`}
+                      name="star-outline"
+                      size={14}
+                      color="#FFD700"
+                    />
+                  ))}
                 </View>
                 <Text className="ml-1 text-sm text-gray-600">
-                  {`${4.5} (${reviews.toLocaleString()} reviews)`}
+                  {`${starCounts.normalized.toFixed(1)} (${reviews.toLocaleString()} reviews)`}
                 </Text>
-              </View>
-
-              <View className="mt-2 flex-row items-center bg-[#26FF91] px-2 py-0.5 rounded-full self-start">
-                <Truck size={14} color="#000" />
-                <Text className="ml-1 text-black text-xs">Super Fast</Text>
               </View>
 
               {/* QuantitySelector inside details */}
@@ -148,7 +180,7 @@ export default React.memo(function ProductRow({
 
       {/* Wishlist actions row (below top row) */}
       {variant === "wishlist" && (
-        <View className="px-4 pb-4">
+        <View className="px-3 pb-4">
           <View className="w-[90%] self-center flex-row items-center justify-between">
             <TouchableOpacity
               onPress={onRemove}
@@ -165,7 +197,7 @@ export default React.memo(function ProductRow({
               onPress={onAddToCart}
               accessibilityRole="button"
               accessibilityLabel="Add to cart"
-              className="basis-[35%] flex-row items-center justify-center bg-[#26FF91] rounded-2xl px-4 py-3">
+              className="basis-[35%] flex-row items-center justify-center bg-[#26FF91] rounded-2xl px-3 py-3">
               <Ionicons name="cart-outline" size={18} color="#000" />
               <Text className="ml-3 text-black font-semibold text-sm">
                 Add to cart
@@ -191,7 +223,7 @@ export function PriceDetails({
 }) {
   // local INR helper here too for footer (kept local per your request)
   const INR2 = (n?: number | null) => {
-    const num = typeof n === "number" ? n : Number(n ?? 0);
+    const num = typeof n === "number" ? Math.round(n) : Number(n ?? 0);
     if (!isFinite(num)) return "₹0";
     return `₹${num.toLocaleString("en-IN")}`;
   };

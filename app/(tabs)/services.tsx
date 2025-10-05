@@ -1,9 +1,19 @@
 // app/(tabs)/services.tsx
-import { useFocusEffect } from "@react-navigation/native";
+import {
+  useFocusEffect,
+  useIsFocused,
+  useNavigation,
+} from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useCallback, useMemo } from "react";
-import { FlatList, TouchableOpacity, View } from "react-native";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { ScrollView, TouchableOpacity, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -17,29 +27,17 @@ import SearchBar from "@/components/Searchbar";
 import NearbyList from "@/components/Services/NearbyList";
 import RecommendedList from "@/components/Services/RecommendedList";
 import { ServicesBannerData } from "@/constants/Banner";
-import { RECOMMENDED_DATA } from "@/constants/services";
+import { NEARBY_DATA, RECOMMENDED_DATA } from "@/constants/services";
 import { useCategoryTheme } from "@/stores/useThemeStore";
 
-const NEARBY_DATA = [
-  {
-    id: "kfc",
-    title: "KFC",
-    distance: "250 Meters Away",
-    image: require("@/assets/images/kfc.png"),
-  },
-  {
-    id: "hotel",
-    title: "Five Star Hotel",
-    distance: "350 Meters Away",
-    image: require("@/assets/images/hotel.png"),
-  },
-  {
-    id: "dominos",
-    title: "Domino's",
-    distance: "300 Meters Away",
-    image: require("@/assets/images/dominos.png"),
-  },
-];
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+
+type TabParamList = {
+  Services: undefined;
+  Home: undefined;
+};
+
+type ServicesNavProp = BottomTabNavigationProp<TabParamList, "Services">;
 
 function GradientWrapper({
   children,
@@ -76,6 +74,10 @@ export default function Services() {
     }, [setPreset])
   );
 
+  // show only first 3 items on the home screen
+  const nearbyPreview = NEARBY_DATA.slice(0, 3);
+  const recommendedPreview = RECOMMENDED_DATA.slice(0, 3);
+
   const handleItemPress = useCallback(
     (item: { id: string | number; title?: string }) => {
       router.push({
@@ -92,13 +94,13 @@ export default function Services() {
 
   const ListHeader = useMemo(
     () => (
-      <View className="w-full rounded-b-2xl overflow-hidden">
+      <View className="w-full rounded-b-2xl overflow-hidden ">
         <GradientWrapper
           colors={["#E0DBFF", "#f9fafb"] as const}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           className="rounded-b-2xl overflow-hidden">
-          <SafeAreaView edges={["top"]} className="px-3 py-1">
+          <SafeAreaView edges={["top"]} className="px-3  py-1">
             <HomeHeader />
             <QuickActions />
             <TouchableOpacity
@@ -114,50 +116,94 @@ export default function Services() {
     [router]
   );
 
-  const contentContainerStyle = { paddingBottom: insets.bottom + 40 };
+  // -------------------------
+  // refs & refresh behavior
+  // -------------------------
+  const scrollRef = useRef<ScrollView | null>(null);
+  const navigation = useNavigation<ServicesNavProp>();
+  const isFocused = useIsFocused();
+
+  // refreshKey toggles to force a lightweight re-render of the ScrollView content
+  const [refreshKey, setRefreshKey] = useState<number>(() => Date.now());
+
+  // when tab is pressed while focused, scroll to top and trigger refresh
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("tabPress", (e: any) => {
+      if (isFocused) {
+        try {
+          scrollRef.current?.scrollTo({ y: 0, animated: true });
+        } catch {
+          // ignore scroll errors
+        }
+        // simple refresh: toggle refresh key so the ScrollView content can remount
+        setRefreshKey(Date.now());
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, isFocused]);
 
   return (
     <View className="flex-1 bg-gray-50">
-      <FlatList
-        data={[]}
-        ListHeaderComponent={
-          <View>
-            {ListHeader}
-            <View className="mt-3">
-              <CategoryList orientation="horizontal" />
-            </View>
-
-            <View className="mt-4">
-              <PromoBannerCarousel variant="home" data={ServicesBannerData} />
-            </View>
-
-            <View className="mt-4">
-              <NearbyList
-                title="Near by You"
-                data={NEARBY_DATA}
-                largeMode={false}
-                imageAspect={1.25}
-                overlapRatio={0.52}
-                onItemPress={handleItemPress}
-              />
-            </View>
-
-            <View className="mt-4 px-3">
-              <RecommendedList
-                data={RECOMMENDED_DATA}
-                onItemPress={handleItemPress}
-              />
-            </View>
-          </View>
-        }
-        renderItem={null}
-        keyExtractor={() => "services-root"}
+      <ScrollView
+        // key forces a remount when refreshKey changes (lightweight refresh)
+        key={String(refreshKey)}
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={contentContainerStyle}
-        // 👇 disable stretch/bounce here
+        contentContainerStyle={{
+          paddingBottom: insets.bottom,
+        }}
         bounces={false}
-        overScrollMode="never"
-      />
+        overScrollMode="never">
+        {/* Header + content */}
+        {ListHeader}
+
+        <View className="mt-3">
+          <CategoryList orientation="horizontal" />
+        </View>
+
+        <View className="mt-4">
+          <PromoBannerCarousel variant="home" data={ServicesBannerData} />
+        </View>
+
+        {/* Nearby preview (only 3 items shown here) */}
+        <View className="mt-4 ">
+          <NearbyList
+            title="Near by You"
+            data={nearbyPreview}
+            largeMode={false}
+            imageAspect={1.25}
+            overlapRatio={0.52}
+            onItemPress={handleItemPress}
+            onActionPress={() => {
+              const payload = encodeURIComponent(JSON.stringify(NEARBY_DATA));
+              router.push(
+                `/Services/NearbyAll?items=${payload}&title=${encodeURIComponent(
+                  "Near by You"
+                )}`
+              );
+            }}
+          />
+        </View>
+
+        {/* Recommended preview (only 3 items shown here) */}
+        <View className="mt-4 px-3 pb-8">
+          <RecommendedList
+            data={recommendedPreview}
+            onItemPress={handleItemPress}
+            onActionPress={() => {
+              const payload = encodeURIComponent(
+                JSON.stringify(RECOMMENDED_DATA)
+              );
+              router.push(
+                `/Services/RecommendedAll?items=${payload}&title=${encodeURIComponent(
+                  "Recommended For You"
+                )}`
+              );
+            }}
+          />
+        </View>
+      </ScrollView>
     </View>
   );
 }

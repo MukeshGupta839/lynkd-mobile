@@ -46,6 +46,30 @@ export const NEARBY_DATA: NearbyItem[] = [
     distance: "300 Meters Away",
     image: require("@/assets/images/dominos.png"),
   },
+  {
+    id: "HomeStay",
+    title: "House Stay",
+    Address:
+      "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
+    distance: "350 Meters Away",
+    image: require("@/assets/images/hotel.png"),
+  },
+  {
+    id: "FiveStarHotel",
+    title: "Five Star Hotel",
+    Address:
+      "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
+    distance: "350 Meters Away",
+    image: require("@/assets/images/hotel.png"),
+  },
+  {
+    id: "FiveStarHotel2",
+    title: "Five Star Hotel",
+    Address:
+      "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
+    distance: "350 Meters Away",
+    image: require("@/assets/images/hotel.png"),
+  },
   // add more nearby items here as needed
 ];
 
@@ -83,5 +107,35 @@ export const RECOMMENDED_DATA: RecommendedItem[] = [
     rating: 4.4,
     users: 120,
     image: require("@/assets/images/home.png"),
+  },
+  {
+    id: "4",
+    title: "Dumbell Door Club",
+    Address:
+      "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
+    subtitle: "Drink · Smoke · Dance",
+    rating: 4.4,
+    users: 120,
+    image: require("@/assets/images/club.png"),
+  },
+  {
+    id: "5",
+    title: "Dumbell Door Club",
+    Address:
+      "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
+    subtitle: "Drink · Smoke · Dance",
+    rating: 4.4,
+    users: 120,
+    image: require("@/assets/images/club.png"),
+  },
+  {
+    id: "6",
+    title: "Dumbell Door Club",
+    Address:
+      "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
+    subtitle: "Drink · Smoke · Dance",
+    rating: 4.4,
+    users: 120,
+    image: require("@/assets/images/club.png"),
   },
 ];

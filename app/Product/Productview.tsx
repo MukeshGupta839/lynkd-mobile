@@ -17,7 +17,6 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
-  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -68,11 +67,11 @@ export default function ProductView() {
   const onSelectStorage = useCallback((s: any) => setSelectedStorage(s), []);
 
   /* ----------------- Responsive / runtime values ----------------- */
-  const isWide = width >= 760; // treat as tablet/large landscape
+  const isWide = width >= 760;
   const floatingTop =
-    insets.top + Math.max(40, height * (isWide ? 0.06 : 0.06));
-  const iconSize = Math.max(16, Math.round(width * (isWide ? 0.035 : 0.045)));
-  const floatingRight = 12;
+    insets.top + Math.max(40, height * (isWide ? 0.06 : 0.05));
+  const iconSize = Math.max(16, Math.round(width * (isWide ? 0.035 : 0.04)));
+  const floatingRight = 10;
 
   // content container style for FlatList (keeps bottom CTA visible)
   const contentContainerStyle = useMemo(
@@ -84,7 +83,7 @@ export default function ProductView() {
 
   // Thumbnails (horizontal scroll, safe-area aware)
   const ThumbnailsRow = useMemo(() => {
-    const THUMB_SIZE = Math.min(96, Math.round(width * 0.18));
+    const THUMB_SIZE = Math.min(96, Math.round(width * 0.16));
     const GAP = 10;
     const padLeft = Math.max(12, (insets.left || 0) + 12);
     const padRight = Math.max(12, (insets.right || 0) + 12);
@@ -227,20 +226,6 @@ export default function ProductView() {
 
               <View
                 className="p-2 bg-white rounded-full"
-                style={Platform.select({
-                  ios: {
-                    shadowColor: "#000",
-                    shadowOpacity: 0.08,
-                    shadowRadius: 4,
-                    shadowOffset: { width: 0, height: 2 },
-                  },
-                  android: { elevation: 2 },
-                  default: {
-                    shadowColor: "#000",
-                    shadowOpacity: 0.08,
-                    shadowRadius: 4,
-                  },
-                })}
                 accessibilityLabel="Search"
                 accessibilityRole="button">
                 <Ionicons name="search" size={18} color="black" />
@@ -267,20 +252,6 @@ export default function ProductView() {
                 accessibilityLabel="Add to wishlist"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 className="p-2 bg-white rounded-full"
-                style={Platform.select({
-                  ios: {
-                    shadowColor: "#000",
-                    shadowOpacity: 0.12,
-                    shadowRadius: 4,
-                    shadowOffset: { width: 0, height: 2 },
-                  },
-                  android: { elevation: 4 },
-                  default: {
-                    shadowColor: "#000",
-                    shadowOpacity: 0.12,
-                    shadowRadius: 4,
-                  },
-                })}
                 onPress={() => {
                   console.log("Wishlist pressed");
                 }}>
@@ -292,21 +263,7 @@ export default function ProductView() {
                 accessibilityRole="button"
                 accessibilityLabel="Share"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                className="p-2 bg-white rounded-full mt-2"
-                style={Platform.select({
-                  ios: {
-                    shadowColor: "#000",
-                    shadowOpacity: 0.12,
-                    shadowRadius: 4,
-                    shadowOffset: { width: 0, height: 2 },
-                  },
-                  android: { elevation: 4 },
-                  default: {
-                    shadowColor: "#000",
-                    shadowOpacity: 0.12,
-                    shadowRadius: 4,
-                  },
-                })}
+                className="p-2 bg-white rounded-full mt-4"
                 onPress={() => {
                   console.log("Share pressed");
                 }}>
@@ -339,7 +296,7 @@ export default function ProductView() {
 
         {/* White card below the full-bleed image — this card is inset with px-3 */}
         <View className="px-3">
-          <View className="bg-white rounded-2xl mt-3  py-4">
+          <View className="bg-white rounded-2xl mt-3  py-2">
             {ThumbnailsRow}
 
             <View className="px-3 py-2">

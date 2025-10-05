@@ -10,7 +10,7 @@ import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
 import { POSTS } from "@/constants/HomeData";
 import { cameraActiveSV, tabBarHiddenSV } from "@/lib/tabBarVisibility";
-import { FontAwesome6, MaterialIcons } from "@expo/vector-icons";
+import { FontAwesome6 } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { BlurView } from "expo-blur";
@@ -145,8 +145,7 @@ const FacebookImageViewer = ({
       transparent={true}
       animationType="fade"
       onRequestClose={onClose}
-      statusBarTranslucent={true}
-    >
+      statusBarTranslucent={true}>
       <StatusBar
         backgroundColor="transparent"
         style="light"
@@ -160,8 +159,7 @@ const FacebookImageViewer = ({
           alignItems: "center",
           paddingTop: 0,
           paddingBottom: 0,
-        }}
-      >
+        }}>
         {/* Close button */}
         <TouchableOpacity
           onPress={onClose}
@@ -176,8 +174,7 @@ const FacebookImageViewer = ({
             backgroundColor: "rgba(255,255,255,0.2)",
             justifyContent: "center",
             alignItems: "center",
-          }}
-        >
+          }}>
           <Ionicons name="close" size={24} color="white" />
         </TouchableOpacity>
 
@@ -192,8 +189,7 @@ const FacebookImageViewer = ({
               bottom: 0,
               justifyContent: "center",
               alignItems: "center",
-            }}
-          >
+            }}>
             <TouchableOpacity
               activeOpacity={1}
               onPress={handleSingleTap}
@@ -205,8 +201,7 @@ const FacebookImageViewer = ({
                 bottom: 0,
                 justifyContent: "center",
                 alignItems: "center",
-              }}
-            >
+              }}>
               <Animated.Image
                 source={{ uri: imageUri }}
                 style={{
@@ -235,8 +230,7 @@ const FacebookImageViewer = ({
               paddingHorizontal: 16,
               paddingVertical: 8,
               borderRadius: 20,
-            }}
-          >
+            }}>
             <Text style={{ color: "white", fontSize: 12 }}>
               Pinch to zoom • Tap to close
             </Text>
@@ -291,8 +285,7 @@ const Stories = () => (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10 }}
-    >
+      contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10 }}>
       {STORIES.map((s) => (
         <View key={s.id} className="w-[64px] items-center mr-4">
           <View className="w-16 h-16">
@@ -495,9 +488,8 @@ const PostCard = ({
     <TouchableOpacity
       activeOpacity={1}
       onLongPress={() => onLongPress?.(item)}
-      delayLongPress={500}
-    >
-      <View className="px-3 mt-2 bg-gray-100">
+      delayLongPress={500}>
+      <View className="px-3 mt-2 bg-[#F3F4F8]">
         <View
           style={{
             borderRadius: 16,
@@ -506,15 +498,13 @@ const PostCard = ({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.12,
             shadowRadius: 8,
-          }}
-        >
+          }}>
           <View
             className="bg-white py-3 gap-2.5"
             style={{
               borderRadius: 16,
               overflow: "hidden",
-            }}
-          >
+            }}>
             {/* Header */}
             <View className="flex-row px-3 items-center h-10">
               {/* LEFT group takes remaining space, but doesn't overgrow */}
@@ -523,8 +513,7 @@ const PostCard = ({
                   className="flex-row items-center flex-1 mr-2"
                   // onPress={isGestureActive ? undefined : handleUserPressSafe}
                   activeOpacity={0.7}
-                  disabled={isGestureActive}
-                >
+                  disabled={isGestureActive}>
                   <Image
                     source={{ uri: item.userProfilePic }}
                     className="w-10 h-10 rounded-full mr-2"
@@ -625,8 +614,7 @@ const PostCard = ({
                                           )}`
                                         )
                                 }
-                                onLongPress={openPostOptions}
-                              >
+                                onLongPress={openPostOptions}>
                                 {part}
                               </Text>
                             );
@@ -645,8 +633,7 @@ const PostCard = ({
                                           part
                                         )
                                 }
-                                onLongPress={openPostOptions}
-                              >
+                                onLongPress={openPostOptions}>
                                 {part}
                               </Text>
                             );
@@ -667,8 +654,7 @@ const PostCard = ({
                                     ? undefined
                                     : () => Linking.openURL(url)
                                 }
-                                onLongPress={openPostOptions}
-                              >
+                                onLongPress={openPostOptions}>
                                 {part}
                               </Text>
                             );
@@ -686,8 +672,7 @@ const PostCard = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}
-                      >
+                        delayLongPress={500}>
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show more
                         </Text>
@@ -704,8 +689,7 @@ const PostCard = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}
-                      >
+                        delayLongPress={500}>
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show less
                         </Text>
@@ -723,8 +707,7 @@ const PostCard = ({
                         isGestureActive
                           ? undefined
                           : () => console.log("Navigate to hashtag:", "#" + tag)
-                      }
-                    >
+                      }>
                       #{tag}
                       {i < neededHashtags.length - 1 ? " " : ""}
                     </Text>
@@ -740,8 +723,7 @@ const PostCard = ({
                   className="px-3"
                   onLongPress={() => onLongPress?.(item)}
                   delayLongPress={500}
-                  disabled={isGestureActive}
-                >
+                  disabled={isGestureActive}>
                   <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
                     <View
                       className="basis-1/4 self-stretch relative"
@@ -749,8 +731,7 @@ const PostCard = ({
                         borderTopLeftRadius: 6,
                         borderBottomLeftRadius: 6,
                         overflow: "hidden",
-                      }}
-                    >
+                      }}>
                       <Image
                         source={{ uri: item.affiliation.productImage }}
                         // Fill the wrapper's full height & width
@@ -816,19 +797,12 @@ const PostCard = ({
                         <TouchableOpacity
                           onPress={isGestureActive ? undefined : () => {}}
                           className="self-start"
-                          disabled={isGestureActive}
-                        >
-                          <MaterialIcons
-                            name="add-shopping-cart"
-                            size={24}
-                            color="#707070"
-                          />
-
-                          {/* <Ionicons
+                          disabled={isGestureActive}>
+                          <Ionicons
                             name="cart-outline"
                             size={24}
                             color="#000"
-                          /> */}
+                          />
                         </TouchableOpacity>
                       </View>
                       <Text className="text-sm text-gray-600 mb-2 leading-4">
@@ -854,8 +828,7 @@ const PostCard = ({
                 <TouchableOpacity
                   className="flex-row items-center"
                   disabled={isGestureActive}
-                  onPress={isGestureActive ? undefined : undefined}
-                >
+                  onPress={isGestureActive ? undefined : undefined}>
                   <Ionicons name="heart-outline" size={20} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.likes_count}
@@ -864,14 +837,7 @@ const PostCard = ({
                 <TouchableOpacity
                   className="flex-row items-center"
                   disabled={isGestureActive}
-                  onPress={
-                    isGestureActive
-                      ? undefined
-                      : () => {
-                          onPressComments?.(item); // <-- OPEN SHEET HERE
-                        }
-                  }
-                >
+                  onPress={isGestureActive ? undefined : undefined}>
                   <Ionicons name="chatbubble-outline" size={18} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.comments_count}
@@ -879,8 +845,7 @@ const PostCard = ({
                 </TouchableOpacity>
                 <TouchableOpacity
                   disabled={isGestureActive}
-                  onPress={isGestureActive ? undefined : undefined}
-                >
+                  onPress={isGestureActive ? undefined : undefined}>
                   <Ionicons name="arrow-redo-outline" size={20} color="#000" />
                 </TouchableOpacity>
               </View>
@@ -902,8 +867,7 @@ const NotificationBell = ({
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="relative w-9 h-9 rounded-full items-center justify-center"
-    >
+      className="relative w-9 h-9 rounded-full items-center justify-center">
       <Ionicons name="notifications-outline" size={24} color="#000" />
 
       {count > 0 && (
@@ -1362,6 +1326,63 @@ export default function ConsumerHomeUI() {
     }
   });
 
+  const ChatUnderlay = () => (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "#f8f9fa",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingTop: insets.top + 60,
+      }}>
+      <View style={{ alignItems: "center", paddingHorizontal: 20 }}>
+        <Ionicons
+          name="chatbubbles"
+          size={48}
+          color="#4D70D1"
+          style={{ marginBottom: 16 }}
+        />
+        <Text style={{ fontSize: 24, fontWeight: "600", marginBottom: 8 }}>
+          Messages
+        </Text>
+        <Text
+          style={{
+            fontSize: 16,
+            color: "#666",
+            textAlign: "center",
+            marginBottom: 24,
+          }}>
+          Connect with friends and discover new conversations
+        </Text>
+        <TouchableOpacity
+          style={{
+            backgroundColor: "#4D70D1",
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: 8,
+            marginBottom: 16,
+          }}
+          onPress={() => {
+            // Navigate to actual chat screen or back to center
+            router.push("/(tabs)/chat");
+          }}>
+          <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
+            Open Chats
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            translateX.value = withSpring(0, {
+              damping: 15,
+              stiffness: 160,
+            });
+          }}>
+          <Text style={{ color: "#666", fontSize: 14 }}>← Back to Feed</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   const snapToCenter = () => {
     translateX.value = withSpring(0, { damping: 15, stiffness: 160 });
     tabBarHiddenSV.value = false;
@@ -1391,8 +1412,7 @@ export default function ConsumerHomeUI() {
             rightUnderlayStyle,
             { zIndex: 3 },
           ]}
-          pointerEvents="auto"
-        >
+          pointerEvents="auto">
           <CameraPost onBackToFeed={snapToCenter} active={cameraActive} />
         </Reanimated.View>
 
@@ -1401,8 +1421,7 @@ export default function ConsumerHomeUI() {
             { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
             leftUnderlayStyle,
           ]}
-          pointerEvents="auto"
-        >
+          pointerEvents="auto">
           {/* Chats screen */}
           <Chats />
         </Reanimated.View>
@@ -1414,8 +1433,7 @@ export default function ConsumerHomeUI() {
             feedStyle,
             { zIndex: 1 },
           ]}
-          pointerEvents="auto"
-        >
+          pointerEvents="auto">
           <View className="flex-1 bg-[#F3F4F8]">
             {/* Top bar */}
             <Reanimated.View
@@ -1425,14 +1443,12 @@ export default function ConsumerHomeUI() {
                   height: TOP_BAR_HEIGHT,
                 },
                 headerAnimatedStyle,
-              ]}
-            >
+              ]}>
               <View
                 style={{
                   paddingTop: insets.top - 10,
                   backgroundColor: "white",
-                }}
-              >
+                }}>
                 <View
                   style={{
                     height: NAV_BAR_CONTENT_HEIGHT,
@@ -1440,16 +1456,14 @@ export default function ConsumerHomeUI() {
                     alignItems: "center",
                     justifyContent: "space-between",
                     paddingHorizontal: 12,
-                  }}
-                >
+                  }}>
                   <Text className="text-2xl font-bold">LYNKD</Text>
                   <View className="flex-row items-center space-x-3">
                     <TouchableOpacity
                       className="w-9 h-9 rounded-full items-center justify-center"
                       onPress={() => {
                         router.push("/(search)");
-                      }}
-                    >
+                      }}>
                       <Ionicons name="search-outline" size={24} color="#000" />
                     </TouchableOpacity>
                     <NotificationBell
@@ -1571,8 +1585,7 @@ export default function ConsumerHomeUI() {
             right: 0,
             bottom: 0,
             zIndex: 20,
-          }}
-        >
+          }}>
           {/* Animated container to move the button up/down when tab bar hides/shows */}
           <FloatingPostButton
             insets={insets}
@@ -1627,12 +1640,10 @@ function FloatingPostButton({
       <View
         className="items-end pr-4"
         style={{ paddingBottom: insets.bottom }}
-        pointerEvents="box-none"
-      >
+        pointerEvents="box-none">
         <Pressable
           onPress={() => onPressFab?.()}
-          className="w-14 h-14 rounded-full overflow-hidden items-center justify-center shadow-lg"
-        >
+          className="w-14 h-14 rounded-full overflow-hidden items-center justify-center shadow-lg">
           <BlurView
             intensity={60}
             tint="dark"

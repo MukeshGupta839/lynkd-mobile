@@ -1,6 +1,5 @@
-// components/Product/QuickActions.tsx
 import { usePathname, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, Pressable, Text, View } from "react-native";
 
 type TabKey = "products" | "services" | "bookings" | "pay";
@@ -12,7 +11,6 @@ const TAB_COLORS: Record<TabKey, string> = {
   pay: "#532ADB",
 };
 
-// Active/Inactive images
 const TAB_IMAGES: Record<TabKey, { active: any; inactive: any }> = {
   products: {
     active: require("../../assets/images/productquick1.png"),
@@ -98,9 +96,7 @@ function ActionCard({
       accessibilityLabel={`Open ${tab}`}
       accessibilityState={{ selected: active }}
       className="flex-1 min-w-0 aspect-square rounded-xl items-center justify-center p-2"
-      style={{
-        backgroundColor: bgColor,
-      }}>
+      style={{ backgroundColor: bgColor }}>
       <Image source={imageSource} className="w-9 h-9" resizeMode="contain" />
       <LabelForTab tab={tab} active={active} />
     </Pressable>
@@ -111,7 +107,9 @@ function ActionCard({
 export default function QuickActions() {
   const router = useRouter();
   const pathname = usePathname();
-  const [active, setActive] = useState<TabKey>("products");
+
+  // 👇 null initially (no wrong default)
+  const [active, setActive] = useState<TabKey | null>(null);
 
   useEffect(() => {
     if (!pathname) return;
@@ -120,6 +118,9 @@ export default function QuickActions() {
     else if (pathname.includes("/bookings")) setActive("bookings");
     else if (pathname.includes("/pay")) setActive("pay");
   }, [pathname]);
+
+  // ⏳ render nothing until active is known → avoids flicker
+  if (!active) return null;
 
   return (
     <View>
