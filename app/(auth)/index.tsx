@@ -4,6 +4,7 @@ import { apiCall } from "@/lib/api/apiService";
 import useAuthTokenStore from "@/stores/authTokenStore";
 import { getAuth } from "@/utils/firebase";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
+import { appleAuthAndroid } from '@invertase/react-native-apple-authentication';
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { router } from "expo-router";
@@ -24,7 +25,6 @@ import {
   Text,
   TextInput,
 } from "react-native-paper";
-import { v4 as uuid } from "uuid";
 import GoogleLogo from "../../assets/svg/google-icon-logo.svg";
 
 // Configure Google Sign In
@@ -222,6 +222,10 @@ const UsernameSetupContent = ({
   );
 };
 
+
+
+
+
 const FormContent = ({
   email,
   password,
@@ -239,6 +243,20 @@ const FormContent = ({
   onEmailPasswordLogin,
   socialLoginError,
 }: FormContentProps) => {
+  const forgotPasswordHandler = async () => {
+    const auth = await getAuth();
+    try {
+      if (!email.current) {
+        Alert.alert('Email Required', 'Please enter your email address to reset your password.');
+        return;
+      }
+      await auth.sendPasswordResetEmail(email.current);
+      Alert.alert('Password Reset Email Sent', 'Please check your email for the password reset link.');
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      Alert.alert('Error', 'Failed to send password reset email.');
+    }
+  };
   return (
     <View className="bg-white p-4 rounded-2xl">
       <RNText className="text-black text-2xl pt-5 pb-10 font-worksans-500">
@@ -303,7 +321,7 @@ const FormContent = ({
         )}
       </View>
 
-      <TouchableOpacity className="my-3 self-end">
+      <TouchableOpacity className="my-3 self-end" onPress={forgotPasswordHandler}>
         <RNText className="text-gray-400">Forgot Password?</RNText>
       </TouchableOpacity>
 
@@ -779,25 +797,11 @@ export default function LoginScreen() {
   };
 
   // Apple Sign In handler
+  // Apple Sign In handler
   const handleAppleSignIn = async () => {
     try {
       setSocialLoginError("");
       setDisableButton(true);
-
-      // Check if Apple Authentication is available
-      const isAvailable = await AppleAuthentication.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert("Apple Sign-In is not supported on this device.");
-        return;
-      }
-
-      // Perform Apple Sign In
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
 
       // Get Firebase auth instance
       const auth = await getAuth();
@@ -805,14 +809,72 @@ export default function LoginScreen() {
         throw new Error("Firebase Auth not available");
       }
 
-      // Create Apple credential for Firebase
+      // Import auth module for providers
       const authModule = await import("@react-native-firebase/auth");
-      const AppleAuthProvider = authModule.default.AppleAuthProvider;
-      const appleCredential = AppleAuthProvider.credential(
-        credential.identityToken!,
-        uuid()
-      );
 
+      // Generate a random nonce using Math.random (React Native compatible)
+      const generateNonce = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 32; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+      };
+
+      let idToken: string;
+      let nonce: string;
+
+      if (Platform.OS === 'android') {
+        // Android implementation using @invertase/react-native-apple-authentication
+
+        if (!appleAuthAndroid.isSupported) {
+          Alert.alert('Apple Sign-In is not supported on this device.');
+          return;
+        }
+
+        // Generate secure, random values for state and nonce
+        const rawNonce = generateNonce();
+        const state = generateNonce();
+
+        // Configure the request
+        appleAuthAndroid.configure({
+          clientId: 'com.lynkd.socialcommerce.apple',
+          redirectUri: 'https://socialecom-a3615.firebaseapp.com/__/auth/handler',
+          responseType: appleAuthAndroid.ResponseType.ALL,
+          scope: appleAuthAndroid.Scope.ALL,
+          nonce: rawNonce,
+          state,
+        });
+
+        // Open the browser window for user sign in
+        const response = await appleAuthAndroid.signIn();
+        idToken = response.id_token;
+        nonce = rawNonce;
+      } else {
+        // iOS implementation
+        const isAvailable = await AppleAuthentication.isAvailableAsync();
+        if (!isAvailable) {
+          Alert.alert("Apple Sign-In is not supported on this device.");
+          return;
+        }
+
+        nonce = generateNonce();
+
+        // Perform Apple Sign In
+        const credential = await AppleAuthentication.signInAsync({
+          requestedScopes: [
+            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          ],
+        });
+
+        idToken = credential.identityToken!;
+      }
+
+      // Create Apple credential for Firebase
+      const AppleAuthProvider = authModule.default.AppleAuthProvider;
+      const appleCredential = AppleAuthProvider.credential(idToken, nonce);
       const userCredential = await auth.signInWithCredential(appleCredential);
       const firebaseUser = userCredential.user;
 
@@ -859,16 +921,6 @@ export default function LoginScreen() {
       const formData = new FormData();
       formData.append("uid", firebaseUser.uid);
       formData.append("email", firebaseUser.email!);
-
-      // If we have fullName from Apple
-      if (credential.fullName) {
-        if (credential.fullName.givenName) {
-          formData.append("firstName", credential.fullName.givenName);
-        }
-        if (credential.fullName.familyName) {
-          formData.append("lastName", credential.fullName.familyName);
-        }
-      }
 
       // Call the backend to get or create the user
       const response = await apiCall("/api/users/create/google", "POST", formData);
