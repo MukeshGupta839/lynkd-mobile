@@ -1,5 +1,7 @@
 import BlockUserPopup from "@/components/BlockUserPopup";
 import CameraPost from "@/components/CameraPost";
+import Chats from "@/components/chat/Chat";
+import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
 import CreatePostHeader from "@/components/CreatePostHeader";
 import { FacebookStyleImage } from "@/components/FacebookStyleImage";
 import { MultiImageCollage } from "@/components/MultiImageCollage";
@@ -8,7 +10,7 @@ import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
 import { POSTS } from "@/constants/HomeData";
 import { cameraActiveSV, tabBarHiddenSV } from "@/lib/tabBarVisibility";
-import { FontAwesome6 } from "@expo/vector-icons";
+import { FontAwesome6, MaterialIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { BlurView } from "expo-blur";
@@ -410,12 +412,14 @@ const PostCard = ({
   onLongPress,
   isGestureActive = false,
   panGesture,
+  onPressComments,
 }: {
   item: any;
   isVisible: boolean;
   onLongPress?: (item: any) => void;
   isGestureActive?: boolean;
   panGesture: GestureType;
+  onPressComments?: (post: any) => void;
 }) => {
   const router = useRouter();
   const navigating = useRef(false);
@@ -493,7 +497,7 @@ const PostCard = ({
       onLongPress={() => onLongPress?.(item)}
       delayLongPress={500}
     >
-      <View className="px-3 mt-2 bg-[#F3F4F8]">
+      <View className="px-3 mt-2 bg-gray-100">
         <View
           style={{
             borderRadius: 16,
@@ -734,17 +738,6 @@ const PostCard = ({
               <GestureDetector gesture={openProductTap}>
                 <TouchableOpacity
                   className="px-3"
-                  // onPress={
-                  //   isGestureActive
-                  //     ? undefined
-                  //     : () => {
-                  //         console.log(
-                  //           "Affiliation TouchableOpacity pressed - gesture active:",
-                  //           isGestureActive
-                  //         );
-                  //         goToProductSafe();
-                  //       }
-                  // }
                   onLongPress={() => onLongPress?.(item)}
                   delayLongPress={500}
                   disabled={isGestureActive}
@@ -825,11 +818,17 @@ const PostCard = ({
                           className="self-start"
                           disabled={isGestureActive}
                         >
-                          <Ionicons
+                          <MaterialIcons
+                            name="add-shopping-cart"
+                            size={24}
+                            color="#707070"
+                          />
+
+                          {/* <Ionicons
                             name="cart-outline"
                             size={24}
                             color="#000"
-                          />
+                          /> */}
                         </TouchableOpacity>
                       </View>
                       <Text className="text-sm text-gray-600 mb-2 leading-4">
@@ -865,7 +864,13 @@ const PostCard = ({
                 <TouchableOpacity
                   className="flex-row items-center"
                   disabled={isGestureActive}
-                  onPress={isGestureActive ? undefined : undefined}
+                  onPress={
+                    isGestureActive
+                      ? undefined
+                      : () => {
+                          onPressComments?.(item); // <-- OPEN SHEET HERE
+                        }
+                  }
                 >
                   <Ionicons name="chatbubble-outline" size={18} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
@@ -1133,6 +1138,25 @@ export default function ConsumerHomeUI() {
   const startX = useSharedValue(0);
   const isGestureActive = useSharedValue(false);
   const [isGestureActiveState, setIsGestureActiveState] = useState(false);
+  const [commentsPost, setCommentsPost] = useState<any>(null);
+  const [shouldNavigateToChat, setShouldNavigateToChat] = useState(false);
+
+  // ref to control the modal
+  const commentsRef = useRef<CommentsSheetHandle>(null);
+
+  // open handler passed down to PostCard
+  const openComments = useCallback((post: any) => {
+    setCommentsPost(post);
+    commentsRef.current?.present();
+  }, []);
+
+  // Handle navigation to chat after gesture completes
+  useEffect(() => {
+    if (shouldNavigateToChat) {
+      router.push("/(tabs)/chat");
+      setShouldNavigateToChat(false);
+    }
+  }, [shouldNavigateToChat, router]);
 
   // Debug gesture state
   useEffect(() => {
@@ -1207,6 +1231,7 @@ export default function ConsumerHomeUI() {
         } else if (translationX < -swipeThreshold || vx < -velocityThreshold) {
           // swipe left -> Chat underlay
           targetPosition = -width;
+          scheduleOnRN(setShouldNavigateToChat, true);
         } else {
           targetPosition = 0; // stay centered
         }
@@ -1337,67 +1362,6 @@ export default function ConsumerHomeUI() {
     }
   });
 
-  const ChatUnderlay = () => (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: "#f8f9fa",
-        alignItems: "center",
-        justifyContent: "center",
-        paddingTop: insets.top + 60,
-      }}
-    >
-      <View style={{ alignItems: "center", paddingHorizontal: 20 }}>
-        <Ionicons
-          name="chatbubbles"
-          size={48}
-          color="#4D70D1"
-          style={{ marginBottom: 16 }}
-        />
-        <Text style={{ fontSize: 24, fontWeight: "600", marginBottom: 8 }}>
-          Messages
-        </Text>
-        <Text
-          style={{
-            fontSize: 16,
-            color: "#666",
-            textAlign: "center",
-            marginBottom: 24,
-          }}
-        >
-          Connect with friends and discover new conversations
-        </Text>
-        <TouchableOpacity
-          style={{
-            backgroundColor: "#4D70D1",
-            paddingHorizontal: 24,
-            paddingVertical: 12,
-            borderRadius: 8,
-            marginBottom: 16,
-          }}
-          onPress={() => {
-            // Navigate to actual chat screen or back to center
-            router.push("/(tabs)/chat");
-          }}
-        >
-          <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
-            Open Chats
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => {
-            translateX.value = withSpring(0, {
-              damping: 15,
-              stiffness: 160,
-            });
-          }}
-        >
-          <Text style={{ color: "#666", fontSize: 14 }}>← Back to Feed</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
   const snapToCenter = () => {
     translateX.value = withSpring(0, { damping: 15, stiffness: 160 });
     tabBarHiddenSV.value = false;
@@ -1440,7 +1404,7 @@ export default function ConsumerHomeUI() {
           pointerEvents="auto"
         >
           {/* Chats screen */}
-          <ChatUnderlay />
+          <Chats />
         </Reanimated.View>
 
         {/* FEED ON TOP */}
@@ -1480,10 +1444,20 @@ export default function ConsumerHomeUI() {
                 >
                   <Text className="text-2xl font-bold">LYNKD</Text>
                   <View className="flex-row items-center space-x-3">
-                    <TouchableOpacity className="w-9 h-9 rounded-full items-center justify-center">
+                    <TouchableOpacity
+                      className="w-9 h-9 rounded-full items-center justify-center"
+                      onPress={() => {
+                        router.push("/(search)");
+                      }}
+                    >
                       <Ionicons name="search-outline" size={24} color="#000" />
                     </TouchableOpacity>
-                    <NotificationBell count={12} onPress={() => {}} />
+                    <NotificationBell
+                      count={12}
+                      onPress={() => {
+                        router.push("/(notifications)");
+                      }}
+                    />
                   </View>
                 </View>
               </View>
@@ -1533,6 +1507,7 @@ export default function ConsumerHomeUI() {
                   onLongPress={handleLongPress}
                   isGestureActive={isGestureActiveState}
                   panGesture={panGesture}
+                  onPressComments={openComments}
                 />
               )}
               refreshControl={
@@ -1571,6 +1546,8 @@ export default function ConsumerHomeUI() {
               deleteAction={deletePost}
               user={user}
             />
+
+            <CommentsSheet ref={commentsRef} snapPoints={["40%", "85%"]} />
 
             <ReportPostBottomSheet
               show={reportVisible}

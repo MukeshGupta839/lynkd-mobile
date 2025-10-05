@@ -13,7 +13,8 @@
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.2",
-    "@react-native-async-storage/async-storage": "^1.24.0",
+    "@gorhom/bottom-sheet": "^5.2.6",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/analytics": "^23.3.1",
     "@react-native-firebase/app": "^23.3.1",
     "@react-native-firebase/auth": "^23.3.1",
@@ -78,7 +79,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
-    "@expo/config-plugins": "^6.0.0",
+    "@expo/config-plugins": "~54.0.1",
     "@types/react": "~19.1.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
