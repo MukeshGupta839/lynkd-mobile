@@ -6,7 +6,7 @@ import {
   WishlistItemT,
 } from "@/constants/cart";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   ListRenderItemInfo,
@@ -160,28 +160,34 @@ export default function CartAndWishlistScreen() {
     [insets.bottom]
   );
 
-  const CartListHeader = useMemo(
-    () => () => (
-      <View className="mt-3">
-        <AddressCard />
-      </View>
-    ),
-    []
-  );
+  const CartListHeader = useMemo(() => {
+    const Header = function CartListHeader() {
+      return (
+        <View className="mt-3">
+          <AddressCard />
+        </View>
+      );
+    };
+    Header.displayName = "CartListHeader";
+    return Header;
+  }, []);
 
-  const CartListFooter = useMemo(
-    () => () => (
-      <View className="mt-4">
-        <PriceDetails
-          itemsCount={itemsCount}
-          subtotal={subtotal}
-          discount={discount}
-          tax={tax}
-        />
-      </View>
-    ),
-    [itemsCount, subtotal, discount, tax]
-  );
+  const CartListFooter = useMemo(() => {
+    const Footer = function CartListFooter() {
+      return (
+        <View className="mt-4">
+          <PriceDetails
+            itemsCount={itemsCount}
+            subtotal={subtotal}
+            discount={discount}
+            tax={tax}
+          />
+        </View>
+      );
+    };
+    Footer.displayName = "CartListFooter";
+    return Footer;
+  }, [itemsCount, subtotal, discount, tax]);
 
   // Only use getItemLayout if rows are stable height
   const useFixedRowHeight = false;
@@ -211,22 +217,26 @@ export default function CartAndWishlistScreen() {
         <View className="flex-row items-center">
           <TouchableOpacity
             onPress={() => setTab("cart")}
-            className="flex-1 py-5 items-center justify-center border-black/10">
+            className="flex-1 py-5 items-center justify-center border-black/10"
+          >
             <Text
               className={`text-base font-semibold ${
                 tab === "cart" ? "text-black" : "text-gray-400"
-              }`}>
+              }`}
+            >
               My Cart
             </Text>
           </TouchableOpacity>
           <View className="w-px bg-black/10 self-stretch" />
           <TouchableOpacity
             onPress={() => setTab("wishlist")}
-            className="flex-1 py-5 items-center justify-center">
+            className="flex-1 py-5 items-center justify-center"
+          >
             <Text
               className={`text-base font-semibold ${
                 tab === "wishlist" ? "text-black" : "text-gray-400"
-              }`}>
+              }`}
+            >
               Wishlist
             </Text>
           </TouchableOpacity>
@@ -282,7 +292,8 @@ export default function CartAndWishlistScreen() {
             bottom: (insets.bottom || 0) + TAB_BAR_HEIGHT - 8,
             zIndex: 30,
             paddingHorizontal: 16,
-          }}>
+          }}
+        >
           <View className="bg-white rounded-xl px-4 py-3 flex-row justify-between items-center shadow-md">
             {/* Left: total */}
             <View>
@@ -298,7 +309,8 @@ export default function CartAndWishlistScreen() {
                 /* continue action */
               }}
               activeOpacity={0.9}
-              className="items-center justify-center bg-[#26FF91] rounded-xl px-14 py-4 shadow-sm">
+              className="items-center justify-center bg-[#26FF91] rounded-xl px-14 py-4 shadow-sm"
+            >
               <Text className="text-base font-semibold">Buy Now</Text>
             </TouchableOpacity>
           </View>

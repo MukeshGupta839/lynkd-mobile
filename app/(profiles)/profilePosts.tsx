@@ -1,15 +1,12 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
+  Linking,
+  Platform,
+  Pressable,
   Text,
   TouchableOpacity,
   Vibration,
@@ -18,10 +15,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Icons
-import Entypo from "@expo/vector-icons/Entypo";
-import Feather from "@expo/vector-icons/Feather";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import Octicons from "@expo/vector-icons/Octicons";
 
 // Components
 import BlockUserPopup from "../../components/BlockUserPopup";
@@ -253,131 +249,395 @@ export default function ProfilePosts() {
               );
             }
 
-            // Render regular post (you can create a Post component similar to TextPost)
-            return (
-              <TouchableOpacity
-                activeOpacity={1}
-                onLongPress={() => {
-                  setFocusedPostID(String(item.id));
-                  setPostOptionsVisible(true);
-                }}
-                delayLongPress={500}
-                className="bg-white mb-2 mx-2 rounded-2xl overflow-hidden"
-                key={item.id}
-              >
-                {/* Post Header */}
-                <View className="flex-row items-center p-3">
-                  <TouchableOpacity className="w-13 h-13 rounded-full overflow-hidden mr-3 bg-gray-200">
-                    <Image
-                      source={{
-                        uri:
-                          item.userProfilePic ||
-                          "https://randomuser.me/api/portraits/men/1.jpg",
-                      }}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                      onError={(error) =>
-                        console.log("Image load error:", error)
-                      }
-                      onLoad={() => console.log("Image loaded successfully")}
-                      defaultSource={require("../../assets/images/icon.png")}
-                    />
-                  </TouchableOpacity>
+            // Render regular post with PostCard component
+            const PostCard = ({ item }: { item: Post }) => {
+              const [showFullCaption, setShowFullCaption] = useState(false);
 
-                  <View className="flex-1">
-                    <Text className="text-lg font-semibold text-gray-900">
-                      {item.username}
-                    </Text>
-                  </View>
+              const getHashtagsWithinLimit = (
+                hashtags: string[],
+                limit = 50
+              ) => {
+                let totalLength = 0;
+                if (!hashtags) return [];
 
-                  <TouchableOpacity
-                    className="w-8 h-8 justify-center items-center"
-                    onPress={() => {
-                      setFocusedPostID(String(item.id));
-                      setPostOptionsVisible(true);
-                    }}
-                  >
-                    <Entypo
-                      name="dots-three-horizontal"
-                      size={16}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
-                </View>
+                return hashtags.filter((tag) => {
+                  totalLength += tag.length + 1; // +1 for the # symbol
+                  return totalLength <= limit;
+                });
+              };
 
-                {/* Post Image */}
+              const neededHashtags = getHashtagsWithinLimit(
+                item.post_hashtags || []
+              );
+
+              const openPostOptions = () => {
+                Vibration.vibrate(100);
+                setFocusedPostID(String(item.id));
+                setPostOptionsVisible(true);
+              };
+
+              console.log("item.userProfilePic:", item.userProfilePic);
+
+              // Get profile picture with fallback logic
+              const getProfilePicture = (post: Post) => {
+                if (post.userProfilePic) {
+                  return post.userProfilePic;
+                }
+                // Fallback based on username or default
+                return "https://randomuser.me/api/portraits/men/1.jpg";
+              };
+
+              return (
                 <TouchableOpacity
                   activeOpacity={1}
-                  onLongPress={() => {
-                    setFocusedPostID(String(item.id));
-                    setPostOptionsVisible(true);
-                  }}
+                  onLongPress={openPostOptions}
                   delayLongPress={500}
-                  className="w-full h-80"
                 >
-                  <Image
-                    source={{ uri: item.media_url || item.postImage }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
+                  <View className="bg-gray-100">
+                    <View
+                      style={{
+                        borderRadius: 16,
+                        elevation: Platform.OS === "android" ? 2 : 0,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.12,
+                        shadowRadius: 8,
+                      }}
+                    >
+                      <View
+                        className="bg-white py-3 gap-2.5"
+                        style={{
+                          borderRadius: 16,
+                          overflow: "hidden",
+                        }}
+                      >
+                        {/* Header */}
+                        <View className="flex-row px-3 items-center h-10">
+                          <TouchableOpacity
+                            className="flex-row items-center flex-1 mr-2"
+                            activeOpacity={0.7}
+                          >
+                            <Image
+                              source={{
+                                uri: getProfilePicture(item),
+                              }}
+                              className="w-10 h-10 rounded-full mr-2"
+                              onError={(error) => {
+                                console.log(
+                                  "Profile image load error:",
+                                  error.nativeEvent.error
+                                );
+                                console.log(
+                                  "Profile image URI:",
+                                  getProfilePicture(item)
+                                );
+                              }}
+                              onLoad={() => {
+                                console.log(
+                                  "Profile image loaded successfully:",
+                                  getProfilePicture(item)
+                                );
+                              }}
+                            />
+                            <View>
+                              <View className="flex-row items-center">
+                                <Text className="font-semibold text-lg">
+                                  {item.username}
+                                </Text>
+                                {item.user_id === 1 && (
+                                  <Octicons
+                                    name="verified"
+                                    size={14}
+                                    color="#000"
+                                    style={{ marginLeft: 4 }}
+                                  />
+                                )}
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Media Display */}
+                        <TouchableOpacity
+                          activeOpacity={1}
+                          onLongPress={openPostOptions}
+                          delayLongPress={500}
+                          className="w-full h-80"
+                        >
+                          <Image
+                            source={{ uri: item.media_url }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        </TouchableOpacity>
+
+                        {/* Caption */}
+                        {item.caption && (
+                          <View>
+                            {(() => {
+                              const caption = item.caption || "";
+                              const captionLimit = 150;
+                              const shouldTruncate =
+                                caption.length > captionLimit;
+                              const displayCaption =
+                                shouldTruncate && !showFullCaption
+                                  ? caption.substring(0, captionLimit)
+                                  : caption;
+
+                              return (
+                                <View>
+                                  <Text className="text-sm px-3 text-gray-900">
+                                    {displayCaption
+                                      .split(
+                                        /((?:@|#)[\w.]+|(?:https?:\/\/|www\.)\S+)/gi
+                                      )
+                                      .map((part: string, index: number) => {
+                                        if (part && part.startsWith("@")) {
+                                          return (
+                                            <Text
+                                              key={index}
+                                              className="text-blue-600"
+                                              suppressHighlighting
+                                              onPress={() =>
+                                                router.push(
+                                                  `/(profiles)?mentionedUsername=${part.slice(1)}`
+                                                )
+                                              }
+                                              onLongPress={openPostOptions}
+                                            >
+                                              {part}
+                                            </Text>
+                                          );
+                                        } else if (
+                                          part &&
+                                          part.startsWith("#")
+                                        ) {
+                                          return (
+                                            <Text
+                                              key={index}
+                                              className="text-blue-600"
+                                              suppressHighlighting
+                                              onPress={() =>
+                                                console.log(
+                                                  "Navigate to hashtag:",
+                                                  part
+                                                )
+                                              }
+                                              onLongPress={openPostOptions}
+                                            >
+                                              {part}
+                                            </Text>
+                                          );
+                                        } else if (
+                                          part &&
+                                          /^(https?:\/\/|www\.)/i.test(part)
+                                        ) {
+                                          const url = part.startsWith("www.")
+                                            ? `https://${part}`
+                                            : part;
+                                          return (
+                                            <Text
+                                              key={index}
+                                              className="text-blue-600 underline"
+                                              suppressHighlighting
+                                              onPress={() =>
+                                                Linking.openURL(url)
+                                              }
+                                              onLongPress={openPostOptions}
+                                            >
+                                              {part}
+                                            </Text>
+                                          );
+                                        }
+                                        return part;
+                                      })}
+                                  </Text>
+                                  {shouldTruncate && !showFullCaption && (
+                                    <Pressable
+                                      onPress={() => setShowFullCaption(true)}
+                                      hitSlop={8}
+                                      style={{
+                                        marginLeft: 2,
+                                        alignSelf: "baseline",
+                                      }}
+                                      onLongPress={openPostOptions}
+                                      delayLongPress={500}
+                                    >
+                                      <Text className="text-sm text-gray-500 px-3 font-medium">
+                                        Show more
+                                      </Text>
+                                    </Pressable>
+                                  )}
+
+                                  {shouldTruncate && showFullCaption && (
+                                    <Pressable
+                                      onPress={() => setShowFullCaption(false)}
+                                      hitSlop={8}
+                                      style={{
+                                        marginLeft: 2,
+                                        alignSelf: "baseline",
+                                      }}
+                                      onLongPress={openPostOptions}
+                                      delayLongPress={500}
+                                    >
+                                      <Text className="text-sm text-gray-500 px-3 font-medium">
+                                        Show less
+                                      </Text>
+                                    </Pressable>
+                                  )}
+                                </View>
+                              );
+                            })()}
+                            {item?.post_hashtags?.length ? (
+                              <Text className="text-blue-600 mt-1 px-3">
+                                {neededHashtags.map(
+                                  (tag: string, i: number) => (
+                                    <Text
+                                      key={tag}
+                                      onPress={() =>
+                                        console.log(
+                                          "Navigate to hashtag:",
+                                          "#" + tag
+                                        )
+                                      }
+                                    >
+                                      #{tag}
+                                      {i < neededHashtags.length - 1 ? " " : ""}
+                                    </Text>
+                                  )
+                                )}
+                              </Text>
+                            ) : null}
+                          </View>
+                        )}
+
+                        {/* Affiliation */}
+                        {item.affiliated && item.affiliation && (
+                          <TouchableOpacity
+                            className="px-3"
+                            onLongPress={openPostOptions}
+                            delayLongPress={500}
+                          >
+                            <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
+                              <View
+                                className="basis-1/4 self-stretch relative"
+                                style={{
+                                  borderTopLeftRadius: 6,
+                                  borderBottomLeftRadius: 6,
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <Image
+                                  source={{
+                                    uri: item.affiliation.productImage,
+                                  }}
+                                  style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    left: 0,
+                                  }}
+                                  resizeMode="cover"
+                                />
+                              </View>
+                              <View className="flex-1 justify-between p-3">
+                                <View className="flex-row items-center justify-between mb-2">
+                                  <View className="flex-row flex-1 items-center">
+                                    <Image
+                                      source={{
+                                        uri: item.affiliation.brandLogo,
+                                      }}
+                                      className="w-11 h-11 rounded-full mr-2"
+                                      resizeMode="contain"
+                                    />
+                                    <View className="flex-1">
+                                      <Text className="font-semibold text-sm text-gray-800">
+                                        {item.affiliation.brandName}
+                                      </Text>
+                                      <Text className="font-medium text-sm text-black">
+                                        {item.affiliation.productName}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                  <TouchableOpacity className="self-start">
+                                    <MaterialIcons
+                                      name="add-shopping-cart"
+                                      size={24}
+                                      color="#707070"
+                                    />
+                                  </TouchableOpacity>
+                                </View>
+                                <Text className="text-sm text-gray-600 mb-2 leading-4">
+                                  {item.affiliation.productDescription}
+                                </Text>
+                                <View className="flex-row items-center">
+                                  <Text className="text-sm text-gray-400 line-through mr-2">
+                                    ₹{item.affiliation.productRegularPrice}
+                                  </Text>
+                                  <Text className="text-sm font-bold text-green-600">
+                                    ₹{item.affiliation.productSalePrice}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        )}
+
+                        {/* Actions */}
+                        <View className="flex-row items-center justify-between px-3">
+                          <View className="flex-row items-center gap-x-4">
+                            <TouchableOpacity
+                              className="flex-row items-center"
+                              onPress={() => toggleLike(String(item.id))}
+                            >
+                              <Ionicons
+                                name={
+                                  likedPostIDs.includes(String(item.id))
+                                    ? "heart"
+                                    : "heart-outline"
+                                }
+                                size={20}
+                                color={
+                                  likedPostIDs.includes(String(item.id))
+                                    ? "#CE395F"
+                                    : "#000"
+                                }
+                              />
+                              <Text className="ml-1 text-sm font-medium">
+                                {item.likes_count || 0}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              className="flex-row items-center"
+                              onPress={commentBox}
+                            >
+                              <Ionicons
+                                name="chatbubble-outline"
+                                size={18}
+                                color="#000"
+                              />
+                              <Text className="ml-1 text-sm font-medium">
+                                {item.comments_count || 0}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={handleShare}>
+                              <Ionicons
+                                name="arrow-redo-outline"
+                                size={20}
+                                color="#000"
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
                 </TouchableOpacity>
+              );
+            };
 
-                {/* Post Actions */}
-                <View className="flex-row items-center justify-between p-3">
-                  <View className="flex-row items-center space-x-4">
-                    <TouchableOpacity
-                      className="flex-row items-center space-x-1"
-                      onPress={() => toggleLike(String(item.id))}
-                    >
-                      <MaterialIcons
-                        name={
-                          likedPostIDs.includes(String(item.id))
-                            ? "favorite"
-                            : "favorite-border"
-                        }
-                        size={20}
-                        color={
-                          likedPostIDs.includes(String(item.id))
-                            ? "#ff4757"
-                            : "#666"
-                        }
-                      />
-                      <Text className="text-sm text-gray-600">
-                        {item.likes_count || 0}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      className="flex-row items-center space-x-1"
-                      onPress={commentBox}
-                    >
-                      <MaterialCommunityIcons
-                        name="comment-outline"
-                        size={20}
-                        color="#666"
-                      />
-                      <Text className="text-sm text-gray-600">
-                        {item.comments_count || 0}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={handleShare}>
-                      <Feather name="share" size={20} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Caption */}
-                {item.caption && (
-                  <View className="px-3 pb-3">
-                    <Text className="text-sm text-gray-900">
-                      <Text className="font-semibold">{item.username}</Text>{" "}
-                      {item.caption}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
+            return <PostCard item={item} />;
           }}
           onScrollToIndexFailed={(info) => {
             const wait = new Promise((resolve) => setTimeout(resolve, 500));
@@ -391,9 +651,9 @@ export default function ProfilePosts() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             flexGrow: 1,
-            paddingBottom: 50,
-            paddingTop: 10,
+            paddingBottom: insets.bottom,
           }}
+          contentContainerClassName="gap-2.5 px-3"
         />
       </View>
 

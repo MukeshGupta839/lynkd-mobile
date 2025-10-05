@@ -26,12 +26,28 @@ function DealCard({
   badgeColor = "bg-[#26FF91]",
   textColor = "text-black",
 }: DealItem) {
+  const getBadgeStyle = () => {
+    if (badgeText === "Best Flash Deal") {
+      return { backgroundColor: "#26FF91" }; // Green
+    } else if (badgeText === "Only 1 left") {
+      return { backgroundColor: "#EF4444" }; // Red
+    } else if (badgeText === "LYNKD Choice") {
+      return { backgroundColor: "#26FF91" }; // Green
+    }
+    return { backgroundColor: "#26FF91" };
+  };
+
   return (
-    <View className="flex-1 justify-center items-center">
-      <View className="w-full relative items-center justify-center">
+    <View className="flex-1" style={{ height: "100%" }}>
+      {/* Image Container - Fixed height */}
+      <View
+        className="w-full relative items-center justify-center"
+        style={{ height: "65%" }}
+      >
         {badgeText && (
           <View
-            className={`absolute top-0 left-0 flex-row items-center justify-center px-2 py-1 rounded-full z-10 ${badgeColor}`}
+            className="absolute top-1 left-0 items-center justify-center px-2 py-1 rounded-full z-10"
+            style={{ ...getBadgeStyle(), minHeight: 20 }}
           >
             <Text className={`font-semibold text-xxs ${textColor}`}>
               {badgeText}
@@ -40,35 +56,68 @@ function DealCard({
         )}
         <Image
           source={image}
-          className="w-[90%] aspect-[0.89]"
+          className="w-[85%]"
+          style={{
+            aspectRatio: 1,
+            maxHeight: "85%",
+          }}
           resizeMode="contain"
         />
       </View>
 
-      <Text className="text-sm font-semibold truncate w-full" numberOfLines={1}>
-        {name}
-      </Text>
-      {!!subtitle && (
+      {/* Text Container - Fixed height */}
+      <View
+        className="w-full justify-center"
+        style={{ height: "35%", paddingTop: 4 }}
+      >
         <Text
-          className="text-xs w-full text-gray-500 truncate"
+          className="text-sm font-semibold w-full"
           numberOfLines={1}
+          ellipsizeMode="tail"
+          style={{ fontSize: 13, lineHeight: 16, marginBottom: 2 }}
         >
-          {subtitle}
+          {name}
         </Text>
-      )}
+        {!!subtitle && (
+          <Text
+            className="text-gray-500"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{
+              fontSize: 10,
+              lineHeight: 12,
+              maxWidth: "95%",
+              marginBottom: 4,
+            }}
+          >
+            {subtitle}
+          </Text>
+        )}
 
-      <View className="flex-row items-end">
-        <Text className="text-sm font-bold mr-2 flex-shrink-0">₹{price}</Text>
-        {oldPrice && (
-          <Text className="text-gray-400 text-xs line-through mr-2 flex-shrink-0">
-            ₹{oldPrice}
+        <View className="flex-row items-center flex-wrap">
+          <Text
+            className="font-bold mr-2 flex-shrink-0"
+            style={{ fontSize: 13, lineHeight: 16, color: "#000" }}
+          >
+            ₹{price}
           </Text>
-        )}
-        {discount && (
-          <Text className="text-green-600 text-sm font-bold flex-shrink-0">
-            {discount}
-          </Text>
-        )}
+          {oldPrice && (
+            <Text
+              className="text-gray-400 line-through mr-2 flex-shrink-0"
+              style={{ fontSize: 11, lineHeight: 13 }}
+            >
+              ₹{oldPrice}
+            </Text>
+          )}
+          {discount && (
+            <Text
+              className="text-green-600 font-bold flex-shrink-0"
+              style={{ fontSize: 12, lineHeight: 14 }}
+            >
+              {discount}
+            </Text>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -134,7 +183,12 @@ export default function BestDealsGrid({
                       .map((item, colIndex) => (
                         <View
                           key={item.id || rowIndex * 2 + colIndex}
-                          className="bg-white rounded-xl p-6 w-[48%] aspect-[0.92]"
+                          className="bg-white rounded-xl w-[48%]"
+                          style={{
+                            aspectRatio: 0.92,
+                            padding: 9,
+                            minHeight: 200,
+                          }}
                         >
                           <DealCard {...item} />
                         </View>

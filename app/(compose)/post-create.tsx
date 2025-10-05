@@ -1,21 +1,23 @@
 // PostCreate.tsx - Smart Mention Popover with Auto-positioning
 import { FacebookStyleImage } from "@/components/FacebookStyleImage";
+import { FacebookStyleVideo } from "@/components/FacebookStyleVideo";
 import Mention from "@/components/Mention";
 import ProductModal from "@/components/PostCreation/ProductModal";
 import CreatePostImageViewer from "@/components/Product/CreatePostImageViewer";
-import { USERS } from "@/constants/PostCreation";
+import CircularProgress from "@/components/ProgressBar/CircularProgress";
+import StatusModal from "@/components/StatusModal";
+import { TAGS, USERS } from "@/constants/PostCreation";
 import { useGradualAnimation } from "@/hooks/useGradualAnimation";
 import { Entypo, Ionicons, Octicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   Image,
   ImageSourcePropType,
-  InteractionManager,
   Keyboard,
   Platform,
   Pressable,
@@ -28,18 +30,23 @@ import {
 import { ScrollView } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { scheduleOnRN } from "react-native-worklets";
 import Camera from "../../assets/posts/camera.svg";
 import Cart from "../../assets/posts/cart.svg";
+import Community from "../../assets/posts/community.svg";
 import Gallery from "../../assets/posts/gallery.svg";
 import Location from "../../assets/posts/location.svg";
-import Poll from "../../assets/posts/poll.svg";
 import Send from "../../assets/posts/send.svg";
 
 interface RNFile {
   id?: string;
   uri: string;
   name: string;
-  type: string;
+  type: string; // e.g. 'image/jpeg' | 'video/mp4'
+  width?: number;
+  height?: number;
+  duration?: number;
+  isVideo?: boolean;
 }
 
 const INPUT_LINE_HEIGHT = 20; // keep in sync with TextInput's lineHeight
@@ -58,7 +65,11 @@ interface Product {
   rating: number;
   reviewCount: number;
 }
-const MENTION_RE = /([@#][A-Za-z0-9_]{1,30})/g;
+// Allow zero or more username chars after @/# so partial tokens (eg. "@5" or just "@")
+// are still recognized and highlighted even when there are no matching options.
+// One canonical pattern for mentions (0–30 chars after @/#)
+const MENTION_PATTERN = "[@#][A-Za-z0-9_]{0,30}";
+const MENTION_RE_END = new RegExp(`([@#])([A-Za-z0-9_]{0,30})$`); // for live-detect
 
 const styles = StyleSheet.create({
   base: {
@@ -70,26 +81,88 @@ const styles = StyleSheet.create({
   mention: { color: "#1b74e4" }, // ← no fontWeight change
 });
 
-// split helper (unchanged logic)
-const splitParts = (t: string) => t.split(MENTION_RE);
+// Stable tokenizer (don’t use split with capturing groups)
+export function tokenizeMentions(t: string) {
+  const re = new RegExp(MENTION_PATTERN, "g"); // fresh instance, no shared state
+  const parts: { text: string; isMention: boolean }[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
 
-function HighlightedText({ value }: { value: string }) {
-  const parts = splitParts(value);
+  while ((m = re.exec(t)) !== null) {
+    const start = m.index;
+    const end = start + m[0].length;
+    if (start > last)
+      parts.push({ text: t.slice(last, start), isMention: false });
+    parts.push({ text: m[0], isMention: true });
+    last = end;
+  }
+  if (last < t.length) parts.push({ text: t.slice(last), isMention: false });
+  return parts;
+}
+
+function HighlightedText({
+  value,
+  caretIndex,
+  users,
+  activeHasSuggestions,
+}: {
+  value: string;
+  caretIndex: number;
+  users: { username: string }[]; // same shape as your USERS
+  activeHasSuggestions: boolean; // “mentioning && filteredUsers.length > 0”
+}) {
+  const usernameSet = useMemo(
+    () => new Set(users.map((u) => u.username.toLowerCase())),
+    [users]
+  );
+
+  const parts: { text: string; isBlue: boolean }[] = [];
+  const re = new RegExp(MENTION_PATTERN, "g");
+  let last = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = re.exec(value)) !== null) {
+    const start = m.index;
+    const end = start + m[0].length;
+    if (start > last)
+      parts.push({ text: value.slice(last, start), isBlue: false });
+
+    const tok = m[0];
+    const trigger = tok[0];
+    const handle = tok.slice(1);
+    const isActive = caretIndex >= start && caretIndex <= end;
+
+    let isBlue = false;
+    if (trigger === "@") {
+      if (isActive) {
+        // Active, incomplete token → blue only if suggestions exist
+        isBlue = !!activeHasSuggestions;
+      } else {
+        // Completed token → blue only if it matches a known user exactly
+        isBlue = usernameSet.has(handle.toLowerCase());
+      }
+    } else if (trigger === "#") {
+      // keep your existing hashtag behavior (always blue). If you want the same gating, copy the @ logic here.
+      isBlue = true;
+    }
+
+    parts.push({ text: tok, isBlue });
+    last = end;
+  }
+  if (last < value.length)
+    parts.push({ text: value.slice(last), isBlue: false });
+
   return (
     <Text
       style={styles.base}
       allowFontScaling={false}
-      // Android: keep the same break algorithm as TextInput
       textBreakStrategy="simple"
     >
-      {parts.map((part, i) => {
-        const isMention = part.startsWith("@") || part.startsWith("#");
-        return (
-          <Text key={i} style={isMention ? styles.mention : undefined}>
-            {part}
-          </Text>
-        );
-      })}
+      {parts.map((p, i) => (
+        <Text key={i} style={p.isBlue ? styles.mention : undefined}>
+          {p.text}
+        </Text>
+      ))}
       {"\u200B"}
     </Text>
   );
@@ -105,9 +178,14 @@ export default function PostCreate() {
   const [, setDisablePostButton] = useState(true);
   const [, setKeyboardHeight] = useState(0);
   const [, setScrollOffset] = useState(0);
+  const [statusOpen, setStatusOpen] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [loader, setLoader] = useState(false);
+  // NEW state (top of component)
+  const [mode, setMode] = useState<"length" | "posting">("length");
+  const [postingProgress, setPostingProgress] = useState(0);
 
   // Refs for managing transitions
   const keyboardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,6 +202,29 @@ export default function PostCreate() {
     start: 0,
     end: 0,
   });
+  // keep your existing length-mode variables
+  const LIMIT = 300;
+  const WARN_AT = 290;
+  const remaining = LIMIT - text.length;
+  const pct = Math.min(1, text.length / LIMIT);
+  const isRed = text.length > LIMIT;
+  const ringColor = isRed
+    ? "#FF3B30"
+    : text.length >= WARN_AT
+      ? "#FF9500"
+      : "#000";
+  const hideRing = isRed && Math.abs(remaining) > 9; // your rule
+
+  // Derived for render
+  const headerProgress = mode === "posting" ? postingProgress : pct;
+  const headerPgColor = mode === "posting" ? "#000" : ringColor;
+  const headerBgColor =
+    mode === "posting" ? "rgba(0,0,0,0.08)" : "rgba(0,0,0,0.15)";
+  const headerDuration = mode === "posting" ? 180 : 120;
+  const headerText =
+    mode === "posting" ? "" : text.length >= WARN_AT ? String(remaining) : "";
+  const headerShowRing = mode === "posting" ? true : !hideRing; // always show ring while posting
+  const headerTextSize = mode === "posting" ? 0 : hideRing ? 12 : 8; // no text during posting
 
   // caret measurement
   const inputRef = useRef<TextInput>(null);
@@ -137,14 +238,38 @@ export default function PostCreate() {
     height: 0,
   });
 
+  const looksLikeVideo = (nameOrUri: string) =>
+    /\.(mp4|mov|m4v|webm|3gp|mkv)$/i.test(nameOrUri);
+
   const normalizeUri = (u: string) => u.split("?")[0];
   // assetKey helper removed (not used)
+
+  type MediaLock = "image" | "video" | null;
+  const [mediaLock, setMediaLock] = useState<MediaLock>(null);
+
+  // helpers
+  const hasVideo = image.length === 1 && !!image[0]?.isVideo;
 
   const keyboardPadding = useAnimatedStyle(() => {
     return {
       paddingBottom: kbHeight.value,
     };
   }, [kbHeight]);
+
+  // Drive the header ring while posting (up to 0.9, finish on success)
+  useEffect(() => {
+    if (mode !== "posting") return;
+    let id: any;
+    setPostingProgress(0.1); // quick start
+
+    id = setInterval(() => {
+      setPostingProgress((p) => Math.min(p + 0.05, 0.9)); // ease towards 90%
+    }, 120);
+
+    return () => {
+      if (id) clearInterval(id);
+    };
+  }, [mode]);
 
   // Improved keyboard handling with focus management
   useEffect(() => {
@@ -185,25 +310,26 @@ export default function PostCreate() {
     };
   }, []);
 
+  // Stable keyboard dismissal (no InteractionManager)
+  const nextTick = (cb: () => void) => {
+    // prefer worklets scheduler if available, else rAF x2
+    if (typeof scheduleOnRN === "function") {
+      scheduleOnRN(cb);
+    } else {
+      requestAnimationFrame(() => requestAnimationFrame(cb));
+    }
+  };
+
   // Stable keyboard dismissal
   const dismissKeyboardAndWait = useCallback((): Promise<void> => {
     return new Promise<void>((resolve) => {
-      if (keyboardTimeoutRef.current) {
-        clearTimeout(keyboardTimeoutRef.current);
-      }
-
-      // Mark that we're transitioning
+      if (keyboardTimeoutRef.current) clearTimeout(keyboardTimeoutRef.current);
       setKeyboardVisible(false);
       setKeyboardHeight(0);
-
       Keyboard.dismiss();
-
-      // Use InteractionManager for better timing
-      InteractionManager.runAfterInteractions(() => {
+      nextTick(() => {
         keyboardTimeoutRef.current = setTimeout(
-          () => {
-            resolve();
-          },
+          () => resolve(),
           Platform.OS === "ios" ? 150 : 100
         );
       });
@@ -226,37 +352,83 @@ export default function PostCreate() {
     return `meta:${name}|${size}|${a.width}x${a.height}`;
   }
 
-  const pickImage = async () => {
+  const pickMedia = async () => {
     // Ensure keyboard is dismissed before opening picker
     await dismissKeyboardAndWait();
 
+    // If images are already selected, we *disable* video picking by only allowing images
+    const mediaTypes: ImagePicker.MediaType[] =
+      mediaLock === "image" ? ["images"] : ["images", "videos"];
+
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images", "videos", "livePhotos"],
+      mediaTypes,
       quality: 1,
     });
 
     if (result.canceled) return;
 
-    const existingIds = new Set(image.map((f) => f.id ?? normalizeUri(f.uri)));
     const files: RNFile[] = [];
+    const existingIds = new Set(image.map((f) => f.id ?? normalizeUri(f.uri)));
 
+    // normalize picker assets -> RNFile
     for (const a of result.assets) {
       const id = await fingerprintAsset(a);
       if (existingIds.has(id)) continue;
-      existingIds.add(id);
 
-      const nameFromUri = a.uri.split("/").pop() || "image.jpg";
+      const nameFromUri = a.uri.split("/").pop() || "media";
       const name = a.fileName ?? nameFromUri;
-      const ext = (name.split(".").pop() || "jpg").toLowerCase();
-      const type = a.type ?? `image/${ext}`;
+      const ext = (name.split(".").pop() || "").toLowerCase();
 
-      files.push({ id, uri: a.uri, name, type });
+      const pickerKind = (a.type || "").toLowerCase();
+      const inferredVideo =
+        pickerKind === "video" ||
+        looksLikeVideo(name) ||
+        looksLikeVideo(a.uri) ||
+        typeof (a as any).duration === "number";
+
+      const mime = inferredVideo
+        ? `video/${ext || "mp4"}`
+        : `image/${ext || "jpeg"}`;
+
+      files.push({
+        id,
+        uri: a.uri,
+        name,
+        type: mime,
+        width: a.width ?? undefined,
+        height: a.height ?? undefined,
+        duration: (a as any).duration ?? undefined,
+        isVideo: inferredVideo,
+      });
     }
 
-    if (files.length) {
-      setImage((prev) => [...prev, ...files]);
-      setDisablePostButton(false);
+    if (!files.length) return;
+
+    // ⬇️ Core rules
+    const pickedHasVideo = files.some((f) => f.isVideo);
+
+    if (pickedHasVideo) {
+      // 1) Only one video allowed → pick the last video and REPLACE any previous media
+      const lastVideo = [...files].reverse().find((f) => f.isVideo)!;
+      setImage([lastVideo]);
+      setMediaLock("video"); // still allow switching to images later; Gallery will allow both
+    } else {
+      // 2) Only images picked
+      if (hasVideo) {
+        // If a video was selected, replace it with images and DISABLE video from now on
+        setImage(files);
+        setMediaLock("image"); // Gallery will accept only images from now on
+      } else if (mediaLock === "image") {
+        // Already in image mode → append images
+        setImage((prev) => [...prev, ...files]);
+      } else {
+        // No media yet → start image mode
+        setImage(files);
+        setMediaLock("image");
+      }
     }
+
+    setDisablePostButton(false);
   };
 
   // Enhanced bottom padding calculation
@@ -336,16 +508,13 @@ export default function PostCreate() {
 
   // 2) parse after both text & selection are current
   useEffect(() => {
-    // if Android hasn’t fired onSelectionChange yet, assume caret at end
     const caret = selection?.start ?? text.length;
     const before = text.slice(0, caret);
-
-    // find an unfinished mention right before the caret
-    const m = before.match(/(^|\s)([@#])([A-Za-z0-9_]{0,30})$/);
+    const m = before.match(MENTION_RE_END); // ([@#])([A-Za-z0-9_]{0,30})$
     if (m) {
       setMentioning(true);
-      setMentionTrigger(m[2]);
-      setMentionQuery(m[3]); // <- always in sync with what’s typed
+      setMentionTrigger(m[1]);
+      setMentionQuery(m[2] ?? "");
     } else {
       setMentioning(false);
       setMentionTrigger(null);
@@ -358,8 +527,21 @@ export default function PostCreate() {
     updateCaretPosition();
   }, [updateCaretPosition]);
 
-  const filteredUsers = USERS.filter((u) =>
-    u.username.toLowerCase().startsWith(mentionQuery.toLowerCase())
+  // When the mention UI opens, make sure the text area scrolls up so the
+  // input isn't hidden by the bottom selector; run after interactions for smoothness.
+  useEffect(() => {
+    if (!mentioning) return;
+    nextTick(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    });
+  }, [mentioning]);
+
+  // Use includes so users show up even when typing part of the name, and
+  // be case-insensitive. When mentionQuery is empty, this returns all users.
+  const filteredUsers = (
+    mentionTrigger === "#" ? TAGS.map((t) => ({ username: t.name })) : USERS
+  ).filter((u) =>
+    u.username.toLowerCase().includes(mentionQuery.toLowerCase())
   );
 
   // Absolute popover positioning removed — mentions are rendered in the bottom selector for a stable UX
@@ -372,6 +554,29 @@ export default function PostCreate() {
   const openProductModal = async () => {
     await dismissKeyboardAndWait();
     setShowProductModal(true);
+  };
+
+  const createPost = async () => {
+    // if (!text.trim() && image.length === 0) return;
+
+    setMode("posting");
+    setLoader(true);
+
+    try {
+      // TODO: call your real create API here.
+      // If using axios/fetch with upload progress, set postingProgress to real value (0..1).
+      await new Promise((r) => setTimeout(r, 2000)); // demo wait
+      setPostingProgress(1); // finish the ring
+    } catch (e) {
+      console.log("error creating post:", e);
+      // on failure, optionally flash red, then fall back to length mode
+    } finally {
+      setTimeout(() => {
+        setLoader(false);
+        setMode("length");
+        setPostingProgress(0);
+      }, 200); // tiny delay so users see 100%
+    }
   };
 
   return (
@@ -396,11 +601,11 @@ export default function PostCreate() {
       <StatusBar style="dark" />
       {/* Header */}
       <View
-        className="relative justify-center border-gray-300 px-3"
+        className="flex-row justify-between items-center border-gray-300 px-3"
         style={{ height: 56 }}
       >
         <TouchableOpacity
-          className="absolute flex items-center justify-center z-10 left-3 top-1/2 transform -translate-y-1/2 rounded-full w-9 h-9"
+          className="flex items-center justify-center rounded-full w-9 h-9"
           onPress={() => router.back()}
           accessibilityLabel="Close"
         >
@@ -409,6 +614,20 @@ export default function PostCreate() {
         <Text className="text-2xl text-black font-opensans-semibold text-center">
           Create Post
         </Text>
+        <View className="flex items-center justify-center w-9 h-9">
+          <CircularProgress
+            size={28}
+            strokeWidth={3}
+            progress={headerProgress}
+            pgColor={headerPgColor}
+            bgColor={headerBgColor}
+            duration={headerDuration}
+            text={headerText}
+            textSize={headerTextSize}
+            textColor={headerPgColor}
+            showRing={headerShowRing}
+          />
+        </View>
       </View>
 
       {/* Main container with stable layout */}
@@ -464,7 +683,14 @@ export default function PostCreate() {
                   pointerEvents="none"
                   style={[StyleSheet.absoluteFillObject, { padding: 8 }]} // matches p-2
                 >
-                  <HighlightedText value={text} />
+                  <HighlightedText
+                    value={text}
+                    caretIndex={selection?.start ?? text.length}
+                    users={mentionTrigger === "#" ? filteredUsers : USERS}
+                    activeHasSuggestions={
+                      mentioning && filteredUsers.length > 0
+                    }
+                  />
                 </View>
 
                 {/* Real input on top */}
@@ -482,6 +708,10 @@ export default function PostCreate() {
                       backgroundColor: "transparent",
                     },
                   ]}
+                  onLayout={(e) => {
+                    const { x, y, width, height } = e.nativeEvent.layout;
+                    setInputLayout({ x, y, w: width, h: height });
+                  }}
                   multiline
                   scrollEnabled={false}
                   autoFocus
@@ -496,6 +726,7 @@ export default function PostCreate() {
                   allowFontScaling={false}
                   textBreakStrategy="simple" // ← match the highlighter
                   underlineColorAndroid="transparent"
+                  editable={!loader}
                 />
               </View>
 
@@ -504,12 +735,25 @@ export default function PostCreate() {
 
             {image.length === 1 && (
               <View className="px-3 rounded-xl">
-                <FacebookStyleImage
-                  uri={image[0].uri}
-                  style={{ marginBottom: 0, borderRadius: 12 }}
-                />
+                {image[0].isVideo ? (
+                  <FacebookStyleVideo
+                    uri={image[0].uri}
+                    sourceWidth={image[0].width}
+                    sourceHeight={image[0].height}
+                    style={{ marginBottom: 0, borderRadius: 12 }}
+                    // onLongPress={...} isGestureActive={...} panGesture={...} (optional, same as image)
+                  />
+                ) : (
+                  <FacebookStyleImage
+                    uri={image[0].uri}
+                    style={{ marginBottom: 0, borderRadius: 12 }}
+                  />
+                )}
                 <Pressable
-                  onPress={() => setImage([])}
+                  onPress={() => {
+                    setImage([]);
+                    setMediaLock(null); // allow both again
+                  }}
                   hitSlop={10}
                   style={{
                     position: "absolute",
@@ -529,9 +773,13 @@ export default function PostCreate() {
             {image.length > 1 && (
               <CreatePostImageViewer
                 images={image}
-                removeImage={(idx) =>
-                  setImage((prev) => prev.filter((_, i) => i !== idx))
-                }
+                removeImage={(idx) => {
+                  setImage((prev) => {
+                    const next = prev.filter((_, i) => i !== idx);
+                    if (next.length === 0) setMediaLock(null);
+                    return next;
+                  });
+                }}
               />
             )}
 
@@ -587,21 +835,26 @@ export default function PostCreate() {
           className="bg-white flex flex-row items-center px-3 gap-2"
         >
           {mentioning && filteredUsers.length > 0 ? (
-            <Mention
-              users={filteredUsers}
-              selection={selection}
-              text={text}
-              mentionTrigger={mentionTrigger}
-              setText={setText}
-              setMentioning={setMentioning}
-              setSelection={setSelection}
-              inputRef={inputRef}
-            />
+            // When mentioning, show the Mention UI in place of the bottom selector.
+            // Center it and use ~100% width so the left/right parts of the bar remain visible.
+            <View style={{ width: "100%", alignItems: "center" }}>
+              <Mention
+                users={filteredUsers}
+                selection={selection}
+                text={text}
+                mentionTrigger={mentionTrigger}
+                setText={setText}
+                setMentioning={setMentioning}
+                setSelection={setSelection}
+                inputRef={inputRef}
+              />
+            </View>
           ) : (
+            // Default bottom controls when not mentioning
             <>
               <View className="flex-1 flex-row justify-between p-2.5 items-center bg-[#F2F2F4] rounded-full">
                 <TouchableOpacity
-                  className="items-center justify-center bg-white p-2.5 rounded-full"
+                  className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
                   onPress={async () => {
                     await dismissKeyboardAndWait();
                     console.log("Camera");
@@ -611,14 +864,14 @@ export default function PostCreate() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  className="items-center justify-center bg-white p-2.5 rounded-full"
-                  onPress={pickImage}
+                  className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
+                  onPress={pickMedia}
                 >
                   <Gallery width={22} height={22} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  className="items-center justify-center bg-white p-2.5 rounded-full"
+                  className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
                   onPress={async () => {
                     await dismissKeyboardAndWait();
                     openProductModal();
@@ -629,17 +882,17 @@ export default function PostCreate() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  className="items-center justify-center bg-white p-2.5 rounded-full"
+                  className="items-center justify-center bg-gray-200 p-2.5 rounded-full"
                   onPress={async () => {
                     await dismissKeyboardAndWait();
-                    console.log("Mention");
+                    setStatusOpen(true);
                   }}
                 >
-                  <Poll width={22} height={22} />
+                  <Community width={22} height={22} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  className="items-center justify-center bg-white p-2.5 rounded-full"
+                  className="items-center justify-center bg-gray-200 p-2.5 rounded-full"
                   onPress={async () => {
                     await dismissKeyboardAndWait();
                     console.log("Location");
@@ -651,7 +904,7 @@ export default function PostCreate() {
 
               <TouchableOpacity
                 className="bg-black flex-row rounded-full items-center justify-center px-3 py-2.5 gap-1"
-                onPress={() => console.log("Post")}
+                onPress={createPost}
               >
                 <Send width={16} height={16} />
                 <Text className="text-white text-sm font-opensans-semibold">
@@ -664,6 +917,34 @@ export default function PostCreate() {
 
         {/* Smart Mention is rendered in the bottom selector now */}
       </View>
+      <StatusModal
+        visible={statusOpen}
+        onClose={() => setStatusOpen(false)}
+        showImage={false}
+        showHeading={false}
+        showDescription={true}
+        description="This feature is not available right now"
+        showButton={false}
+      />
+      {/* <StatusModal
+        visible={statusOpen}
+        onClose={() => setStatusOpen(false)}
+        // image
+        showImage={true}
+        // imageSource={failImg} // or leave undefined to use the red X fallback
+
+        // heading
+        showHeading={true}
+        heading="Posting is Failed"
+        // description
+        showDescription={true}
+        description="Due to some technical issue your post failed to upload. Please try again."
+        // button
+        showButton={true}
+        buttonText="Okay"
+        // close when tapping the dim background
+        closeOnBackdrop={true}
+      /> */}
     </View>
   );
 }

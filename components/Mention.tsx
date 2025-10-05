@@ -8,10 +8,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Animated from "react-native-reanimated";
 
 export type MentionUser = {
-  id: string;
-  avatar: string;
+  id?: string;
+  avatar?: string;
   username: string;
 };
 
@@ -37,27 +38,42 @@ export default function Mention({
   inputRef,
 }: Props) {
   return (
-    <View
-      className="border border-gray-200 rounded-md flex-1 overflow-hidden justify-center"
-      style={{ height: Dimensions.get("window").height * 0.15 }}
+    <Animated.View
+      className="bg-white z-10 border border-gray-200 rounded-full overflow-hidden justify-center"
+      style={[
+        // match bottom selector height so it appears identical in-place
+        {
+          height: 60,
+          width: "100%",
+          maxHeight: Dimensions.get("window").height * 0.15,
+        },
+      ]}
     >
       <ScrollView
+        keyboardShouldPersistTaps="always" // ← keep keyboard open on taps
+        keyboardDismissMode="none"
+        horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerClassName="items-start px-2"
+        contentContainerClassName="px-2"
+        contentContainerStyle={{ alignItems: "center", paddingVertical: 6 }}
         className="py-1.5"
       >
-        <View className="flex items-start gap-2">
+        <View className="flex-row items-start gap-2">
           {users.map((user) => (
             <TouchableOpacity
-              key={user.id}
+              key={user.id ?? user.username}
               className="items-center flex-row gap-1 px-1"
+              onPressIn={() => {
+                // ensure the TextInput never loses focus as the tap starts
+                inputRef.current?.focus();
+              }}
               onPress={() => {
                 const caret = selection?.start ?? 0;
                 const before = text.slice(0, caret);
                 const after = text.slice(caret);
                 const trigger = mentionTrigger ?? "@";
                 const newBefore = before.replace(
-                  /[@#]\w*$/,
+                  /[@#][A-Za-z0-9_]*$/,
                   `${trigger}${user.username} `
                 );
                 const next = newBefore + after;
@@ -74,21 +90,24 @@ export default function Mention({
                 }, 100);
               }}
             >
-              <Image
-                source={{ uri: user.avatar }}
-                className="w-10 h-10 rounded-full border-2 border-white"
-              />
+              {user.avatar && (
+                <Image
+                  source={{ uri: user.avatar }}
+                  className="w-10 h-10 rounded-full border-2 border-white"
+                />
+              )}
+
               <Text
-                className="text-sm mt-1 text-[#333] font-medium"
+                className="text-sm text-[#333] font-medium"
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {user.username}
+                {mentionTrigger === "#" ? `#${user.username}` : user.username}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }
