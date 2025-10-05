@@ -1,7 +1,7 @@
 // components/HomeHeader.tsx
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 
 // Badge background colors per tab
@@ -34,7 +34,8 @@ export default function HomeHeader() {
           onPress={() => router.push("/Address/selectAddress")}
           accessibilityRole="button"
           accessibilityLabel="Select address"
-          className="flex-1">
+          className="flex-1"
+        >
           <View className="flex-col">
             {/* top: icon + HOME */}
             <View className="flex-row items-center">
@@ -60,10 +61,19 @@ export default function HomeHeader() {
         {/* RIGHT: bell - vertically centered relative to left's stacked content */}
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={() => router.push(`/Notifications?tab=${activeTab}`)}
+          // the notifications screens live in the (notifications) group folder.
+          // Files inside a group map to top-level routes, so the ecommerce
+          // notifications screen is available at `/ecommerceNotifications`.
+          onPress={() =>
+            router.push({
+              pathname: "/ecommerceNotifications",
+              params: { tab: activeTab },
+            })
+          }
           accessibilityRole="button"
           accessibilityLabel="Open notifications"
-          className="ml-3">
+          className="ml-3"
+        >
           <View className="items-center justify-center">
             <View
               className="rounded-full items-center justify-center"
@@ -71,7 +81,8 @@ export default function HomeHeader() {
                 width: 40,
                 height: 40,
                 backgroundColor: "#EDE8FD4D",
-              }}>
+              }}
+            >
               <MaterialCommunityIcons name="bell" size={22} color="#0F0F2D" />
 
               <View
@@ -85,7 +96,8 @@ export default function HomeHeader() {
                   borderWidth: 2,
                   borderColor: "#fff",
                   paddingHorizontal: 4,
-                }}>
+                }}
+              >
                 <Text className="text-xs font-bold text-white">5</Text>
               </View>
             </View>

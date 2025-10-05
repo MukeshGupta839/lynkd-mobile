@@ -1,22 +1,17 @@
 // app/(tabs)/chat.tsx
-import SearchBar from "@/components/Searchbar"; // your SearchBar component
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useMemo, useState } from "react";
 import {
-  FlatList,
   Image,
-  Modal,
   Pressable,
   Text,
   useWindowDimensions,
   View,
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import Chats from "@/components/chat/Chat";
 import {
   CHAT_LIST_DUMMY,
   ChatItem,
@@ -40,14 +35,16 @@ const StoryBubble = memo<StoryBubbleProps>(
             user.hasStory ? onOpen(user) : onOpenProfile(user.profile_picture)
           }
           accessibilityLabel={`${user.username} story or profile`}
-          className="items-center">
+          className="items-center"
+        >
           {user.hasStory ? (
             <LinearGradient
               colors={["#f58529", "#dd2a7b", "#8134af", "#515bd4"]}
               start={[0, 0]}
               end={[1, 1]}
               className="rounded-full"
-              style={{ padding: 2, borderRadius: 999 }}>
+              style={{ padding: 2, borderRadius: 999 }}
+            >
               <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
                 <Image
                   source={{ uri: user.profile_picture ?? DEFAULT_AVATAR }}
@@ -92,11 +89,13 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
       onPress={() => onOpenChat(otherUser)}
       className="flex-row items-center px-3 py-3 border-b border-gray-100"
       accessibilityRole="button"
-      accessibilityLabel={`Open chat with ${displayName}`}>
+      accessibilityLabel={`Open chat with ${displayName}`}
+    >
       <View className="relative">
         <Pressable
           onPress={() => onOpenProfile(otherUser.profile_picture)}
-          accessibilityLabel={`${displayName} profile`}>
+          accessibilityLabel={`${displayName} profile`}
+        >
           <Image
             source={{ uri: otherUser.profile_picture ?? DEFAULT_AVATAR }}
             className="w-12 h-12 rounded-full"
@@ -108,11 +107,13 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
         <Text
           className={`text-base ${
             item.unread ? "font-bold text-black" : "font-medium text-black"
-          }`}>
+          }`}
+        >
           {displayName}
         </Text>
         <Text
-          className={`text-sm ${item.unread ? "text-black" : "text-gray-500"}`}>
+          className={`text-sm ${item.unread ? "text-black" : "text-gray-500"}`}
+        >
           {item.content
             ? item.content.length > 30
               ? item.content.slice(0, 30) + "..."
@@ -238,7 +239,8 @@ export default function ChatsHome() {
         <Pressable
           className="bg-black px-3 py-2 rounded-full"
           onPress={() => router.push("/chat/UserChatScreen")}
-          accessibilityLabel="Start new chat">
+          accessibilityLabel="Start new chat"
+        >
           <Text className="text-white font-medium">Start New Chat</Text>
         </Pressable>
       </View>
@@ -251,209 +253,5 @@ export default function ChatsHome() {
     "Chats"
   );
 
-  return (
-    <SafeAreaView className="flex-1 bg-white">
-      {/* 1) SearchBar at top */}
-      <View className="px-3 pt-3">
-        <SearchBar
-          value={searchQuery}
-          onChangeText={(val: string) => setSearchQuery(val)}
-          placeholder="Search chats or users"
-        />
-      </View>
-
-      {/* 2) Stories carousel (no heading) */}
-      <View className="mt-3 ">
-        <FlatList
-          horizontal
-          data={storiesData}
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(it: any) => it.id ?? Math.random().toString()}
-          contentContainerStyle={{
-            alignItems: "center",
-            paddingVertical: 6,
-            paddingLeft: 0,
-            paddingRight: 0,
-          }}
-          ListHeaderComponent={<View style={{ width: 12 }} />}
-          ListFooterComponent={<View style={{ width: 12 }} />}
-          renderItem={({ item, index }) => {
-            const isLast = index === storiesData.length - 1;
-            return (
-              <View className={`${!isLast ? "mr-3" : ""} items-center`}>
-                {item.isYou ? (
-                  <Pressable
-                    onPress={() =>
-                      openProfileModal(
-                        LOGGED_USER.profile_picture ?? DEFAULT_AVATAR
-                      )
-                    }
-                    accessibilityLabel="Your profile story"
-                    className="items-center">
-                    <View className="w-16 h-16 rounded-full items-center justify-center">
-                      <View className="w-16 h-16 rounded-full bg-gray-200 items-center justify-center">
-                        <Text className="text-xl text-gray-500">＋</Text>
-                      </View>
-                    </View>
-                    <Text className="text-xs text-gray-600 mt-1">You</Text>
-                  </Pressable>
-                ) : (
-                  <StoryBubble
-                    user={item}
-                    onOpen={openStoryModal}
-                    onOpenProfile={openProfileModal}
-                  />
-                )}
-              </View>
-            );
-          }}
-        />
-      </View>
-
-      {/* 3) Tabs pill */}
-      <View className="px-16 mt-3">
-        <View className="bg-gray-100 rounded-2xl flex-row items-center justify-center p-1 mx-2">
-          <Pressable
-            className={`px-5 py-2 rounded-full ${activeTab === "AI" ? "bg-white shadow" : ""}`}>
-            <Text
-              className={`text-sm ${activeTab === "AI" ? "font-semibold" : "text-gray-600"}`}>
-              AI LYNKD
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setActiveTab("Chats")}
-            className={`px-5 py-2 rounded-full mx-2 ${activeTab === "Chats" ? "bg-white shadow" : ""}`}>
-            <Text
-              className={`text-sm ${activeTab === "Chats" ? "font-semibold" : "text-gray-600"}`}>
-              Chats
-            </Text>
-          </Pressable>
-
-          <Pressable
-            className={`px-5 py-2 rounded-full ${activeTab === "Groups" ? "bg-white shadow" : ""}`}>
-            <Text
-              className={`text-sm ${activeTab === "Groups" ? "font-semibold" : "text-gray-600"}`}>
-              Groups
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {/* 4) Page content: show chats content only when Chats tab active */}
-      {activeTab === "Chats" ? (
-        <View className="flex-1 mt-2">
-          {filteredChats.length > 0 ? (
-            <FlatList
-              data={filteredChats}
-              renderItem={({ item }) => (
-                <ChatRow
-                  item={item}
-                  onOpenChat={openChatWithUser}
-                  onOpenProfile={openProfileModal}
-                />
-              )}
-              keyExtractor={keyExtractor}
-              showsVerticalScrollIndicator={false}
-              initialNumToRender={8}
-              maxToRenderPerBatch={10}
-              windowSize={5}
-              removeClippedSubviews
-            />
-          ) : (
-            emptyComponent
-          )}
-        </View>
-      ) : (
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-base text-gray-500 mb-2">
-            {activeTab === "AI"
-              ? "AI LYNKD content placeholder"
-              : "Groups content placeholder"}
-          </Text>
-        </View>
-      )}
-
-      {/* Profile image modal */}
-      {profileModalVisible && (
-        <Modal
-          visible={profileModalVisible}
-          transparent={false}
-          animationType="slide"
-          onRequestClose={() => setProfileModalVisible(false)}>
-          <SafeAreaView className="flex-1 bg-black">
-            <Pressable
-              className="absolute top-10 left-4 z-50 p-2"
-              onPress={() => setProfileModalVisible(false)}
-              accessibilityLabel="Close profile preview">
-              <Text className="text-white text-2xl">✕</Text>
-            </Pressable>
-
-            {profileModalImage ? (
-              <View className="flex-1 items-center justify-center">
-                <Image
-                  source={{ uri: profileModalImage }}
-                  className="w-full h-full"
-                  resizeMode="contain"
-                />
-              </View>
-            ) : (
-              <View className="flex-1 items-center justify-center">
-                <Text className="text-white">No image</Text>
-              </View>
-            )}
-          </SafeAreaView>
-        </Modal>
-      )}
-
-      {/* Story viewer modal */}
-      {storyModalVisible && (
-        <Modal
-          visible={storyModalVisible}
-          transparent={false}
-          animationType="fade"
-          onRequestClose={() => setStoryModalVisible(false)}>
-          <SafeAreaView className="flex-1 bg-black">
-            <Pressable
-              className="absolute top-8 right-4 z-50 p-2"
-              onPress={() => setStoryModalVisible(false)}
-              accessibilityLabel="Close story">
-              <Text className="text-white text-2xl">✕</Text>
-            </Pressable>
-
-            <View className="flex-1 flex-row">
-              <Pressable
-                onPress={goPrevStory}
-                className="flex-1"
-                style={{ justifyContent: "center" }}
-              />
-              <Pressable
-                onPress={goNextStory}
-                className="flex-1"
-                style={{ justifyContent: "center" }}
-              />
-            </View>
-
-            <View className="absolute inset-0 items-center justify-center">
-              {storyUserStories[storyIndex] ? (
-                <Image
-                  source={{ uri: storyUserStories[storyIndex] }}
-                  className="w-full h-full"
-                  resizeMode="contain"
-                />
-              ) : (
-                <Text className="text-white">No story</Text>
-              )}
-            </View>
-
-            <View className="absolute bottom-8 left-0 right-0 items-center">
-              <Text className="text-white text-sm">
-                {storyIndex + 1} / {storyUserStories.length}
-              </Text>
-            </View>
-          </SafeAreaView>
-        </Modal>
-      )}
-    </SafeAreaView>
-  );
+  return <Chats />;
 }

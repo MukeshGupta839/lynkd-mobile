@@ -48,6 +48,9 @@ module.exports = {
       rotate: {
         "-45": "-45deg",
       },
+      width: {
+        "1/9": "90%",
+      },
     },
   },
   plugins: [],

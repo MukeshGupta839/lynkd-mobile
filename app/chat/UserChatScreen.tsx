@@ -6,9 +6,9 @@ import {
   Ionicons,
   MaterialIcons,
 } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import React, {
   useCallback,
   useEffect,
@@ -21,7 +21,6 @@ import {
   Image,
   InteractionManager,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   NativeSyntheticEvent,
   Platform,
@@ -111,13 +110,15 @@ const MessageBubble = React.memo(function MessageBubble({
         onLayout={(e) => {
           const h = Math.round(e.nativeEvent.layout.height);
           onMeasure?.(message.id, h);
-        }}>
+        }}
+      >
         <View className={`flex-row ${mine ? "justify-end pr-3" : "pl-3"} mb-0`}>
           {/* Avatar intentionally omitted inside bubble area */}
 
           <View
             style={{ maxWidth: maxBubbleWidth }}
-            className={`${mine ? "items-end" : "items-start"}`}>
+            className={`${mine ? "items-end" : "items-start"}`}
+          >
             {message.product ? (
               <View className="bg-white border border-black/100 rounded-3xl p-3">
                 <Text className="font-semibold text-black">
@@ -135,7 +136,8 @@ const MessageBubble = React.memo(function MessageBubble({
                   mine
                     ? "bg-white border border-gray-200 rounded-2xl rounded-br-sm"
                     : "bg-gray-200 rounded-2xl rounded-bl-sm"
-                }`}>
+                }`}
+              >
                 <Text className="text-black">{message.text}</Text>
               </View>
             ) : null}
@@ -143,7 +145,8 @@ const MessageBubble = React.memo(function MessageBubble({
             {message.image ? (
               <Pressable
                 onPress={() => onPressImage?.(message.image)}
-                className="mt-2">
+                className="mt-2"
+              >
                 <Image
                   source={{ uri: message.image }}
                   className="w-48 h-36 rounded-lg"
@@ -167,7 +170,8 @@ const MessageBubble = React.memo(function MessageBubble({
             alignItems: "center",
             marginTop: timeMarginTop,
             marginBottom: timeMarginBottom,
-          }}>
+          }}
+        >
           <Text className="text-xs text-gray-400">{timeText}</Text>
         </View>
       ) : null}
@@ -181,25 +185,18 @@ MessageBubble.displayName = "MessageBubble";
    --------------------------- */
 export default function UserChatScreen() {
   const router = useRouter();
-  const {
-    userId,
-    username,
-    profilePicture,
-    loggedUserId,
-    loggedUsername,
-    loggedAvatar,
-  } = useLocalSearchParams<{
-    userId?: string;
-    username?: string;
-    profilePicture?: string;
-    loggedUserId?: string;
-    loggedUsername?: string;
-    loggedAvatar?: string;
-  }>();
+  const { userId, username, profilePicture, loggedUserId, loggedUsername } =
+    useLocalSearchParams<{
+      userId?: string;
+      username?: string;
+      profilePicture?: string;
+      loggedUserId?: string;
+      loggedUsername?: string;
+      loggedAvatar?: string;
+    }>();
 
   const currentUserId = loggedUserId ?? "me";
   const currentUsername = loggedUsername ?? "You";
-  const currentAvatar = loggedAvatar ?? DEFAULT_AVATAR;
 
   const chattingUser = {
     userId: userId ?? "other",
@@ -308,12 +305,15 @@ export default function UserChatScreen() {
       if (persistTimerRef.current) {
         clearTimeout(persistTimerRef.current);
       }
-      persistTimerRef.current = setTimeout(() => {
-        AsyncStorage.setItem(cacheKey, JSON.stringify(nextMessages)).catch(
-          (e) => {
-            console.warn("Save cache failed (batched)", e);
-          }
-        );
+      persistTimerRef.current = setTimeout(async () => {
+        try {
+          await SecureStore.setItemAsync(
+            cacheKey,
+            JSON.stringify(nextMessages)
+          );
+        } catch (e) {
+          console.warn("Save cache failed (batched)", e);
+        }
         persistTimerRef.current = null;
       }, 400);
     },
@@ -325,7 +325,7 @@ export default function UserChatScreen() {
     let mounted = true;
     const load = async () => {
       try {
-        const raw = await AsyncStorage.getItem(cacheKey);
+        const raw = await SecureStore.getItemAsync(cacheKey);
         if (raw && mounted) {
           const parsed: Message[] = JSON.parse(raw);
           if (Array.isArray(parsed)) {
@@ -361,10 +361,7 @@ export default function UserChatScreen() {
     };
   }, [cacheKey, chattingUser.userId, chattingUser.username]);
 
-  // helper: fingerprint for uniqueness
-  const normalizeUri = (u: string) => u.split("?")[0];
-  const assetKey = (a: ImagePicker.ImagePickerAsset) =>
-    a.assetId ?? normalizeUri(a.uri);
+  // helper: fingerprint for uniqueness (removed unused assetKey helper)
 
   // helper to reliably scroll to newest (index 0) after layout finishes
   const scrollToNewest = useCallback((animated = true) => {
@@ -376,7 +373,7 @@ export default function UserChatScreen() {
             animated,
             viewPosition: 0,
           });
-        } catch (err) {
+        } catch {
           try {
             flatListRef.current?.scrollToOffset({ offset: 0, animated });
           } catch {
@@ -412,7 +409,7 @@ export default function UserChatScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images",
         quality: 0.9,
       });
       if (result.canceled) return;
@@ -435,8 +432,8 @@ export default function UserChatScreen() {
         return next;
       });
       setShowAttachmentStrip(false);
-    } catch (err) {
-      console.warn("pickImage error", err);
+    } catch {
+      console.warn("pickImage error");
     }
   }, [currentUserId, currentUsername, persistBatched, dismissKeyboardAndWait]);
 
@@ -451,7 +448,7 @@ export default function UserChatScreen() {
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images", "videos"],
         quality: 0.9,
       });
       if (result.canceled) return;
@@ -475,8 +472,8 @@ export default function UserChatScreen() {
       });
 
       setShowAttachmentStrip(false);
-    } catch (err) {
-      console.warn("takePhoto error", err);
+    } catch {
+      console.warn("takePhoto error");
     }
   }, [currentUserId, currentUsername, persistBatched, dismissKeyboardAndWait]);
 
@@ -823,24 +820,24 @@ export default function UserChatScreen() {
     const tailDepth = 14;
     const ts = 0;
     const te = Math.min(tailWidth, w - radius);
-    const cx = (ts + te) / 4;
+    const cx = ts;
     const h = cardHeight;
     const td = tailDepth;
 
-    const path = [
-      `M ${radius} 0`,
-      `L ${w - radius} 0`,
-      `A ${radius} ${radius} 0 0 1 ${w} ${radius}`,
-      `L ${w} ${h - radius}`,
-      `A ${radius} ${radius} 0 0 1 ${w - radius} ${h}`,
-      `L ${te} ${h}`,
-      `C ${te - 4} ${h} ${cx + 2} ${h + td} ${cx} ${h + td}`,
-      `C ${cx - 2} ${h + td} ${ts + 4} ${h} ${ts} ${h}`,
-      `L 0 ${h}`,
-      `L 0 ${radius}`,
-      `A ${radius} ${radius} 0 0 1 ${radius} 0`,
-      `Z`,
-    ].join(" ");
+    const path = `
+    M ${radius} 0
+    L ${w - radius} 0
+    A ${radius} ${radius} 0 0 1 ${w} ${radius}
+    L ${w} ${h - radius}
+    A ${radius} ${radius} 0 0 1 ${w - radius} ${h}
+    L ${te} ${h}
+    Q ${te + 26} ${h - 10} ${cx} ${h + td}
+    Q ${ts} ${h} ${ts} ${h}
+    L 0 ${h}
+    L 0 ${radius}
+    A ${radius} ${radius} 0 0 1 ${radius} 0
+    Z
+    `;
 
     return {
       w,
@@ -863,14 +860,16 @@ export default function UserChatScreen() {
             router.back();
           }}
           accessibilityLabel="Back"
-          className="pr-3">
+          className="pr-3"
+        >
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </Pressable>
 
         <Pressable
           onPress={() => setProfileModalVisible(true)}
           accessibilityLabel="Open profile"
-          className="mr-3">
+          className="mr-3"
+        >
           <Image
             source={{ uri: chattingUser.profilePicture }}
             className="w-10 h-10 rounded-full"
@@ -889,7 +888,8 @@ export default function UserChatScreen() {
             onPress={deleteSelected}
             className="px-3"
             accessibilityLabel="Delete selected messages"
-            accessibilityHint="Deletes all selected messages">
+            accessibilityHint="Deletes all selected messages"
+          >
             <Ionicons name="trash" size={22} color="#DC2626" />
           </Pressable>
         ) : (
@@ -897,285 +897,299 @@ export default function UserChatScreen() {
             onPress={() => setShowOptions(true)}
             className="px-2"
             accessibilityLabel="Chat options"
-            accessibilityHint="Opens chat options">
+            accessibilityHint="Opens chat options"
+          >
             <Ionicons name="ellipsis-vertical" size={22} color="#6B7280" />
           </Pressable>
         )}
       </View>
 
-      {/* Messages */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={insets.bottom}
-        style={{ flex: 1 }}>
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          inverted
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          getItemLayout={getItemLayout}
-          style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingHorizontal: 0,
-            paddingTop: Math.round(composerBase * 0.05),
-            paddingBottom: invertedFooterReserve,
-          }}
-          ListHeaderComponent={<View style={{ height: EXTRA_BOTTOM_GAP }} />}
-          ListEmptyComponent={listEmpty}
-          showsVerticalScrollIndicator={false}
-          initialNumToRender={8}
-          maxToRenderPerBatch={12}
-          windowSize={7}
-          // conditional - avoid removeClippedSubviews on iOS inverted lists (can cause issues)
-          removeClippedSubviews={Platform.OS === "android"}
-          keyboardShouldPersistTaps="always"
-        />
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        inverted
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        getItemLayout={getItemLayout}
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingHorizontal: 0,
+          paddingTop: Math.round(composerBase * 0.05),
+          paddingBottom: invertedFooterReserve,
+        }}
+        ListHeaderComponent={<View style={{ height: EXTRA_BOTTOM_GAP }} />}
+        ListEmptyComponent={listEmpty}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={8}
+        maxToRenderPerBatch={12}
+        windowSize={7}
+        // conditional - avoid removeClippedSubviews on iOS inverted lists (can cause issues)
+        removeClippedSubviews={Platform.OS === "android"}
+        keyboardShouldPersistTaps="always"
+      />
 
-        {/* Image preview modal */}
-        <Modal
-          visible={showPreviewImage}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowPreviewImage(false)}>
-          <Pressable
-            className="flex-1 justify-center items-center bg-[rgba(0,0,0,0.6)]"
-            onPress={() => setShowPreviewImage(false)}>
-            {selectedImage ? (
-              <Image
-                source={{ uri: selectedImage }}
-                style={{
-                  width: Math.round(screenWidth * 0.92),
-                  height: Math.round(screenWidth * 0.92 * 0.66),
-                }}
-                className="rounded-lg"
-                resizeMode="contain"
-              />
-            ) : (
-              <View className="bg-white p-4 rounded-lg">
-                <Text>No image</Text>
-              </View>
-            )}
-          </Pressable>
-        </Modal>
-
-        {/* Product modal */}
-        <ProductModal
-          visible={showProductModal}
-          onClose={() => setShowProductModal(false)}
-          onSelectProduct={(p: any) => {
-            onProductSelect(p);
-            setShowProductModal(false);
-          }}
-        />
-
-        {/* Profile image full screen */}
-        <Modal
-          visible={profileModalVisible}
-          transparent={false}
-          animationType="slide"
-          onRequestClose={() => setProfileModalVisible(false)}>
-          <SafeAreaView className="flex-1 bg-black">
-            <Pressable
-              className="absolute top-10 left-4 z-50 p-2"
-              onPress={() => setProfileModalVisible(false)}
-              accessibilityLabel="Close profile preview">
-              <Text className="text-white text-2xl">✕</Text>
-            </Pressable>
-
-            <View className="flex-1 items-center justify-center">
-              <Image
-                source={{ uri: chattingUser.profilePicture }}
-                className="w-full h-full"
-                resizeMode="contain"
-              />
+      {/* Image preview modal */}
+      <Modal
+        visible={showPreviewImage}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPreviewImage(false)}
+      >
+        <Pressable
+          className="flex-1 justify-center items-center bg-[rgba(0,0,0,0.6)]"
+          onPress={() => setShowPreviewImage(false)}
+        >
+          {selectedImage ? (
+            <Image
+              source={{ uri: selectedImage }}
+              style={{
+                width: Math.round(screenWidth * 0.92),
+                height: Math.round(screenWidth * 0.92 * 0.66),
+              }}
+              className="rounded-lg"
+              resizeMode="contain"
+            />
+          ) : (
+            <View className="bg-white p-4 rounded-lg">
+              <Text>No image</Text>
             </View>
-          </SafeAreaView>
-        </Modal>
+          )}
+        </Pressable>
+      </Modal>
 
-        {/* ---------------- Attachment strip + Composer (animated to follow keyboard) ---------------- */}
-        <Animated.View style={[keyboardPadding]} className="bg-transparent">
-          {showAttachmentStrip && (
-            <View className="px-3" style={{ overflow: "visible" }}>
+      {/* Product modal */}
+      <ProductModal
+        visible={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        onSelectProduct={(p: any) => {
+          onProductSelect(p);
+          setShowProductModal(false);
+        }}
+      />
+
+      {/* Profile image full screen */}
+      <Modal
+        visible={profileModalVisible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => setProfileModalVisible(false)}
+      >
+        <SafeAreaView className="flex-1 bg-black">
+          <Pressable
+            className="absolute top-10 left-4 z-50 p-2"
+            onPress={() => setProfileModalVisible(false)}
+            accessibilityLabel="Close profile preview"
+          >
+            <Text className="text-white text-2xl">✕</Text>
+          </Pressable>
+
+          <View className="flex-1 items-center justify-center">
+            <Image
+              source={{ uri: chattingUser.profilePicture }}
+              className="w-full h-full"
+              resizeMode="contain"
+            />
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ---------------- Attachment strip + Composer (animated to follow keyboard) ---------------- */}
+      <Animated.View style={[keyboardPadding]} className="bg-transparent">
+        {showAttachmentStrip && (
+          <View className="px-3" style={{ overflow: "visible" }}>
+            <View
+              style={{
+                width: attachmentCardMemo.w,
+                alignSelf: "center",
+                position: "relative",
+                marginBottom: 8,
+              }}
+            >
+              <Svg
+                width={attachmentCardMemo.w}
+                height={attachmentCardMemo.h + attachmentCardMemo.td}
+                viewBox={`0 0 ${attachmentCardMemo.w} ${
+                  attachmentCardMemo.h + attachmentCardMemo.td
+                }`}
+                style={{ position: "absolute", top: 0, left: 0 }}
+              >
+                <Path d={attachmentCardMemo.path} fill="#EFEFF6" />
+              </Svg>
+
+              {/* Overlay the icons row inside the svg area */}
               <View
                 style={{
                   width: attachmentCardMemo.w,
-                  alignSelf: "center",
-                  position: "relative",
-                  marginBottom: 8,
-                }}>
-                <Svg
-                  width={attachmentCardMemo.w}
-                  height={attachmentCardMemo.h + attachmentCardMemo.td}
-                  viewBox={`0 0 ${attachmentCardMemo.w} ${
-                    attachmentCardMemo.h + attachmentCardMemo.td
-                  }`}
-                  style={{ position: "absolute", top: 0, left: 0 }}>
-                  <Path d={attachmentCardMemo.path} fill="#F3F4F6" />
-                </Svg>
+                  height: attachmentCardMemo.h,
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                }}
+              >
+                <View className="flex-row justify-between">
+                  <View className="items-center">
+                    <Pressable
+                      onPress={pickImage}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <Ionicons name="images" size={22} color="#EC4899" />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Gallery
+                    </Text>
+                  </View>
 
-                {/* Overlay the icons row inside the svg area */}
-                <View
-                  style={{
-                    width: attachmentCardMemo.w,
-                    height: attachmentCardMemo.h,
-                    paddingHorizontal: 12,
-                    paddingVertical: 12,
-                  }}>
-                  <View className="flex-row justify-between">
-                    <View className="items-center">
-                      <Pressable
-                        onPress={pickImage}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <Ionicons name="images" size={22} color="#EC4899" />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Gallery
-                      </Text>
-                    </View>
+                  <View className="items-center">
+                    <Pressable
+                      onPress={takePhoto}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <Ionicons name="camera" size={22} color="#2563EB" />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Camera
+                    </Text>
+                  </View>
 
-                    <View className="items-center">
-                      <Pressable
-                        onPress={takePhoto}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <Ionicons name="camera" size={22} color="#2563EB" />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Camera
-                      </Text>
-                    </View>
+                  <View className="items-center">
+                    <Pressable
+                      onPress={() => setShowProductModal(true)}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <FontAwesome5
+                        name="shopping-cart"
+                        size={16}
+                        color="#111827"
+                      />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Product
+                    </Text>
+                  </View>
 
-                    <View className="items-center">
-                      <Pressable
-                        onPress={() => setShowProductModal(true)}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <FontAwesome5
-                          name="shopping-cart"
-                          size={16}
-                          color="#111827"
-                        />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Product
-                      </Text>
-                    </View>
+                  <View className="items-center">
+                    <Pressable
+                      onPress={() => console.log("attach location")}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <Ionicons
+                        name="location-sharp"
+                        size={22}
+                        color="#DC2626"
+                      />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Location
+                    </Text>
+                  </View>
 
-                    <View className="items-center">
-                      <Pressable
-                        onPress={() => console.log("attach location")}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <Ionicons
-                          name="location-sharp"
-                          size={22}
-                          color="#DC2626"
-                        />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Location
-                      </Text>
-                    </View>
-
-                    <View className="items-center">
-                      <Pressable
-                        onPress={() => console.log("attach document")}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <MaterialIcons
-                          name="insert-drive-file"
-                          size={20}
-                          color="#6366F1"
-                        />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Document
-                      </Text>
-                    </View>
+                  <View className="items-center">
+                    <Pressable
+                      onPress={() => console.log("attach document")}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <MaterialIcons
+                        name="insert-drive-file"
+                        size={20}
+                        color="#6366F1"
+                      />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Document
+                    </Text>
                   </View>
                 </View>
               </View>
             </View>
-          )}
-
-          {/* Composer (dynamic height) */}
-          <View
-            className="px-3 bg-transparent"
-            onLayout={(e) => {
-              const h = Math.round(e.nativeEvent.layout.height);
-              if (h !== composerHeight) setComposerHeight(h);
-            }}>
-            <View className="flex-row items-center">
-              {/* Attach */}
-              <Pressable
-                onPress={toggleAttachmentStrip}
-                accessibilityLabel="Attach"
-                hitSlop={8}
-                className="w-12 h-12 rounded-full bg-black items-center justify-center">
-                <Entypo name="attachment" size={18} color="#fff" />
-              </Pressable>
-
-              {/* Input pill (center) */}
-              <View className="flex-1 mx-3">
-                <View
-                  className="flex-row items-center bg-white rounded-full px-3 border border-gray-200"
-                  style={{ minHeight: 48, maxHeight: 140 }}>
-                  <TextInput
-                    ref={inputRef}
-                    value={text}
-                    onChangeText={onChangeTextHandle}
-                    placeholder="Message"
-                    placeholderTextColor="#9CA3AF"
-                    className="flex-1 text-base text-gray-700"
-                    multiline
-                    accessibilityLabel="Message input"
-                    returnKeyType="send"
-                    blurOnSubmit={false}
-                    onSubmitEditing={() => {
-                      if (!sendingRef.current && text.trim()) handleSend();
-                    }}
-                    onContentSizeChange={onContentSizeChange}
-                    onKeyPress={onKeyPress}
-                    style={{
-                      height: inputHeight ?? undefined,
-                      paddingVertical: 10,
-                      textAlignVertical: "top",
-                    }}
-                  />
-
-                  {/* small emoji / extra action inside pill */}
-                  <Pressable
-                    onPress={() => console.log("Emoji tapped")}
-                    accessibilityLabel="Emoji"
-                    className="w-8 h-8 rounded-full items-center justify-center"
-                    hitSlop={6}>
-                    <Ionicons name="happy-outline" size={20} color="#9CA3AF" />
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* Mic / Send - vector icons */}
-              {text.trim() ? (
-                <Pressable
-                  onPress={() => {
-                    if (!sendingRef.current) handleSend();
-                  }}
-                  accessibilityLabel="Send message"
-                  className="w-12 h-12 rounded-full bg-black items-center justify-center shadow-lg"
-                  hitSlop={8}>
-                  <Ionicons name="paper-plane" size={18} color="#fff" />
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => console.log("Record tapped")}
-                  accessibilityLabel="Voice message"
-                  className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-lg"
-                  hitSlop={8}>
-                  <FontAwesome5 name="microphone" size={18} color="#111827" />
-                </Pressable>
-              )}
-            </View>
           </View>
-        </Animated.View>
-        {/* ---------------- end attachment + composer ---------------- */}
-      </KeyboardAvoidingView>
+        )}
+
+        {/* Composer (dynamic height) */}
+        <View
+          className="px-3 bg-transparent"
+          onLayout={(e) => {
+            const h = Math.round(e.nativeEvent.layout.height);
+            if (h !== composerHeight) setComposerHeight(h);
+          }}
+        >
+          <View className="flex-row items-center">
+            {/* Attach */}
+            <Pressable
+              onPress={toggleAttachmentStrip}
+              accessibilityLabel="Attach"
+              hitSlop={8}
+              className="w-12 h-12 rounded-full bg-black items-center justify-center"
+            >
+              <Entypo name="attachment" size={18} color="#fff" />
+            </Pressable>
+
+            {/* Input pill (center) */}
+            <View className="flex-1 mx-3">
+              <View
+                className="flex-row items-center bg-white rounded-md px-3 border border-gray-200"
+                style={{ minHeight: 48 }}
+              >
+                <TextInput
+                  ref={inputRef}
+                  value={text}
+                  onChangeText={onChangeTextHandle}
+                  placeholder="Message"
+                  placeholderTextColor="#9CA3AF"
+                  className="flex-1 text-base text-gray-700"
+                  multiline
+                  scrollEnabled={true}
+                  accessibilityLabel="Message input"
+                  returnKeyType="send"
+                  submitBehavior="blurAndSubmit"
+                  onSubmitEditing={() => {
+                    if (!sendingRef.current && text.trim()) handleSend();
+                  }}
+                  onContentSizeChange={onContentSizeChange}
+                  onKeyPress={onKeyPress}
+                  style={{
+                    height: inputHeight ?? undefined,
+                    paddingVertical: 10,
+                    textAlignVertical: "top",
+                  }}
+                />
+
+                {/* small emoji / extra action inside pill */}
+                <Pressable
+                  onPress={() => console.log("Emoji tapped")}
+                  accessibilityLabel="Emoji"
+                  className="w-8 h-8 rounded-full items-center justify-center"
+                  hitSlop={6}
+                >
+                  <Ionicons name="happy-outline" size={20} color="#9CA3AF" />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Mic / Send - vector icons */}
+            {text.trim() ? (
+              <Pressable
+                onPress={() => {
+                  if (!sendingRef.current) handleSend();
+                }}
+                accessibilityLabel="Send message"
+                className="w-12 h-12 rounded-full bg-black items-center justify-center shadow-lg"
+                hitSlop={8}
+              >
+                <Ionicons name="paper-plane" size={18} color="#fff" />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => console.log("Record tapped")}
+                accessibilityLabel="Voice message"
+                className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-lg"
+                hitSlop={8}
+              >
+                <FontAwesome5 name="microphone" size={18} color="#111827" />
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </Animated.View>
+      {/* ---------------- end attachment + composer ---------------- */}
 
       {/* Chat options bottom sheet */}
       <ChatOptionsBottomSheet

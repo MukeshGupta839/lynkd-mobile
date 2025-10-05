@@ -10,5 +10,8 @@
     "**/node_modules/**": true
   },
   // ✅ Hide non-project files (like node_modules/android)
-  "java.project.explorer.showNonProjectFiles": false
+  "java.project.explorer.showNonProjectFiles": false,
+  "cSpell.words": [
+    "ecommerce"
+  ]
 }

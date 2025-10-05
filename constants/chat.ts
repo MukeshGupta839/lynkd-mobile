@@ -61,15 +61,6 @@ export const USERS: User[] = [
     stories: ["https://picsum.photos/900/1600?random=31"],
   },
   {
-    id: "4",
-    username: "mad_max",
-    profile_picture: "https://randomuser.me/api/portraits/men/4.jpg",
-    role: "Creator",
-    isOnline: false,
-    hasStory: true,
-    stories: ["https://picsum.photos/900/1600?random=31"],
-  },
-  {
     id: "5",
     username: "mad_max",
     profile_picture: "https://randomuser.me/api/portraits/men/4.jpg",
@@ -89,6 +80,15 @@ export const USERS: User[] = [
   },
   {
     id: "7",
+    username: "mad_max",
+    profile_picture: "https://randomuser.me/api/portraits/men/4.jpg",
+    role: "Creator",
+    isOnline: false,
+    hasStory: true,
+    stories: ["https://picsum.photos/900/1600?random=31"],
+  },
+  {
+    id: "8",
     username: "mad_max",
     profile_picture: "https://randomuser.me/api/portraits/men/4.jpg",
     role: "Creator",

@@ -55,6 +55,21 @@ export const USERS = [
   },
 ];
 
+export const TAGS = [
+  {
+    id: "1",
+    name: "yehKarKeDekha",
+  },
+  {
+    id: "2",
+    name: "reactnative",
+  },
+  {
+    id: "3",
+    name: "mobiledev",
+  },
+];
+
 export const MOCK_PRODUCTS: Product[] = [
   {
     id: "1",

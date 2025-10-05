@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -813,7 +813,7 @@ const Profile = () => {
       );
     }
     return (
-      <View className="mt-2">
+      <View className="gap-2">
         {filteredPosts.map((item) => (
           <TextPost
             key={item.id}
@@ -863,6 +863,8 @@ const Profile = () => {
   return (
     <View className="flex-1 bg-gray-100">
       <ScrollView
+        bounces={false}
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
         nestedScrollEnabled={true}
@@ -887,7 +889,7 @@ const Profile = () => {
 
           <View
             className="absolute inset-0 flex-row justify-between px-4"
-            style={{ paddingTop: insets.top }}
+            style={{ paddingTop: insets.top - 10 }}
           >
             <TouchableOpacity
               className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
