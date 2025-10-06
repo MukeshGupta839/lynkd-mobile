@@ -428,6 +428,12 @@ export default function LoginScreen() {
   const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Get auth context and stores
+  const authContext = useContext(AuthContext);
+
+  if (!authContext) {
+    throw new Error("AuthContext must be used within an AuthProvider");
+  }
+
   const {
     setFirebaseUser,
     setUser,
@@ -435,7 +441,7 @@ export default function LoginScreen() {
     setCompletedRegistration,
     setSignedInWithGoogle,
     user,
-  } = useContext(AuthContext)!;
+  } = authContext;
 
   const { registerUser, loginUser } = useAuthTokenStore();
 

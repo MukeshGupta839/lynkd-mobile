@@ -792,6 +792,67 @@ export default function ConsumerHomeUI() {
     }
   });
 
+  const ChatUnderlay = () => (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "#f8f9fa",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingTop: insets.top + 60,
+      }}
+    >
+      <View style={{ alignItems: "center", paddingHorizontal: 20 }}>
+        <Ionicons
+          name="chatbubbles"
+          size={48}
+          color="#4D70D1"
+          style={{ marginBottom: 16 }}
+        />
+        <Text style={{ fontSize: 24, fontWeight: "600", marginBottom: 8 }}>
+          Messages
+        </Text>
+        <Text
+          style={{
+            fontSize: 16,
+            color: "#666",
+            textAlign: "center",
+            marginBottom: 24,
+          }}
+        >
+          Connect with friends and discover new conversations
+        </Text>
+        <TouchableOpacity
+          style={{
+            backgroundColor: "#4D70D1",
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: 8,
+            marginBottom: 16,
+          }}
+          onPress={() => {
+            // Navigate to actual chat screen or back to center
+            router.push("/(tabs)/chat");
+          }}
+        >
+          <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
+            Open Chats
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            translateX.value = withSpring(0, {
+              damping: 15,
+              stiffness: 160,
+            });
+          }}
+        >
+          <Text style={{ color: "#666", fontSize: 14 }}>← Back to Feed</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   const snapToCenter = () => {
     translateX.value = withSpring(0, { damping: 15, stiffness: 160 });
     tabBarHiddenSV.value = false;

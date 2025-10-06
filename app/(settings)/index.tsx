@@ -1,8 +1,10 @@
 // app/screens/SettingsMain.tsx
 import ScreenHeaderBack from "@/components/ScreenHeaderBack";
+import { AuthContext } from "@/context/AuthContext";
+import useAuthTokenStore from "@/stores/authTokenStore";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -116,12 +118,24 @@ export default function SettingsMain() {
   });
   const [isCreator, setIsCreator] = useState<boolean>(true);
 
+  const { resetUserState } = useContext(AuthContext);
+  const logoutUser = useAuthTokenStore(state => state.logoutUser);
+
   const logout = async () => {
     try {
-      Alert.alert("Signed out", "You have been signed out. (dummy)");
-    } catch (error: any) {
-      console.error("Logout failed:", error);
-      Alert.alert("Logout Failed", error?.message || "Unexpected error.");
+      // await resetUserState(() =>
+      //     navigator.reset({
+      //         index: 0,
+      //         routes: [{ name: 'AuthHome' }],
+      //     })
+      // );
+      await resetUserState();
+      await logoutUser();
+      Alert.alert("Signed out", "You have been signed out.");
+      router.replace('/(auth)');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      Alert.alert('Logout Failed', error.message || 'An unexpected error occurred.');
     }
   };
 
@@ -194,12 +208,12 @@ export default function SettingsMain() {
           <SettingItem
             title="Legal Policies"
             icon="document-text-outline"
-            // onPress={() => navigator.navigate("LegalPolicies" as never)}
+          // onPress={() => navigator.navigate("LegalPolicies" as never)}
           />
           <SettingItem
             title="App Information"
             icon="phone-portrait-outline"
-            // onPress={() => navigator.navigate("AppInformation" as never)}
+          // onPress={() => navigator.navigate("AppInformation" as never)}
           />
           <LogoutType title="Logout" icon="exit-outline" onPress={logout} />
         </SettingGroup>

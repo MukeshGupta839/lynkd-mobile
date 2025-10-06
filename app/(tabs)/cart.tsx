@@ -21,10 +21,10 @@ import AddressCard from "@/components/cart/AddressCard";
 import ProductRow, { PriceDetails } from "@/components/cart/ProductRow";
 
 /* ------------------------------------------------------------------ */
-/* Local INR formatter (Indian grouping). Kept here per your request. */
+/* Local INR formatter (Indian grouping). */
 /* ------------------------------------------------------------------ */
 const fmtINR = (n?: number | null) => {
-  const num = typeof n === "number" ? n : Number(n ?? 0);
+  const num = typeof n === "number" ? Math.round(n) : Number(n ?? 0);
   if (!isFinite(num)) return "₹0";
   return `₹${num.toLocaleString("en-IN")}`;
 };
@@ -32,7 +32,20 @@ const fmtINR = (n?: number | null) => {
 type CartItemWithQty = CartItemT & { quantity: number };
 
 function subtotalFromCart(cart: CartItemWithQty[]) {
-  return cart.reduce((s, it) => s + it.price * (it.quantity ?? 1), 0);
+  return Math.round(
+    cart.reduce((s, it) => s + it.price * (it.quantity ?? 1), 0)
+  );
+}
+
+function totalMRPFromCart(cart: CartItemWithQty[]) {
+  return Math.round(
+    cart.reduce(
+      (s, it) =>
+        s +
+        (typeof it.mrp === "number" ? it.mrp : it.price) * (it.quantity ?? 1),
+      0
+    )
+  );
 }
 
 function mapWishlistToCartItem(w: WishlistItemT): CartItemWithQty {
@@ -49,7 +62,8 @@ function mapWishlistToCartItem(w: WishlistItemT): CartItemWithQty {
 
 /* ------------------------------------------------------------------ */
 
-const TAB_BAR_HEIGHT = 64;
+const TAB_BAR_HEIGHT = 45;
+const TAX_RATE = 0.18; // 18% GST placeholder
 
 export default function CartAndWishlistScreen() {
   const insets = useSafeAreaInsets();
@@ -66,20 +80,26 @@ export default function CartAndWishlistScreen() {
   ]);
 
   const footerPadding = useMemo(
-    () => (insets.bottom || 0) + TAB_BAR_HEIGHT + 70,
+    () => (insets.bottom || 0) + TAB_BAR_HEIGHT + 10,
     [insets.bottom]
   );
 
-  // Derived values
+  /* ----------------- Derived Values ----------------- */
+
   const subtotal = useMemo(() => subtotalFromCart(cartData), [cartData]);
+  const totalMRP = useMemo(() => totalMRPFromCart(cartData), [cartData]);
+  const discount = useMemo(
+    () => Math.max(0, Math.round(totalMRP - subtotal)),
+    [totalMRP, subtotal]
+  );
+  const tax = useMemo(() => Math.round(subtotal * TAX_RATE), [subtotal]);
+  const total = useMemo(() => Math.round(subtotal + tax), [subtotal, tax]);
+  const totalStr = useMemo(() => fmtINR(total), [total]);
+  const originalStr = useMemo(() => fmtINR(totalMRP), [totalMRP]);
   const itemsCount = useMemo(
     () => cartData.reduce((s, it) => s + it.quantity, 0),
     [cartData]
   );
-  const discount = 9999;
-  const tax = 1000;
-  const total = subtotal - discount + tax;
-  const totalStr = useMemo(() => fmtINR(total), [total]);
 
   /* ----------------- Handlers ----------------- */
 
@@ -160,17 +180,14 @@ export default function CartAndWishlistScreen() {
     [insets.bottom]
   );
 
-  const CartListHeader = useMemo(() => {
-    const Header = function CartListHeader() {
-      return (
-        <View className="mt-3">
-          <AddressCard />
-        </View>
-      );
-    };
-    Header.displayName = "CartListHeader";
-    return Header;
-  }, []);
+  const CartListHeader = useMemo(
+    () => () => (
+      <View>
+        <AddressCard />
+      </View>
+    ),
+    []
+  );
 
   const CartListFooter = useMemo(() => {
     const Footer = function CartListFooter() {
@@ -189,7 +206,6 @@ export default function CartAndWishlistScreen() {
     return Footer;
   }, [itemsCount, subtotal, discount, tax]);
 
-  // Only use getItemLayout if rows are stable height
   const useFixedRowHeight = false;
   const ITEM_HEIGHT = 160;
   const getItemLayout = useMemo(
@@ -217,26 +233,22 @@ export default function CartAndWishlistScreen() {
         <View className="flex-row items-center">
           <TouchableOpacity
             onPress={() => setTab("cart")}
-            className="flex-1 py-5 items-center justify-center border-black/10"
-          >
+            className="flex-1 py-5 items-center justify-center border-black/10">
             <Text
               className={`text-base font-semibold ${
                 tab === "cart" ? "text-black" : "text-gray-400"
-              }`}
-            >
+              }`}>
               My Cart
             </Text>
           </TouchableOpacity>
           <View className="w-px bg-black/10 self-stretch" />
           <TouchableOpacity
             onPress={() => setTab("wishlist")}
-            className="flex-1 py-5 items-center justify-center"
-          >
+            className="flex-1 py-5 items-center justify-center">
             <Text
               className={`text-base font-semibold ${
                 tab === "wishlist" ? "text-black" : "text-gray-400"
-              }`}
-            >
+              }`}>
               Wishlist
             </Text>
           </TouchableOpacity>
@@ -286,20 +298,17 @@ export default function CartAndWishlistScreen() {
       {tab === "cart" && (
         <View
           style={{
-            position: "absolute",
             left: 0,
             right: 0,
-            bottom: (insets.bottom || 0) + TAB_BAR_HEIGHT - 8,
+            bottom: (insets.bottom || 0) + TAB_BAR_HEIGHT,
             zIndex: 30,
-            paddingHorizontal: 16,
-          }}
-        >
-          <View className="bg-white rounded-xl px-4 py-3 flex-row justify-between items-center shadow-md">
+          }}>
+          <View className="bg-white rounded-xl px-3 py-3 flex-row justify-between items-center">
             {/* Left: total */}
             <View>
               <Text className="text-xl font-semibold">{totalStr}</Text>
               <Text className="text-xs text-gray-400 line-through">
-                ₹2,00,00
+                {originalStr}
               </Text>
             </View>
 
@@ -309,8 +318,7 @@ export default function CartAndWishlistScreen() {
                 /* continue action */
               }}
               activeOpacity={0.9}
-              className="items-center justify-center bg-[#26FF91] rounded-xl px-14 py-4 shadow-sm"
-            >
+              className="items-center justify-center bg-[#26FF91] rounded-xl px-14 py-4 shadow-sm">
               <Text className="text-base font-semibold">Buy Now</Text>
             </TouchableOpacity>
           </View>

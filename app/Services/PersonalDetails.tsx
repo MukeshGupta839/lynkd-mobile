@@ -213,7 +213,7 @@ export default function PersonalDetails() {
                 value={members}
                 onChangeText={(v) => setMembers(v.replace(/[^0-9]/g, ""))}
                 keyboardType="number-pad"
-                placeholder="e.g. 2"
+                placeholder="E.g. 2"
                 placeholderTextColor="#9CA3AF"
                 className="text-sm text-gray-900"
                 onFocus={() => setFocusedField("members")}

@@ -11,7 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -52,7 +52,7 @@ export default function SearchPage() {
         items: allBookings,
         recentIds: recentBookingIds,
         placeholder: "Search Bookings",
-        headerGradient: ["#E5EOFF", "#FFFFFF"] as const,
+        headerGradient: ["#E5E0FF", "#FFFFFF"] as const,
         matcher: (item: any, q: string) =>
           (
             (item.title ?? "") +

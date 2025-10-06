@@ -1,7 +1,7 @@
 // app/(tabs)/bookings.tsx
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   ListRenderItemInfo,
@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useIsFocused, useNavigation } from "@react-navigation/native";
+
 import Categories from "@/components/Bookings/Categories";
 import EventCard from "@/components/Bookings/EventCard";
 import HomeHeader from "@/components/Product/HomeHeader";
@@ -20,6 +22,17 @@ import SearchBar from "@/components/Searchbar";
 
 import { POPULAR_EVENTS, UPCOMING_EVENTS } from "@/constants/bookings";
 import { useFavorites } from "@/context/FavoritesContext";
+
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+
+// ----- typed Bottom Tab param list (add other tabs if you use them) -----
+type TabParamList = {
+  Bookings: undefined;
+  Home: undefined;
+  Services?: undefined;
+  // add other tab routes here if used
+};
+type BookingsNavProp = BottomTabNavigationProp<TabParamList, "Bookings">;
 
 export default function Bookings() {
   const router = useRouter();
@@ -208,8 +221,39 @@ export default function Bookings() {
     emptyUpcomingComponent,
   ]);
 
+  // -------------------------
+  // NEW: listRef + navigation listener for tabPress (scroll-to-top + refresh)
+  // -------------------------
+  const listRef = useRef<FlatList<any> | null>(null);
+  const navigation = useNavigation<BookingsNavProp>();
+  const isFocused = useIsFocused();
+  const [refreshKey, setRefreshKey] = useState<number>(() => Date.now());
+
+  // when tab is pressed while focused, scroll to top and trigger refresh
+  // (typed navigation makes "tabPress" available)
+  useMemo(() => {
+    const unsubscribe = navigation.addListener("tabPress", (e: any) => {
+      if (isFocused) {
+        try {
+          listRef.current?.scrollToOffset({ offset: 0, animated: true });
+        } catch {
+          // ignore
+        }
+        setRefreshKey(Date.now());
+      }
+    });
+    // return cleanup - navigation.addListener returns an unsubscribe function
+    // note: useMemo is used to create the listener once; cleanup will run on unmount
+    return () => {
+      unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, isFocused]);
+
   return (
     <FlatList
+      key={String(refreshKey)}
+      ref={listRef}
       data={popularFiltered}
       keyExtractor={(i) => i.id}
       renderItem={renderPopularItem}

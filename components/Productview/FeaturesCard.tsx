@@ -9,7 +9,7 @@ import {
   Wallet,
 } from "lucide-react-native";
 import { ReactNode } from "react";
-import { Text, View, Platform } from "react-native";
+import { Text, View } from "react-native";
 
 type FeatureItem = {
   icon: ReactNode;
@@ -49,17 +49,7 @@ export default function FeaturesCard({
     source === "product" ? { backgroundColor: "#26FF914D" } : undefined; // product: translucent green
 
   return (
-    <View
-      className="w-full bg-white rounded-2xl px-4 py-5 flex-row justify-between"
-      style={{
-        // Shadow for iOS
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 4,
-        // Elevation for Android
-        elevation: 4,
-      }}>
+    <View className="w-full bg-white rounded-2xl  py-4 flex-row justify-between">
       {items.map((f, idx) => (
         <View key={idx} className="items-center flex-1">
           <View className="items-center justify-center">

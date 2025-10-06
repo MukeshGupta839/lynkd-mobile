@@ -1,7 +1,12 @@
 // app/(tabs)/ProductHome.tsx
+import {
+  useFocusEffect,
+  useIsFocused,
+  useNavigation,
+} from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback } from "react";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -17,8 +22,17 @@ import { homeBannerData } from "@/constants/Banner";
 import { bestDeals } from "@/constants/BestDeals";
 import { topDeals } from "@/constants/Deal";
 import { products } from "@/constants/Product";
-
 import { useCategoryTheme } from "@/stores/useThemeStore";
+
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+
+// ---------- Type the bottom tab navigator routes here ----------
+type TabParamList = {
+  Home: undefined;
+  Services: undefined;
+  // add other tabs if you have them
+};
+type ProductNavProp = BottomTabNavigationProp<TabParamList, "Home">;
 
 function GradientWrapper({
   children,
@@ -28,7 +42,7 @@ function GradientWrapper({
   className = "rounded-b-3xl overflow-hidden",
 }: {
   children?: React.ReactNode;
-  colors?: readonly [string, string]; // tuple required by expo-linear-gradient types
+  colors?: readonly [string, string];
   start?: { x: number; y: number };
   end?: { x: number; y: number };
   className?: string;
@@ -46,17 +60,39 @@ function GradientWrapper({
 
 const ProductHome = () => {
   const router = useRouter();
-
-  // ensure ProductHome uses the green preset when mounted (Option 1)
+  const navigation = useNavigation<ProductNavProp>();
+  const isFocused = useIsFocused();
   const setPreset = useCategoryTheme((s) => s.setThemePreset);
+
   useFocusEffect(
     useCallback(() => {
       setPreset("green");
-      // no cleanup here — ProductHome will set green on focus (or you can restore if preferred)
       return () => {};
     }, [setPreset])
   );
-  // Data array for FlatList - each item represents a section
+
+  // FlatList ref and refresh key for lightweight refresh
+  const listRef = useRef<FlatList<any> | null>(null);
+  const [refreshKey, setRefreshKey] = useState(() => Date.now());
+
+  // scroll-to-top + refresh when home tab pressed again
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("tabPress", (e: any) => {
+      if (isFocused) {
+        try {
+          listRef.current?.scrollToOffset({ offset: 0, animated: true });
+        } catch {
+          // ignore
+        }
+        setRefreshKey(Date.now());
+      }
+    });
+    return unsubscribe;
+  }, [navigation, isFocused]);
+
+  // -----------------------
+  // FlatList content
+  // -----------------------
   const contentSections = [
     { id: "categories", type: "categories" },
     { id: "banner", type: "banner" },
@@ -65,7 +101,6 @@ const ProductHome = () => {
     { id: "topDeals", type: "topDeals" },
   ];
 
-  // Render function for each FlatList item
   const renderContentSection = ({
     item,
   }: {
@@ -77,7 +112,7 @@ const ProductHome = () => {
 
       case "banner":
         return (
-          <View className="mt-4 ">
+          <View className="mt-4">
             <Banner
               variant="home"
               data={homeBannerData}
@@ -104,7 +139,7 @@ const ProductHome = () => {
 
   return (
     <View className="flex-1 bg-gray-50">
-      {/* Rounded gradient header with safe area INSIDE */}
+      {/* Header */}
       <View className="w-full rounded-b-2xl overflow-hidden">
         <GradientWrapper
           colors={["#C5F8CE", "#f9fafb"] as const}
@@ -127,6 +162,8 @@ const ProductHome = () => {
       {/* Content */}
       <View className="flex-1 bg-gray-50">
         <FlatList
+          key={String(refreshKey)} // remounts on refresh
+          ref={listRef}
           data={contentSections}
           renderItem={renderContentSection}
           keyExtractor={(item) => item.id}
