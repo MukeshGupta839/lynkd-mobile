@@ -140,7 +140,7 @@
       "eas": {
         "projectId": "71e00d65-93bb-462f-b62a-4538e8b89aa2"
       },
-      "API_URL": "http://192.168.1.61:5000"
+      "API_URL": "https://api.lynkd.app"
     }
   }
 }

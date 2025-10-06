@@ -1,6 +1,6 @@
 // src/screens/VideoFeed.tsx
 /// <reference types="react" />
-import PostOptionsBottomSheet from "@/components/Posts/PostOptionsBottomSheet";
+import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import { USERS } from "@/constants/PostCreation";
 import { Ionicons } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
@@ -52,9 +52,9 @@ type Post = {
 
 const LOCAL_ASSETS_REQUIRE: any[] = [
   require("@/assets/vertical.mp4"),
-  require("@/assets/vertical2.mp4"),
-  require("@/assets/horz.mp4"),
-  require("@/assets/horz2.mp4"),
+  require("@/assets/vertical.mp4"),
+  require("@/assets/vertical.mp4"),
+  require("@/assets/vertical.mp4"),
 ];
 const SAMPLE_REMOTE_VIDEOS = [
   "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4",
@@ -187,7 +187,8 @@ const PostItem: React.FC<{
               onPress={() => {
                 console.log("hashtag clicked:", tag);
               }}
-              className="font-bold">
+              className="font-bold"
+            >
               {part}
             </Text>
           );
@@ -223,7 +224,8 @@ const PostItem: React.FC<{
         {centerVisible && active && (
           <View
             className="absolute inset-0 items-center justify-center"
-            style={{ zIndex: 30 }}>
+            style={{ zIndex: 30 }}
+          >
             <TouchableOpacity onPress={onCenterToggle} activeOpacity={0.9}>
               <View
                 style={{
@@ -233,7 +235,8 @@ const PostItem: React.FC<{
                   alignItems: "center",
                   justifyContent: "center",
                   backgroundColor: "rgba(0,0,0,0.32)",
-                }}>
+                }}
+              >
                 <Ionicons
                   name={isPlaying ? "pause" : "play"}
                   size={32}
@@ -247,13 +250,15 @@ const PostItem: React.FC<{
         {/* right action column (icons) */}
         <View
           className="absolute right-3 bottom-1/4 items-center"
-          style={{ zIndex: 30 }}>
+          style={{ zIndex: 30 }}
+        >
           {item.isProduct && (
             <>
               <TouchableOpacity
                 className="w-12 h-12 rounded-full items-center justify-center mb-1 bg-white/20"
                 onPress={() => {}}
-                activeOpacity={0.8}>
+                activeOpacity={0.8}
+              >
                 <Ionicons name="bag-outline" size={20} color="#fff" />
               </TouchableOpacity>
               <Text className="text-white text-xs mt-2">
@@ -265,7 +270,8 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={() => onToggleLike()}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+          >
             <Ionicons
               name={item.liked || isFavorited ? "heart" : "heart-outline"}
               size={20}
@@ -277,7 +283,8 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={() => {}}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+          >
             <Ionicons name="chatbubble-outline" size={18} color="#fff" />
           </TouchableOpacity>
           <Text className="text-white text-xs mt-2">
@@ -287,7 +294,8 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={onShare}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+          >
             <Send width={20} height={20} />
           </TouchableOpacity>
           <Text className="text-white text-xs mt-2">Share</Text>
@@ -295,7 +303,8 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={() => onOpenPostOptions()}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+          >
             <Ionicons name="ellipsis-horizontal" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -306,14 +315,16 @@ const PostItem: React.FC<{
           style={{
             bottom: BOTTOM_NAV_HEIGHT + 10,
             zIndex: 40,
-          }}>
+          }}
+        >
           <TouchableOpacity
             onPress={() => {
               onToggleFollow(item.user_id);
               setLocalFollowing((s) => !s);
             }}
             activeOpacity={0.95}
-            className="absolute right-3 top-2 z-10 rounded-full px-3 py-1 border border-white/70 bg-white/8">
+            className="absolute right-3 top-2 z-10 rounded-full px-3 py-1 border border-white/70 bg-white/8"
+          >
             <Text className="text-white font-semibold">
               {localFollowing ? "Following" : "Follow"}
             </Text>
@@ -355,7 +366,8 @@ const PostItem: React.FC<{
                 <StyledText
                   className="text-white font-bold text-lg mr-2"
                   numberOfLines={1}
-                  ellipsizeMode="tail">
+                  ellipsizeMode="tail"
+                >
                   {item.username}
                 </StyledText>
                 {item.verified && (
@@ -379,17 +391,20 @@ const PostItem: React.FC<{
           </View>
 
           <Reanimated.View
-            style={[{ overflow: "hidden" }, captionAnimatedStyle]}>
+            style={[{ overflow: "hidden" }, captionAnimatedStyle]}
+          >
             <Text
               numberOfLines={captionOpen ? undefined : 1}
               ellipsizeMode="tail"
-              className="text-white text-lg mt-2 leading-7">
+              className="text-white text-lg mt-2 leading-7"
+            >
               {captionOpen ? (
                 <>
                   {renderCaptionParts(item.caption ?? "")}
                   <Text
                     onPress={() => setCaptionOpen(false)}
-                    style={{ color: "rgba(255,255,255,0.75)" }}>
+                    style={{ color: "rgba(255,255,255,0.75)" }}
+                  >
                     {"  "}Show less
                   </Text>
                 </>
@@ -399,7 +414,8 @@ const PostItem: React.FC<{
                   {needsTruncate ? (
                     <Text
                       onPress={() => setCaptionOpen(true)}
-                      style={{ color: "rgba(255,255,255,0.75)" }}>
+                      style={{ color: "rgba(255,255,255,0.75)" }}
+                    >
                       {" "}
                       ... more
                     </Text>
@@ -413,6 +429,8 @@ const PostItem: React.FC<{
     );
   }
 );
+
+PostItem.displayName = "PostItem";
 
 /* ----------------- MAIN: single shared player overlay + AnimatedFlatList ----------------- */
 const VideoFeed: React.FC = () => {
@@ -840,7 +858,7 @@ const VideoFeed: React.FC = () => {
   // viewability
   const viewabilityConfig = { itemVisiblePercentThreshold: 75 } as const;
   const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems?: Array<any> }) => {
+    ({ viewableItems }: { viewableItems?: any[] }) => {
       if (!viewableItems || viewableItems.length === 0) return;
       const firstVisible = viewableItems[0];
       if (typeof firstVisible?.index === "number")
@@ -886,7 +904,6 @@ const VideoFeed: React.FC = () => {
       }
     });
     return unsubscribe;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation, focused]);
 
   return (

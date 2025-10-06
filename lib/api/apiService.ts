@@ -8,14 +8,15 @@ import { Platform } from "react-native";
 const getApiUrl = (): string => {
   // First try to get from extra config (set in app.json)
   const configUrl = Constants.expoConfig?.extra?.API_URL;
+  console.log("configUrl :", configUrl, typeof configUrl);
   if (configUrl) return configUrl;
 
   // Platform-specific defaults with port
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5000'; // Android emulator
+  if (Platform.OS === "android") {
+    return "http://10.0.2.2:5000"; // Android emulator
   }
 
-  return 'http://localhost:5000'; // iOS simulator and default
+  return "http://localhost:5000"; // iOS simulator and default
 };
 
 type HttpMethod =
@@ -48,14 +49,15 @@ export const apiCall = async (
   const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
   const fullUrl = `${base}${path}`; // Base URL already includes port
 
-
   try {
     console.log(`Making API request to: ${fullUrl}`);
 
     // Determine sensible Content-Type when not provided
     let defaultContentType = "multipart/form-data";
-    if (headers?.["Content-Type"] === "application/json" ||
-      (data && typeof data === 'object' && !(data instanceof FormData))) {
+    if (
+      headers?.["Content-Type"] === "application/json" ||
+      (data && typeof data === "object" && !(data instanceof FormData))
+    ) {
       defaultContentType = "application/json";
     }
 
@@ -90,13 +92,13 @@ export const apiCall = async (
       );
 
       // Handle specific network errors
-      if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+      if (err.code === "ECONNREFUSED" || err.code === "ENOTFOUND") {
         throw new Error(
           `Cannot connect to server at ${base}. Please ensure the backend server is running.`
         );
       }
 
-      if (err.message === 'Network Error') {
+      if (err.message === "Network Error") {
         throw new Error(
           `Network error: Unable to reach server at ${base}. Check your internet connection and ensure the backend is running.`
         );

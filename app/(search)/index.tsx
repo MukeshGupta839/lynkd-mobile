@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   FlatList,
   ScrollView,
@@ -11,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 const { width: PAGE_WIDTH } = Dimensions.get("window");
 
@@ -190,6 +192,7 @@ const SearchScreen = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>("people");
   const flatListRef = useRef<FlatList>(null);
+  const glow = useRef(new Animated.Value(0)).current;
 
   const onTabPress = (tab: TabKey) => {
     setActiveTab(tab);
@@ -229,6 +232,19 @@ const SearchScreen = () => {
     if (!q) return HASHTAGS;
     return HASHTAGS.filter((h) => contains(h.name, q));
   }, [searchQuery]);
+
+  const glowShadowColor = glow.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [
+      "rgba(16,24,39,0.18)",
+      "rgba(99,102,241,0.28)",
+      "rgba(16,24,39,0.18)",
+    ],
+  });
+  const glowBorderColor = glow.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ["#0F27BD", "#ffc202", "#3d576c"],
+  });
 
   /** RENDERERS – shapes match your real mapping */
   const renderPeopleItem = ({ item }: { item: (typeof USERS)[number] }) => {
@@ -366,24 +382,40 @@ const SearchScreen = () => {
           />
         </TouchableOpacity>
 
-        <View className="flex-1 flex-row items-center bg-gray-100 border border-gray-300 h-12 rounded-xl px-4">
-          <Ionicons name="search" size={18} color="#6B7280" />
-          <TextInput
-            className="ml-2 flex-1 text-base text-gray-900"
-            placeholder="Search users, brands, products..."
-            placeholderTextColor="#9CA3AF"
+        <Animated.View
+          style={{
+            width: PAGE_WIDTH * 0.82,
+            height: 44,
+            borderWidth: 2,
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            backgroundColor: "white",
+            flexDirection: "row",
+            alignItems: "center",
+            shadowOffset: { width: 0, height: 0 },
+            shadowRadius: 10,
+            elevation: 5,
+            borderColor: glowBorderColor as any,
+            shadowColor: glowShadowColor as any,
+            shadowOpacity: 0.9,
+          }}
+        >
+          <Ionicons
+            name="search"
+            size={18}
+            color="#6b7280"
+            style={{ marginRight: 8 }}
+          />
+          <AnimatedTextInput
+            placeholder="Search hashtags…"
+            placeholderTextColor="#9ca3af"
+            className="flex-1 text-[14px] text-zinc-800"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              className="h-8 w-8 items-center justify-center"
-              onPress={() => setSearchQuery("")}
-            >
-              <Ionicons name="close-circle" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
-          )}
-        </View>
+        </Animated.View>
       </View>
 
       {/* Pills */}

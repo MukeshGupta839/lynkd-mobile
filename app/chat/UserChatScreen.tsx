@@ -110,13 +110,15 @@ const MessageBubble = React.memo(function MessageBubble({
         onLayout={(e) => {
           const h = Math.round(e.nativeEvent.layout.height);
           onMeasure?.(message.id, h);
-        }}>
+        }}
+      >
         <View className={`flex-row ${mine ? "justify-end pr-3" : "pl-3"} mb-0`}>
           {/* Avatar intentionally omitted inside bubble area */}
 
           <View
             style={{ maxWidth: maxBubbleWidth }}
-            className={`${mine ? "items-end" : "items-start"}`}>
+            className={`${mine ? "items-end" : "items-start"}`}
+          >
             {message.product ? (
               <View className="bg-white border border-black/100 rounded-3xl p-3">
                 <Text className="font-semibold text-black">
@@ -134,7 +136,8 @@ const MessageBubble = React.memo(function MessageBubble({
                   mine
                     ? "bg-[#DCF8C6] border border-gray-200 rounded-2xl rounded-br-sm"
                     : "bg-[#FFFFFF] rounded-2xl rounded-bl-sm"
-                }`}>
+                }`}
+              >
                 <Text className="text-black">{message.text}</Text>
               </View>
             ) : null}
@@ -142,7 +145,8 @@ const MessageBubble = React.memo(function MessageBubble({
             {message.image ? (
               <Pressable
                 onPress={() => onPressImage?.(message.image)}
-                className="mt-2">
+                className="mt-2"
+              >
                 <Image
                   source={{ uri: message.image }}
                   className="w-48 h-36 rounded-lg"
@@ -166,7 +170,8 @@ const MessageBubble = React.memo(function MessageBubble({
             alignItems: "center",
             marginTop: timeMarginTop,
             marginBottom: timeMarginBottom,
-          }}>
+          }}
+        >
           <Text className="text-xs text-gray-400">{timeText}</Text>
         </View>
       ) : null}
@@ -857,14 +862,16 @@ export default function UserChatScreen() {
             router.back();
           }}
           accessibilityLabel="Back"
-          className="pr-3">
+          className="pr-3"
+        >
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </Pressable>
 
         <Pressable
           onPress={() => setProfileModalVisible(true)}
           accessibilityLabel="Open profile"
-          className="mr-3">
+          className="mr-3"
+        >
           <Image
             source={{ uri: chattingUser.profilePicture }}
             className="w-10 h-10 rounded-full"
@@ -882,7 +889,8 @@ export default function UserChatScreen() {
             onPress={deleteSelected}
             className="px-3"
             accessibilityLabel="Delete selected messages"
-            accessibilityHint="Deletes all selected messages">
+            accessibilityHint="Deletes all selected messages"
+          >
             <Ionicons name="trash" size={22} color="#DC2626" />
           </Pressable>
         ) : (
@@ -890,7 +898,8 @@ export default function UserChatScreen() {
             onPress={() => setShowOptions(true)}
             className="px-2"
             accessibilityLabel="Chat options"
-            accessibilityHint="Opens chat options">
+            accessibilityHint="Opens chat options"
+          >
             <Ionicons name="ellipsis-vertical" size={22} color="#6B7280" />
           </Pressable>
         )}
@@ -920,32 +929,34 @@ export default function UserChatScreen() {
         keyboardShouldPersistTaps="always"
       />
 
-        {/* Image preview modal */}
-        <Modal
-          visible={showPreviewImage}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowPreviewImage(false)}>
-          <Pressable
-            className="flex-1 justify-center items-center bg-[rgba(0,0,0,0.6)]"
-            onPress={() => setShowPreviewImage(false)}>
-            {selectedImage ? (
-              <Image
-                source={{ uri: selectedImage }}
-                style={{
-                  width: Math.round(screenWidth * 0.92),
-                  height: Math.round(screenWidth * 0.92 * 0.66),
-                }}
-                className="rounded-lg"
-                resizeMode="contain"
-              />
-            ) : (
-              <View className="bg-white p-4 rounded-lg">
-                <Text>No image</Text>
-              </View>
-            )}
-          </Pressable>
-        </Modal>
+      {/* Image preview modal */}
+      <Modal
+        visible={showPreviewImage}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPreviewImage(false)}
+      >
+        <Pressable
+          className="flex-1 justify-center items-center bg-[rgba(0,0,0,0.6)]"
+          onPress={() => setShowPreviewImage(false)}
+        >
+          {selectedImage ? (
+            <Image
+              source={{ uri: selectedImage }}
+              style={{
+                width: Math.round(screenWidth * 0.92),
+                height: Math.round(screenWidth * 0.92 * 0.66),
+              }}
+              className="rounded-lg"
+              resizeMode="contain"
+            />
+          ) : (
+            <View className="bg-white p-4 rounded-lg">
+              <Text>No image</Text>
+            </View>
+          )}
+        </Pressable>
+      </Modal>
 
       {/* Product modal */}
       <ProductModal
@@ -957,19 +968,21 @@ export default function UserChatScreen() {
         }}
       />
 
-        {/* Profile image full screen */}
-        <Modal
-          visible={profileModalVisible}
-          transparent={false}
-          animationType="slide"
-          onRequestClose={() => setProfileModalVisible(false)}>
-          <SafeAreaView className="flex-1 bg-black">
-            <Pressable
-              className="absolute top-10 left-4 z-50 p-2"
-              onPress={() => setProfileModalVisible(false)}
-              accessibilityLabel="Close profile preview">
-              <Text className="text-white text-2xl">✕</Text>
-            </Pressable>
+      {/* Profile image full screen */}
+      <Modal
+        visible={profileModalVisible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => setProfileModalVisible(false)}
+      >
+        <SafeAreaView className="flex-1 bg-black">
+          <Pressable
+            className="absolute top-10 left-4 z-50 p-2"
+            onPress={() => setProfileModalVisible(false)}
+            accessibilityLabel="Close profile preview"
+          >
+            <Text className="text-white text-2xl">✕</Text>
+          </Pressable>
 
           <View className="flex-1 items-center justify-center">
             <Image
@@ -981,189 +994,202 @@ export default function UserChatScreen() {
         </SafeAreaView>
       </Modal>
 
-        {/* ---------------- Attachment strip + Composer (animated to follow keyboard) ---------------- */}
-        <Animated.View style={[keyboardPadding]} className="bg-transparent">
-          {showAttachmentStrip && (
-            <View className="px-3" style={{ overflow: "visible" }}>
+      {/* ---------------- Attachment strip + Composer (animated to follow keyboard) ---------------- */}
+      <Animated.View style={[keyboardPadding]} className="bg-transparent">
+        {showAttachmentStrip && (
+          <View className="px-3" style={{ overflow: "visible" }}>
+            <View
+              style={{
+                width: attachmentCardMemo.w,
+                alignSelf: "center",
+                position: "relative",
+                marginBottom: 8,
+              }}
+            >
+              <Svg
+                width={attachmentCardMemo.w}
+                height={attachmentCardMemo.h + attachmentCardMemo.td}
+                viewBox={`0 0 ${attachmentCardMemo.w} ${
+                  attachmentCardMemo.h + attachmentCardMemo.td
+                }`}
+                style={{ position: "absolute", top: 0, left: 0 }}
+              >
+                <Path d={attachmentCardMemo.path} fill="#F3F4F6" />
+              </Svg>
+
+              {/* Overlay the icons row inside the svg area */}
               <View
                 style={{
                   width: attachmentCardMemo.w,
-                  alignSelf: "center",
-                  position: "relative",
-                  marginBottom: 8,
-                }}>
-                <Svg
-                  width={attachmentCardMemo.w}
-                  height={attachmentCardMemo.h + attachmentCardMemo.td}
-                  viewBox={`0 0 ${attachmentCardMemo.w} ${
-                    attachmentCardMemo.h + attachmentCardMemo.td
-                  }`}
-                  style={{ position: "absolute", top: 0, left: 0 }}>
-                  <Path d={attachmentCardMemo.path} fill="#F3F4F6" />
-                </Svg>
+                  height: attachmentCardMemo.h,
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                }}
+              >
+                <View className="flex-row justify-between">
+                  <View className="items-center">
+                    <Pressable
+                      onPress={pickImage}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <Ionicons name="images" size={22} color="#EC4899" />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Gallery
+                    </Text>
+                  </View>
 
-                {/* Overlay the icons row inside the svg area */}
-                <View
-                  style={{
-                    width: attachmentCardMemo.w,
-                    height: attachmentCardMemo.h,
-                    paddingHorizontal: 12,
-                    paddingVertical: 12,
-                  }}>
-                  <View className="flex-row justify-between">
-                    <View className="items-center">
-                      <Pressable
-                        onPress={pickImage}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <Ionicons name="images" size={22} color="#EC4899" />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Gallery
-                      </Text>
-                    </View>
+                  <View className="items-center">
+                    <Pressable
+                      onPress={takePhoto}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <Ionicons name="camera" size={22} color="#2563EB" />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Camera
+                    </Text>
+                  </View>
 
-                    <View className="items-center">
-                      <Pressable
-                        onPress={takePhoto}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <Ionicons name="camera" size={22} color="#2563EB" />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Camera
-                      </Text>
-                    </View>
+                  <View className="items-center">
+                    <Pressable
+                      onPress={() => setShowProductModal(true)}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <FontAwesome5
+                        name="shopping-cart"
+                        size={16}
+                        color="#111827"
+                      />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Product
+                    </Text>
+                  </View>
 
-                    <View className="items-center">
-                      <Pressable
-                        onPress={() => setShowProductModal(true)}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <FontAwesome5
-                          name="shopping-cart"
-                          size={16}
-                          color="#111827"
-                        />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Product
-                      </Text>
-                    </View>
+                  <View className="items-center">
+                    <Pressable
+                      onPress={() => console.log("attach location")}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <Ionicons
+                        name="location-sharp"
+                        size={22}
+                        color="#DC2626"
+                      />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Location
+                    </Text>
+                  </View>
 
-                    <View className="items-center">
-                      <Pressable
-                        onPress={() => console.log("attach location")}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <Ionicons
-                          name="location-sharp"
-                          size={22}
-                          color="#DC2626"
-                        />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Location
-                      </Text>
-                    </View>
-
-                    <View className="items-center">
-                      <Pressable
-                        onPress={() => console.log("attach document")}
-                        className="w-12 h-12 rounded-full items-center justify-center bg-white">
-                        <MaterialIcons
-                          name="insert-drive-file"
-                          size={20}
-                          color="#6366F1"
-                        />
-                      </Pressable>
-                      <Text className="text-xs text-gray-800 mt-2 font-medium">
-                        Document
-                      </Text>
-                    </View>
+                  <View className="items-center">
+                    <Pressable
+                      onPress={() => console.log("attach document")}
+                      className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                    >
+                      <MaterialIcons
+                        name="insert-drive-file"
+                        size={20}
+                        color="#6366F1"
+                      />
+                    </Pressable>
+                    <Text className="text-xs text-gray-800 mt-2 font-medium">
+                      Document
+                    </Text>
                   </View>
                 </View>
               </View>
             </View>
-          )}
-
-          {/* Composer (dynamic height) */}
-          <View
-            className="px-3 bg-transparent"
-            onLayout={(e) => {
-              const h = Math.round(e.nativeEvent.layout.height);
-              if (h !== composerHeight) setComposerHeight(h);
-            }}>
-            <View className="flex-row items-center">
-              {/* Attach */}
-              <Pressable
-                onPress={toggleAttachmentStrip}
-                accessibilityLabel="Attach"
-                hitSlop={8}
-                className="w-12 h-12 rounded-full bg-black items-center justify-center">
-                <Entypo name="attachment" size={18} color="#fff" />
-              </Pressable>
-
-              {/* Input pill (center) */}
-              <View className="flex-1 mx-3">
-                <View
-                  className="flex-row items-center bg-white rounded-full px-3 border border-gray-200"
-                  style={{ minHeight: 48, maxHeight: 140 }}>
-                  <TextInput
-                    ref={inputRef}
-                    value={text}
-                    onChangeText={onChangeTextHandle}
-                    placeholder="Message"
-                    placeholderTextColor="#9CA3AF"
-                    className="flex-1 text-base text-gray-700"
-                    multiline
-                    accessibilityLabel="Message input"
-                    returnKeyType="send"
-                    blurOnSubmit={false}
-                    onSubmitEditing={() => {
-                      if (!sendingRef.current && text.trim()) handleSend();
-                    }}
-                    onContentSizeChange={onContentSizeChange}
-                    onKeyPress={onKeyPress}
-                    style={{
-                      height: inputHeight ?? undefined,
-                      paddingVertical: 10,
-                      textAlignVertical: "top",
-                    }}
-                  />
-
-                  {/* small emoji / extra action inside pill */}
-                  <Pressable
-                    onPress={() => console.log("Emoji tapped")}
-                    accessibilityLabel="Emoji"
-                    className="w-8 h-8 rounded-full items-center justify-center"
-                    hitSlop={6}>
-                    <Ionicons name="happy-outline" size={20} color="#9CA3AF" />
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* Mic / Send - vector icons */}
-              {text.trim() ? (
-                <Pressable
-                  onPress={() => {
-                    if (!sendingRef.current) handleSend();
-                  }}
-                  accessibilityLabel="Send message"
-                  className="w-12 h-12 rounded-full bg-black items-center justify-center shadow-lg"
-                  hitSlop={8}>
-                  <Ionicons name="paper-plane" size={18} color="#fff" />
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => console.log("Record tapped")}
-                  accessibilityLabel="Voice message"
-                  className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-lg"
-                  hitSlop={8}>
-                  <FontAwesome5 name="microphone" size={18} color="#111827" />
-                </Pressable>
-              )}
-            </View>
           </View>
-        </Animated.View>
-        {/* ---------------- end attachment + composer ---------------- */}
-      </KeyboardAvoidingView>
+        )}
+
+        {/* Composer (dynamic height) */}
+        <View
+          className="px-3 bg-transparent"
+          onLayout={(e) => {
+            const h = Math.round(e.nativeEvent.layout.height);
+            if (h !== composerHeight) setComposerHeight(h);
+          }}
+        >
+          <View className="flex-row items-center">
+            {/* Attach */}
+            <Pressable
+              onPress={toggleAttachmentStrip}
+              accessibilityLabel="Attach"
+              hitSlop={8}
+              className="w-12 h-12 rounded-full bg-black items-center justify-center"
+            >
+              <Entypo name="attachment" size={18} color="#fff" />
+            </Pressable>
+
+            {/* Input pill (center) */}
+            <View className="flex-1 mx-3">
+              <View
+                className="flex-row items-center bg-white rounded-full px-3 border border-gray-200"
+                style={{ minHeight: 48, maxHeight: 140 }}
+              >
+                <TextInput
+                  ref={inputRef}
+                  value={text}
+                  onChangeText={onChangeTextHandle}
+                  placeholder="Message"
+                  placeholderTextColor="#9CA3AF"
+                  className="flex-1 text-base text-gray-700"
+                  multiline
+                  accessibilityLabel="Message input"
+                  returnKeyType="send"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    if (!sendingRef.current && text.trim()) handleSend();
+                  }}
+                  onContentSizeChange={onContentSizeChange}
+                  onKeyPress={onKeyPress}
+                  style={{
+                    height: inputHeight ?? undefined,
+                    paddingVertical: 10,
+                    textAlignVertical: "top",
+                  }}
+                />
+
+                {/* small emoji / extra action inside pill */}
+                <Pressable
+                  onPress={() => console.log("Emoji tapped")}
+                  accessibilityLabel="Emoji"
+                  className="w-8 h-8 rounded-full items-center justify-center"
+                  hitSlop={6}
+                >
+                  <Ionicons name="happy-outline" size={20} color="#9CA3AF" />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Mic / Send - vector icons */}
+            {text.trim() ? (
+              <Pressable
+                onPress={() => {
+                  if (!sendingRef.current) handleSend();
+                }}
+                accessibilityLabel="Send message"
+                className="w-12 h-12 rounded-full bg-black items-center justify-center shadow-lg"
+                hitSlop={8}
+              >
+                <Ionicons name="paper-plane" size={18} color="#fff" />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => console.log("Record tapped")}
+                accessibilityLabel="Voice message"
+                className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-lg"
+                hitSlop={8}
+              >
+                <FontAwesome5 name="microphone" size={18} color="#111827" />
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </Animated.View>
+      {/* ---------------- end attachment + composer ---------------- */}
 
       {/* Chat options bottom sheet */}
       <ChatOptionsBottomSheet
