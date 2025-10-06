@@ -4,7 +4,7 @@ import { apiCall } from "@/lib/api/apiService";
 import useAuthTokenStore from "@/stores/authTokenStore";
 import { getAuth } from "@/utils/firebase";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
-import { appleAuthAndroid } from '@invertase/react-native-apple-authentication';
+import { appleAuthAndroid } from "@invertase/react-native-apple-authentication";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { router } from "expo-router";
@@ -29,7 +29,8 @@ import GoogleLogo from "../../assets/svg/google-icon-logo.svg";
 
 // Configure Google Sign In
 GoogleSignin.configure({
-  webClientId: "504427351394-3o0mhui0o5j2u7nselgekbgakfplppsk.apps.googleusercontent.com",
+  webClientId:
+    "504427351394-3o0mhui0o5j2u7nselgekbgakfplppsk.apps.googleusercontent.com",
   offlineAccess: true,
 });
 
@@ -80,7 +81,6 @@ const UsernameSetupContent = ({
   setReferralCode: (text: string) => void;
   referralCodeIsValid: boolean;
 }) => {
-
   return (
     <View className="bg-white p-4 rounded-2xl">
       <RNText className="text-black text-2xl pt-5 pb-6 font-worksans-500">
@@ -105,7 +105,7 @@ const UsernameSetupContent = ({
               username === ""
                 ? "#bdbdbd"
                 : usernameError === "" ||
-                  usernameError === "Username is available."
+                    usernameError === "Username is available."
                   ? "green"
                   : "red"
             }
@@ -205,10 +205,11 @@ const UsernameSetupContent = ({
         <TouchableOpacity
           disabled={!clearToMove || disableButton || !!setupPasswordError}
           activeOpacity={0.8}
-          className={`h-13 px-4 items-center justify-center rounded-xl mt-6 ${clearToMove && !disableButton && !setupPasswordError
-            ? "bg-black"
-            : "bg-gray-400"
-            } shadow-sm`}
+          className={`h-13 px-4 items-center justify-center rounded-xl mt-6 ${
+            clearToMove && !disableButton && !setupPasswordError
+              ? "bg-black"
+              : "bg-gray-400"
+          } shadow-sm`}
           onPress={onSaveUsername}
         >
           {disableButton ? (
@@ -221,10 +222,6 @@ const UsernameSetupContent = ({
     </View>
   );
 };
-
-
-
-
 
 const FormContent = ({
   email,
@@ -247,14 +244,20 @@ const FormContent = ({
     const auth = await getAuth();
     try {
       if (!email.current) {
-        Alert.alert('Email Required', 'Please enter your email address to reset your password.');
+        Alert.alert(
+          "Email Required",
+          "Please enter your email address to reset your password."
+        );
         return;
       }
       await auth.sendPasswordResetEmail(email.current);
-      Alert.alert('Password Reset Email Sent', 'Please check your email for the password reset link.');
+      Alert.alert(
+        "Password Reset Email Sent",
+        "Please check your email for the password reset link."
+      );
     } catch (error) {
-      console.error('Error sending password reset email:', error);
-      Alert.alert('Error', 'Failed to send password reset email.');
+      console.error("Error sending password reset email:", error);
+      Alert.alert("Error", "Failed to send password reset email.");
     }
   };
   return (
@@ -321,7 +324,10 @@ const FormContent = ({
         )}
       </View>
 
-      <TouchableOpacity className="my-3 self-end" onPress={forgotPasswordHandler}>
+      <TouchableOpacity
+        className="my-3 self-end"
+        onPress={forgotPasswordHandler}
+      >
         <RNText className="text-gray-400">Forgot Password?</RNText>
       </TouchableOpacity>
 
@@ -329,8 +335,9 @@ const FormContent = ({
         <TouchableOpacity
           disabled={disableButton}
           activeOpacity={0.8}
-          className={`h-13 px-4 items-center justify-center rounded-xl ${disableButton ? "bg-gray-400" : "bg-black"
-            } shadow-sm`}
+          className={`h-13 px-4 items-center justify-center rounded-xl ${
+            disableButton ? "bg-gray-400" : "bg-black"
+          } shadow-sm`}
           onPress={onEmailPasswordLogin}
         >
           {disableButton ? (
@@ -435,7 +442,10 @@ export default function LoginScreen() {
   // Validate referral code
   const validateReferralCode = async (code: string) => {
     try {
-      const response = await apiCall(`/api/referrals/validate/${code.toUpperCase()}`, "GET");
+      const response = await apiCall(
+        `/api/referrals/validate/${code.toUpperCase()}`,
+        "GET"
+      );
       setReferralCodeIsValid(response.isValid || false);
     } catch (error) {
       console.error("Error validating referral code:", error);
@@ -493,7 +503,9 @@ export default function LoginScreen() {
       if (text.trim().length > 0) {
         // Check for invalid characters first
         if (!/^[a-zA-Z0-9._]+$/.test(text)) {
-          setUsernameError("Only letters, numbers, dots and underscores allowed.");
+          setUsernameError(
+            "Only letters, numbers, dots and underscores allowed."
+          );
           return;
         }
 
@@ -507,7 +519,9 @@ export default function LoginScreen() {
           return;
         }
 
-        const isAvailable = await checkUsernameAvailability(text.trim().toLowerCase());
+        const isAvailable = await checkUsernameAvailability(
+          text.trim().toLowerCase()
+        );
         setUsernameError(
           text.trim() !== "" && isAvailable
             ? "Username is available."
@@ -529,12 +543,16 @@ export default function LoginScreen() {
     }
 
     if (!/[A-Z]/.test(text)) {
-      setSetupPasswordError("Password must contain at least one uppercase letter.");
+      setSetupPasswordError(
+        "Password must contain at least one uppercase letter."
+      );
       return;
     }
 
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(text)) {
-      setSetupPasswordError("Password must contain at least one special character.");
+      setSetupPasswordError(
+        "Password must contain at least one special character."
+      );
       return;
     }
 
@@ -594,7 +612,7 @@ export default function LoginScreen() {
       try {
         response2 = await loginUser({
           username: email.current,
-          password: firebaseUser.uid
+          password: firebaseUser.uid,
         });
         console.log("Login Response", response2);
       } catch (loginError) {
@@ -612,7 +630,7 @@ export default function LoginScreen() {
           // Immediately log in the newly registered user to get the token
           response2 = await loginUser({
             username: email.current,
-            password: firebaseUser.uid
+            password: firebaseUser.uid,
           });
           console.log("Post-registration Login Response", response2);
         } catch (registerError) {
@@ -622,7 +640,10 @@ export default function LoginScreen() {
       }
 
       // Fetch user data from backend
-      const userDataResponse = await apiCall(`/api/users/${firebaseUser.uid}`, "GET");
+      const userDataResponse = await apiCall(
+        `/api/users/${firebaseUser.uid}`,
+        "GET"
+      );
 
       if (userDataResponse?.user) {
         const userData = userDataResponse.user;
@@ -661,26 +682,31 @@ export default function LoginScreen() {
       console.error("Login failed:", error);
 
       // Check for network/backend errors
-      if (error.message && error.message.includes('Cannot connect to server')) {
+      if (error.message && error.message.includes("Cannot connect to server")) {
         setSocialLoginError(
           "Cannot reach the server. Please ensure:\n" +
-          "1. Backend server is running on http://localhost:5000\n" +
-          "2. You're connected to the internet\n" +
-          "3. Firewall is not blocking the connection"
+            "1. Backend server is running on http://localhost:5000\n" +
+            "2. You're connected to the internet\n" +
+            "3. Firewall is not blocking the connection"
         );
-      } else if (error.message && error.message.includes('Network error')) {
+      } else if (error.message && error.message.includes("Network error")) {
         setSocialLoginError(
           "Network error: Cannot connect to backend server. " +
-          "Please start your backend server and try again."
+            "Please start your backend server and try again."
         );
       } else if (error.code === "auth/user-not-found") {
         setEmailError("No account found with this email.");
-      } else if (error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
+      } else if (
+        error.code === "auth/wrong-password" ||
+        error.code === "auth/invalid-credential"
+      ) {
         setPasswordError("Incorrect password. Please try again.");
       } else if (error.code === "auth/invalid-email") {
         setEmailError("Invalid email address.");
       } else if (error.code === "auth/too-many-requests") {
-        setSocialLoginError("Too many failed login attempts. Please try again later.");
+        setSocialLoginError(
+          "Too many failed login attempts. Please try again later."
+        );
       } else {
         setSocialLoginError(error.message || "Login failed. Please try again.");
       }
@@ -728,7 +754,7 @@ export default function LoginScreen() {
       try {
         response2 = await loginUser({
           username: firebaseUser.email!,
-          password: firebaseUser.uid
+          password: firebaseUser.uid,
         });
         console.log("Login Response", response2);
       } catch (loginError) {
@@ -746,7 +772,7 @@ export default function LoginScreen() {
           // Immediately log in the newly registered user to get the token
           response2 = await loginUser({
             username: firebaseUser.email!,
-            password: firebaseUser.uid
+            password: firebaseUser.uid,
           });
           console.log("Post-registration Login Response", response2);
         } catch (registerError) {
@@ -761,7 +787,11 @@ export default function LoginScreen() {
       formData.append("email", firebaseUser.email!);
 
       // Call the backend to get or create the user
-      const response = await apiCall("/api/users/create/google", "POST", formData);
+      const response = await apiCall(
+        "/api/users/create/google",
+        "POST",
+        formData
+      );
       const userData = response.user;
 
       setUser({
@@ -780,8 +810,11 @@ export default function LoginScreen() {
       setSignedInWithGoogle(true);
 
       // Check for missing fields and navigate accordingly
-      if (!userData.username || userData.username === "" ||
-        userData.username === firebaseUser.email!.split("@")[0]) {
+      if (
+        !userData.username ||
+        userData.username === "" ||
+        userData.username === firebaseUser.email!.split("@")[0]
+      ) {
         setShowUsernameSetup(true);
       } else {
         setIsCreator(userData.is_creator);
@@ -790,7 +823,9 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       console.error("Google Sign-In Error:", error);
-      setSocialLoginError(error.message || "Failed to sign in with Google. Please try again.");
+      setSocialLoginError(
+        error.message || "Failed to sign in with Google. Please try again."
+      );
     } finally {
       setDisableButton(false);
     }
@@ -814,8 +849,9 @@ export default function LoginScreen() {
 
       // Generate a random nonce using Math.random (React Native compatible)
       const generateNonce = () => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        let result = '';
+        const chars =
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let result = "";
         for (let i = 0; i < 32; i++) {
           result += chars.charAt(Math.floor(Math.random() * chars.length));
         }
@@ -825,11 +861,11 @@ export default function LoginScreen() {
       let idToken: string;
       let nonce: string;
 
-      if (Platform.OS === 'android') {
+      if (Platform.OS === "android") {
         // Android implementation using @invertase/react-native-apple-authentication
 
         if (!appleAuthAndroid.isSupported) {
-          Alert.alert('Apple Sign-In is not supported on this device.');
+          Alert.alert("Apple Sign-In is not supported on this device.");
           return;
         }
 
@@ -839,8 +875,9 @@ export default function LoginScreen() {
 
         // Configure the request
         appleAuthAndroid.configure({
-          clientId: 'com.lynkd.socialcommerce.apple',
-          redirectUri: 'https://socialecom-a3615.firebaseapp.com/__/auth/handler',
+          clientId: "com.lynkd.socialcommerce.apple",
+          redirectUri:
+            "https://socialecom-a3615.firebaseapp.com/__/auth/handler",
           responseType: appleAuthAndroid.ResponseType.ALL,
           scope: appleAuthAndroid.Scope.ALL,
           nonce: rawNonce,
@@ -849,6 +886,9 @@ export default function LoginScreen() {
 
         // Open the browser window for user sign in
         const response = await appleAuthAndroid.signIn();
+        if (!response.id_token) {
+          throw new Error("Apple Sign-In failed: No id_token received");
+        }
         idToken = response.id_token;
         nonce = rawNonce;
       } else {
@@ -890,7 +930,7 @@ export default function LoginScreen() {
       try {
         response2 = await loginUser({
           username: firebaseUser.email!,
-          password: firebaseUser.uid
+          password: firebaseUser.uid,
         });
         console.log("Login Response", response2);
       } catch (loginError) {
@@ -908,7 +948,7 @@ export default function LoginScreen() {
           // Login the newly registered user
           response2 = await loginUser({
             username: firebaseUser.email!,
-            password: firebaseUser.uid
+            password: firebaseUser.uid,
           });
           console.log("Post-registration Login Response", response2);
         } catch (registerError) {
@@ -923,7 +963,11 @@ export default function LoginScreen() {
       formData.append("email", firebaseUser.email!);
 
       // Call the backend to get or create the user
-      const response = await apiCall("/api/users/create/google", "POST", formData);
+      const response = await apiCall(
+        "/api/users/create/google",
+        "POST",
+        formData
+      );
       const userData = response.user;
 
       setUser({
@@ -940,8 +984,11 @@ export default function LoginScreen() {
       });
 
       // Similar logic to Google sign-in for navigation
-      if (!userData.username || userData.username === "" ||
-        userData.username === firebaseUser.email!.split("@")[0]) {
+      if (
+        !userData.username ||
+        userData.username === "" ||
+        userData.username === firebaseUser.email!.split("@")[0]
+      ) {
         setShowUsernameSetup(true);
       } else {
         setIsCreator(userData.is_creator);
@@ -1016,8 +1063,14 @@ export default function LoginScreen() {
       // Update username on backend
       const formData = new FormData();
       formData.append("username", username.trim().toLowerCase());
-      formData.append("first_name", currentUser?.displayName?.trim()?.split(" ")[0] || "");
-      formData.append("last_name", currentUser?.displayName?.trim()?.split(" ")[1] || "");
+      formData.append(
+        "first_name",
+        currentUser?.displayName?.trim()?.split(" ")[0] || ""
+      );
+      formData.append(
+        "last_name",
+        currentUser?.displayName?.trim()?.split(" ")[1] || ""
+      );
 
       const response = await apiCall(
         `/api/users/update-username/${currentUser.uid}`,
