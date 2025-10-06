@@ -99,6 +99,7 @@ export const POSTS = [
   },
   {
     id: "p10",
+    user_id: 12,
     username: "Dumble Door",
     is_creator: true,
     userProfilePic: "https://randomuser.me/api/portraits/men/45.jpg",
@@ -121,6 +122,7 @@ export const POSTS = [
   },
   {
     id: "p11",
+    user_id: 12,
     username: "travel_enthusiast",
     is_creator: false,
     userProfilePic: "https://randomuser.me/api/portraits/women/68.jpg",

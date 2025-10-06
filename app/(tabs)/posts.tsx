@@ -8,6 +8,7 @@ import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -50,31 +51,63 @@ type Post = {
   productCount?: string;
 };
 
-const LOCAL_ASSETS_REQUIRE: any[] = [
-  require("@/assets/vertical.mp4"),
-  require("@/assets/vertical.mp4"),
-  require("@/assets/vertical.mp4"),
-  require("@/assets/vertical.mp4"),
-];
+// Remote video URLs with different aspect ratios
 const SAMPLE_REMOTE_VIDEOS = [
-  "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+  // 16:9 landscape
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    aspectRatio: "16:9",
+  },
+  // 9:16 vertical/portrait
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+    aspectRatio: "9:16",
+  },
+  // 1:1 square
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    aspectRatio: "1:1",
+  },
+  // 4:5 portrait (Instagram style)
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    aspectRatio: "4:5",
+  },
+  // 9:16 vertical
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+    aspectRatio: "9:16",
+  },
+  // 16:9 landscape - replaced broken Chromecast URL
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+    aspectRatio: "16:9",
+  },
+  // 9:16 vertical
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+    aspectRatio: "9:16",
+  },
+  // 1:1 square
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+    aspectRatio: "1:1",
+  },
 ];
-const DUMMY_POSTS: Post[] = Array.from({ length: 5 }).map((_, i) => {
-  const local = LOCAL_ASSETS_REQUIRE[i] ?? null;
-  const remote = SAMPLE_REMOTE_VIDEOS[i % SAMPLE_REMOTE_VIDEOS.length];
+
+const DUMMY_POSTS: Post[] = Array.from({ length: 8 }).map((_, i) => {
+  const videoData = SAMPLE_REMOTE_VIDEOS[i % SAMPLE_REMOTE_VIDEOS.length];
   const user = USERS[i % USERS.length];
   const id = i + 1;
   return {
     id,
-    media_url: local ?? remote,
+    media_url: videoData.url,
     thumbnail_url: `https://via.placeholder.com/800x1200.png?text=thumb+${id}`,
     photoURL: user?.avatar ?? "https://via.placeholder.com/100.png",
     username: user?.username ?? `user_${id}`,
     user_id: Number(user?.id ?? id),
     verified: i % 3 === 0,
-    caption: `This is a sample caption for reel #${id}. Additional details and hashtags can follow in the full caption #bird #dj #video #bb #hero #dog #wired #god #cricket #greatleader #srikanth #beauty.`,
+    caption: `This is a sample caption for reel #${id}. Video aspect ratio: ${videoData.aspectRatio}. Additional details and hashtags #bird #dj #video #bb #hero #dog #wired #god #cricket #greatleader #srikanth #beauty.`,
     likes: Math.floor(Math.random() * 200),
     commentsCount: Math.floor(Math.random() * 20),
     shareUrl: `https://example.com/reel/${id}`,
@@ -334,23 +367,16 @@ const PostItem: React.FC<{
             <TouchableOpacity onPress={() => onOpenProfile(item.user_id)}>
               <View className="w-14 h-14 rounded-full overflow-hidden items-center justify-center border border-white/20">
                 {hasValidUri && !imgError ? (
-                  <>
-                    <Image
-                      source={{ uri: avatarUri! }}
-                      className="w-14 h-14 rounded-full"
-                      onLoadStart={() => setImgLoading(true)}
-                      onLoadEnd={() => setImgLoading(false)}
-                      onError={() => {
-                        setImgLoading(false);
-                        setImgError(true);
-                      }}
-                    />
-                    {imgLoading && (
-                      <View className="absolute inset-0 justify-center items-center">
-                        <Text className="text-white text-xs">Loading</Text>
-                      </View>
-                    )}
-                  </>
+                  <Image
+                    source={{ uri: avatarUri! }}
+                    className="w-14 h-14 rounded-full"
+                    onLoadStart={() => setImgLoading(true)}
+                    onLoadEnd={() => setImgLoading(false)}
+                    onError={() => {
+                      setImgLoading(false);
+                      setImgError(true);
+                    }}
+                  />
                 ) : (
                   <View className="w-12 h-12 rounded-full bg-gray-500 justify-center items-center">
                     <Text className="text-white font-bold">
@@ -480,10 +506,17 @@ const VideoFeed: React.FC = () => {
   // mediaLoading: true while waiting for native player to report loaded for the currentIndex
   const [mediaLoading, setMediaLoading] = useState<boolean>(true);
 
+  // Track if we're showing loading spinner (after timeout)
+  const [showLoadingSpinner, setShowLoadingSpinner] = useState<boolean>(false);
+  const loadingTimeoutRef = useRef<any>(null);
+
   // loadedSetRef tracks which indices have finished loading at least once
   const loadedSetRef = useRef<Set<number>>(new Set());
   // a tiny integer state to trigger re-renders when loadedSetRef changes
   const [loadedVersion, setLoadedVersion] = useState(0);
+
+  // Preload nearby videos for smooth Instagram-like experience
+  const preloadedPlayersRef = useRef<Map<number, any>>(new Map());
 
   // track per-index manual pause state map
   const pausedMapRef = useRef<Map<number, boolean>>(new Map());
@@ -501,18 +534,20 @@ const VideoFeed: React.FC = () => {
   const player = useVideoPlayer(
     currentMedia ? currentMedia.media_url : null,
     (pl) => {
+      console.log("🎬 Player created for:", currentMedia?.media_url);
       playerRef.current = pl as any;
       releasedRef.current = false;
       try {
         if (pl) {
-          // apply looping & muted on the player instance (not the VideoView props)
+          // apply looping & unmuted on the player instance (not the VideoView props)
           if (typeof (pl as any).setIsLooping === "function")
             (pl as any).setIsLooping(true);
           else if ("loop" in (pl as any)) (pl as any).loop = true;
 
+          // Enable sound (unmuted)
           if (typeof (pl as any).setIsMuted === "function")
-            (pl as any).setIsMuted(true);
-          else if ("muted" in (pl as any)) (pl as any).muted = true;
+            (pl as any).setIsMuted(false);
+          else if ("muted" in (pl as any)) (pl as any).muted = false;
         }
       } catch {}
     }
@@ -637,6 +672,44 @@ const VideoFeed: React.FC = () => {
     prefetchAll();
   }, [posts]);
 
+  // PRELOAD next and previous videos for Instagram-like smooth transitions
+  useEffect(() => {
+    const preloadNearbyVideos = async () => {
+      try {
+        // Preload next video
+        const nextIndex = currentIndex + 1;
+        if (
+          nextIndex < posts.length &&
+          !preloadedPlayersRef.current.has(nextIndex)
+        ) {
+          const nextPost = posts[nextIndex];
+          if (nextPost?.media_url && typeof nextPost.media_url === "string") {
+            // Mark as loading to prevent duplicate preloads
+            preloadedPlayersRef.current.set(nextIndex, "loading");
+            // Prefetch the video URL to cache it
+            fetch(nextPost.media_url, { method: "HEAD" }).catch(() => {});
+          }
+        }
+
+        // Preload previous video
+        const prevIndex = currentIndex - 1;
+        if (prevIndex >= 0 && !preloadedPlayersRef.current.has(prevIndex)) {
+          const prevPost = posts[prevIndex];
+          if (prevPost?.media_url && typeof prevPost.media_url === "string") {
+            preloadedPlayersRef.current.set(prevIndex, "loading");
+            fetch(prevPost.media_url, { method: "HEAD" }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.log("Preload error:", e);
+      }
+    };
+
+    // Delay preload slightly to prioritize current video
+    const preloadTimer = setTimeout(preloadNearbyVideos, 200);
+    return () => clearTimeout(preloadTimer);
+  }, [currentIndex, posts]);
+
   // monitor player status for load -> autoplay (handles initial & switches)
   useEffect(() => {
     let cancelled = false;
@@ -663,6 +736,7 @@ const VideoFeed: React.FC = () => {
                 setLoadedVersion((v) => v + 1);
               }
               setMediaLoading(false);
+              setShowLoadingSpinner(false);
               const pausedForIndex =
                 pausedMapRef.current.get(currentIndex) ?? false;
               manualPausedRef.current = pausedForIndex;
@@ -680,11 +754,20 @@ const VideoFeed: React.FC = () => {
             }
           } else {
             // fallback behavior if status API not present
+            console.log(
+              "📹 Using fallback loading detection for index:",
+              currentIndex
+            );
             if (!loadedSetRef.current.has(currentIndex)) {
               loadedSetRef.current.add(currentIndex);
               setLoadedVersion((v) => v + 1);
+              console.log(
+                "✅ Video marked as loaded (fallback):",
+                currentIndex
+              );
             }
             setMediaLoading(false);
+            setShowLoadingSpinner(false);
             const pausedForIndex =
               pausedMapRef.current.get(currentIndex) ?? false;
             manualPausedRef.current = pausedForIndex;
@@ -703,11 +786,11 @@ const VideoFeed: React.FC = () => {
         } catch (e) {
           // ignore
         }
-      }, 180);
+      }, 100);
     };
 
     setMediaLoading(true);
-    const startDelay = setTimeout(() => startPolling(), 60);
+    const startDelay = setTimeout(() => startPolling(), 30);
 
     return () => {
       cancelled = true;
@@ -749,17 +832,41 @@ const VideoFeed: React.FC = () => {
     // don't recreate player on posts change — only update currentMedia when index changes
     manualPausedRef.current = pausedMapRef.current.get(currentIndex) ?? false;
     setCenterVisible(false);
+
+    // Clear previous loading timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
+
+    // Always set loading to true first to show thumbnail immediately and hide previous video
+    setMediaLoading(true);
+    setShowLoadingSpinner(false);
     setCurrentMedia(next);
 
+    // Check if already loaded (cached/preloaded)
     if (loadedSetRef.current.has(currentIndex)) {
-      setMediaLoading(false);
+      // Video already loaded, show it quickly
+      setTimeout(() => {
+        setMediaLoading(false);
+        setShowLoadingSpinner(false);
+      }, 100);
     } else {
-      setMediaLoading(true);
+      // Show loading spinner after 800ms if still loading (network issue)
+      loadingTimeoutRef.current = setTimeout(() => {
+        if (!loadedSetRef.current.has(currentIndex)) {
+          setShowLoadingSpinner(true);
+        }
+      }, 800);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex]); // intentionally not depending on `posts`
 
-  // cleanup on unmount
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex]); // intentionally not depending on `posts`  // cleanup on unmount
   useEffect(() => {
     return () => {
       if (singleTapTimeoutRef.current) {
@@ -877,7 +984,8 @@ const VideoFeed: React.FC = () => {
     width,
     height,
     backgroundColor: "black",
-    opacity: loadedSetRef.current.has(currentIndex) && !mediaLoading ? 1 : 0,
+    // Hide video during loading to prevent previous video from showing, show when ready
+    opacity: mediaLoading ? 0 : 1,
     zIndex: 0,
   } as any;
 
@@ -888,7 +996,7 @@ const VideoFeed: React.FC = () => {
     top: 0,
     width,
     height,
-    zIndex: 0,
+    zIndex: 10, // Higher z-index to cover video during transition
   } as const;
 
   // -------------------------
@@ -940,6 +1048,23 @@ const VideoFeed: React.FC = () => {
                 backgroundColor: "rgba(0,0,0,0.12)",
               }}
             />
+
+            {/* Loading spinner - only show if taking too long (network issue) */}
+            {showLoadingSpinner && (
+              <View
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <ActivityIndicator size="large" color="#ffffff" />
+              </View>
+            )}
           </View>
         )}
       </Reanimated.View>
@@ -1039,14 +1164,14 @@ const VideoFeed: React.FC = () => {
           Number(showPostOptionsFor?.user_id ?? -1)
         )}
         focusedPost={showPostOptionsFor}
+        setFocusedPost={setShowPostOptionsFor}
         setBlockUser={() => {}}
         setReportVisible={() => {}}
-        deleteAction={(id?: number) => {
-          if (id == null) return;
-          setPosts((prev) => prev.filter((p) => p.id !== id));
+        deleteAction={(postId: string) => {
+          setPosts((prev) => prev.filter((p) => p.id !== Number(postId)));
           setShowPostOptionsFor(null);
         }}
-        currentUserId={9999}
+        user={{ id: 9999 }}
       />
     </View>
   );

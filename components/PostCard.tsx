@@ -280,7 +280,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                     ? caption.substring(0, captionLimit)
                     : caption;
 
-                return (
+                return caption ? (
                   <View>
                     <Text className="text-sm px-3 text-gray-900">
                       {displayCaption
@@ -296,11 +296,13 @@ export const PostCard: React.FC<PostCardProps> = ({
                                   isGestureActive
                                     ? undefined
                                     : () =>
-                                        router.push(
-                                          `/(profiles)?mentionedUsername=${part.slice(
-                                            1
-                                          )}`
-                                        )
+                                        router.push({
+                                          pathname: "/(profiles)" as any,
+                                          params: {
+                                            username: part.slice(1),
+                                            user: 999999, // Use a different ID to indicate it's not the current user
+                                          },
+                                        })
                                 }
                                 onLongPress={openPostOptions}
                               >
@@ -392,7 +394,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                       </Pressable>
                     )}
                   </View>
-                );
+                ) : null;
               })()}
               {item?.post_hashtags?.length ? (
                 <Text className="text-blue-600 mt-1 px-3">

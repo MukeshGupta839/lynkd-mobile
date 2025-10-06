@@ -2,7 +2,6 @@ import BlockUserPopup from "@/components/BlockUserPopup";
 import CameraPost from "@/components/CameraPost";
 import Chats from "@/components/chat/Chat";
 import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
-import CreatePostHeader from "@/components/CreatePostHeader";
 
 import { PostCard } from "@/components/PostCard";
 
@@ -15,7 +14,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { BlurView } from "expo-blur";
 import { Camera } from "expo-camera";
-import { LinearGradient } from "expo-linear-gradient";
 import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -24,12 +22,9 @@ import {
   Animated,
   Dimensions,
   FlatList,
-  Image,
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   Text,
   TouchableOpacity,
   Vibration,
@@ -48,199 +43,6 @@ import Reanimated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
-
-// Define window width for calculations
-const windowWidth = Dimensions.get("window").width;
-
-// ----- Facebook-style Image Viewer Component -----
-const FacebookImageViewer = ({
-  imageUri,
-  visible,
-  onClose,
-}: {
-  imageUri: string;
-  visible: boolean;
-  onClose: () => void;
-}) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const [isZoomed, setIsZoomed] = useState(false);
-  const insets = useSafeAreaInsets();
-
-  // Create pinch gesture using new Gesture API
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate((event) => {
-      scale.setValue(event.scale);
-    })
-    .onEnd((event) => {
-      if (event.scale < 1) {
-        // If zoomed out, reset to normal
-        Animated.parallel([
-          Animated.spring(scale, {
-            toValue: 1,
-            useNativeDriver: true,
-            friction: 8,
-          }),
-          Animated.spring(translateX, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }),
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }),
-        ]).start(() => setIsZoomed(false));
-      } else if (event.scale > 1) {
-        setIsZoomed(true);
-      }
-    });
-
-  const handleSingleTap = () => {
-    if (isZoomed) {
-      // Reset zoom
-      Animated.parallel([
-        Animated.spring(scale, {
-          toValue: 1,
-          useNativeDriver: true,
-          friction: 8,
-        }),
-        Animated.spring(translateX, {
-          toValue: 0,
-          useNativeDriver: true,
-          friction: 8,
-        }),
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          friction: 8,
-        }),
-      ]).start(() => setIsZoomed(false));
-    } else {
-      // Close modal
-      onClose();
-    }
-  };
-
-  // Reset values when modal closes
-  useEffect(() => {
-    if (!visible) {
-      scale.setValue(1);
-      translateX.setValue(0);
-      translateY.setValue(0);
-      setIsZoomed(false);
-    }
-  }, [visible, scale, translateX, translateY]);
-
-  return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent={true}
-    >
-      <StatusBar
-        backgroundColor="transparent"
-        style="light"
-        translucent={Platform.OS === "android"}
-      />
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "black",
-          justifyContent: "center",
-          alignItems: "center",
-          paddingTop: 0,
-          paddingBottom: 0,
-        }}
-      >
-        {/* Close button */}
-        <TouchableOpacity
-          onPress={onClose}
-          style={{
-            position: "absolute",
-            top: insets.top + 10,
-            right: 20,
-            zIndex: 10,
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: "rgba(255,255,255,0.2)",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <Ionicons name="close" size={24} color="white" />
-        </TouchableOpacity>
-
-        {/* Pinch-to-zoom image */}
-        <GestureDetector gesture={pinchGesture}>
-          <Animated.View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={handleSingleTap}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Animated.Image
-                source={{ uri: imageUri }}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  transform: [
-                    { scale: scale },
-                    { translateX: translateX },
-                    { translateY: translateY },
-                  ],
-                }}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
-          </Animated.View>
-        </GestureDetector>
-
-        {/* Zoom instruction */}
-        {!isZoomed && (
-          <View
-            style={{
-              position: "absolute",
-              bottom: insets.bottom + 80,
-              alignSelf: "center",
-              backgroundColor: "rgba(0,0,0,0.7)",
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 20,
-            }}
-          >
-            <Text style={{ color: "white", fontSize: 12 }}>
-              Pinch to zoom • Tap to close
-            </Text>
-          </View>
-        )}
-      </View>
-    </Modal>
-  );
-};
 
 // ----- Dummy data (replace with your API data later) -----
 const STORIES = Array.from({ length: 10 }).map((_, i) => ({
@@ -261,64 +63,6 @@ const STORIES = Array.from({ length: 10 }).map((_, i) => ({
     i + 1
   }.jpg`,
 }));
-
-// ----- Header -----
-const HomeHeader = () => (
-  <View className="border-b border-gray-200 px-3 pb-2">
-    <View className="flex-row items-center justify-between">
-      <Text className="text-xl font-bold">LYNKD</Text>
-      <View className="flex-row items-center space-x-3">
-        <TouchableOpacity className="w-9 h-9 rounded-full items-center justify-center">
-          <Ionicons name="search-outline" size={22} color="#000" />
-        </TouchableOpacity>
-        <TouchableOpacity className="w-9 h-9 rounded-full items-center justify-center relative">
-          <View className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-red-500" />
-          <Ionicons name="notifications-outline" size={22} color="#000" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  </View>
-);
-
-// ----- Stories row -----
-const Stories = () => (
-  <View className="border-b border-gray-200">
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10 }}
-    >
-      {STORIES.map((s) => (
-        <View key={s.id} className="w-[64px] items-center mr-4">
-          <View className="w-16 h-16">
-            <LinearGradient
-              colors={["#4D70D1", "#921EC4"]}
-              className="absolute -top-[3px] -right-[3px] w-18 h-18 rounded-full"
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-            <Image
-              source={{ uri: s.avatar }}
-              className="w-16 h-16 rounded-full border-2 border-white"
-            />
-          </View>
-          <Text className="text-xs text-gray-700 mt-1" numberOfLines={1}>
-            {s.name}
-          </Text>
-        </View>
-      ))}
-    </ScrollView>
-  </View>
-);
-
-// ----- Create post card -----
-const CreatePostCard = () => (
-  <View className="px-3 py-3">
-    <CreatePostHeader
-      onPressCreatePost={() => console.log("Create post pressed")}
-    />
-  </View>
-);
 
 // ----- PostCard Component is now imported from @/components/PostCard -----
 
@@ -443,6 +187,9 @@ export default function ConsumerHomeUI() {
   useEffect(() => {
     // Show tab bar when component mounts
     showTabBar();
+
+    // Reset translateX to center when home tab is opened/focused
+    translateX.value = 0;
 
     // Cleanup: show tab bar when component unmounts
     return () => {
@@ -585,6 +332,11 @@ export default function ConsumerHomeUI() {
     if (shouldNavigateToChat) {
       router.push("/(tabs)/chat");
       setShouldNavigateToChat(false);
+      // Reset translateX to center after navigating to chat
+      // This ensures when user comes back to home tab, it's centered
+      setTimeout(() => {
+        translateX.value = 0;
+      }, 100);
     }
   }, [shouldNavigateToChat, router]);
 
@@ -607,7 +359,7 @@ export default function ConsumerHomeUI() {
 
   const panGesture = Gesture.Pan()
     .failOffsetY([-15, 15]) // Increased from 10 to 15
-    .activeOffsetX([-25, 25]) // Increased from 10 to 25
+    .activeOffsetX(-25) // Only allow left swipe (negative direction), disable right swipe
     .maxPointers(1)
     // .enabled(!cameraActive)
     .onStart(() => {
@@ -632,9 +384,10 @@ export default function ConsumerHomeUI() {
         }
       }
 
+      // Only allow left swipe (negative direction), block right swipe
       const next = Math.max(
         -width,
-        Math.min(width, currentStartX + translationX)
+        Math.min(0, currentStartX + translationX) // Max 0 prevents right swipe
       );
       translateX.value = next;
     })
@@ -647,34 +400,18 @@ export default function ConsumerHomeUI() {
 
       const startedFromCenter = Math.abs(currentStartX) < width * 0.1;
       const startedFromLeft = currentStartX < -width * 0.5; // Chat underlay
-      const startedFromRight = currentStartX > width * 0.5; // AI underlay
 
       if (startedFromCenter) {
         const swipeThreshold = width * 0.25;
         const velocityThreshold = 500;
 
-        if (translationX > swipeThreshold || vx > velocityThreshold) {
-          // swipe right -> POST underlay
-          targetPosition = width;
-          // runOnJS(setCameraActive)(true);
-          tabBarHiddenSV.value = true; // hide tab bar when swiping to POST
-        } else if (translationX < -swipeThreshold || vx < -velocityThreshold) {
+        // RIGHT SWIPE DISABLED - only allow left swipe to chat
+        if (translationX < -swipeThreshold || vx < -velocityThreshold) {
           // swipe left -> Chat underlay
           targetPosition = -width;
           scheduleOnRN(setShouldNavigateToChat, true);
         } else {
-          targetPosition = 0; // stay centered
-        }
-      } else if (startedFromRight) {
-        // POST underlay: ONLY allow left-swipe to go back
-        const minSwipe = width * 0.12;
-        const minVelocity = 250;
-
-        if (translationX < -minSwipe || vx < -minVelocity) {
-          targetPosition = 0; // left swipe -> center
-          tabBarHiddenSV.value = false;
-        } else {
-          targetPosition = width; // ignore right swipe -> stay on POST
+          targetPosition = 0; // stay centered (right swipe disabled)
         }
       } else if (startedFromLeft) {
         // Chat underlay: ONLY allow right-swipe to go back
@@ -791,67 +528,6 @@ export default function ConsumerHomeUI() {
       };
     }
   });
-
-  const ChatUnderlay = () => (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: "#f8f9fa",
-        alignItems: "center",
-        justifyContent: "center",
-        paddingTop: insets.top + 60,
-      }}
-    >
-      <View style={{ alignItems: "center", paddingHorizontal: 20 }}>
-        <Ionicons
-          name="chatbubbles"
-          size={48}
-          color="#4D70D1"
-          style={{ marginBottom: 16 }}
-        />
-        <Text style={{ fontSize: 24, fontWeight: "600", marginBottom: 8 }}>
-          Messages
-        </Text>
-        <Text
-          style={{
-            fontSize: 16,
-            color: "#666",
-            textAlign: "center",
-            marginBottom: 24,
-          }}
-        >
-          Connect with friends and discover new conversations
-        </Text>
-        <TouchableOpacity
-          style={{
-            backgroundColor: "#4D70D1",
-            paddingHorizontal: 24,
-            paddingVertical: 12,
-            borderRadius: 8,
-            marginBottom: 16,
-          }}
-          onPress={() => {
-            // Navigate to actual chat screen or back to center
-            router.push("/(tabs)/chat");
-          }}
-        >
-          <Text style={{ color: "white", fontSize: 16, fontWeight: "600" }}>
-            Open Chats
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => {
-            translateX.value = withSpring(0, {
-              damping: 15,
-              stiffness: 160,
-            });
-          }}
-        >
-          <Text style={{ color: "#666", fontSize: 14 }}>← Back to Feed</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   const snapToCenter = () => {
     translateX.value = withSpring(0, { damping: 15, stiffness: 160 });
