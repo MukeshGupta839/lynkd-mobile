@@ -1,1192 +1,271 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Dimensions,
-  Image,
-  Linking,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-// Hooks
-import { useTabBarHeight } from "../../hooks/useTabBarHeight";
-
-// Icons
-import Feather from "@expo/vector-icons/Feather";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
-import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
-import Foundation from "@expo/vector-icons/Foundation";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import Octicons from "@expo/vector-icons/Octicons";
-import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
-
-// Components
-import MaterialDesignIcons from "@react-native-vector-icons/material-design-icons";
-import TextPost from "../../components/TextPost";
-
-const { width } = Dimensions.get("window");
-
-interface UserDetails {
-  id: number;
-  username: string;
-  first_name?: string;
-  last_name?: string;
-  bio?: string;
-  profile_picture?: string;
-  banner_image?: string;
-  is_creator: boolean;
-  postsCount: number;
-  reelsCount: number;
-  followersCount: number;
-  followingCount: number;
-  social_media_accounts?: {
-    instagram_username?: string;
-    twitter_username?: string;
-    youtube_username?: string;
-  }[];
-}
+import ProfileScreen from "../../components/ProfileScreen";
 
 const Profile = () => {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const params = useLocalSearchParams();
-  const tabBarHeight = useTabBarHeight();
+  // Example API functions - replace with your actual API calls
+  const fetchUserDetails = async (userId: number, username?: string) => {
+    // Call your API here
+    // const response = await fetch(`/api/users/${userId}`);
+    // return await response.json();
 
-  // Mock user data - replace with your actual user context
-  const currentUser = {
-    id: 1,
-    username: "current_user",
-    profile_picture: "https://randomuser.me/api/portraits/men/1.jpg",
+    // Return mock data for now - remove this when implementing real API
+    return {
+      id: userId,
+      username: username || "current_user",
+      first_name: "John",
+      last_name: "Doe",
+      bio: "Your bio here",
+      profile_picture: "https://randomuser.me/api/portraits/men/1.jpg",
+      banner_image:
+        "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg",
+      is_creator: true,
+      postsCount: 12,
+      reelsCount: 5,
+      followersCount: 1250,
+      followingCount: 890,
+      social_media_accounts: [
+        {
+          instagram_username: "your_instagram",
+          twitter_username: "your_twitter",
+          youtube_username: "your_youtube",
+        },
+      ],
+    };
   };
 
-  const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
-  const [activeTab, setActiveTab] = useState("All");
-  const [loading, setLoading] = useState(true);
-  const [posts] = useState([
-    // March 2024
-    {
-      id: 1,
-      media_url: "https://picsum.photos/400/400?random=1",
-      text_post: false,
-      created_at: "2024-03-28",
-      username: "john_doe",
-    },
-    {
-      id: 2,
-      media_url: "https://picsum.photos/400/400?random=2",
-      text_post: false,
-      created_at: "2024-03-25",
-      username: "john_doe",
-    },
+  const fetchUserPosts = async (userId: number) => {
+    // TODO: Replace with real API call
+    // const response = await fetch(`/api/users/${userId}/posts`);
+    // return await response.json();
 
-    // February 2024
-    {
-      id: 8,
-      media_url: "https://picsum.photos/400/400?random=6",
-      text_post: false,
-      created_at: "2024-02-28",
-      username: "john_doe",
-    },
-    {
-      id: 9,
-      media_url: "https://picsum.photos/400/400?random=7",
-      text_post: false,
-      created_at: "2024-02-25",
-      username: "john_doe",
-    },
-    {
-      id: 10,
-      media_url: "https://picsum.photos/400/400?random=8",
-      text_post: false,
-      created_at: "2024-02-22",
-      username: "john_doe",
-    },
-    {
-      id: 11,
-      media_url: "https://picsum.photos/400/400?random=9",
-      text_post: false,
-      created_at: "2024-02-20",
-      username: "john_doe",
-    },
-    {
-      id: 12,
-      text_post: true,
-      caption:
-        "Happy Valentine's Day! ❤️ Spreading love and positivity to everyone. What are you grateful for today?",
-      created_at: "2024-02-14",
-      post_hashtags: [
-        "love",
-        "valentinesday",
-        "positivity",
-        "grateful",
-        "happiness",
-      ],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 45,
-      comments_count: 12,
-    },
-    {
-      id: 13,
-      media_url: "https://picsum.photos/400/400?random=10",
-      text_post: false,
-      created_at: "2024-02-10",
-      username: "john_doe",
-    },
-    {
-      id: 14,
-      media_url: "https://picsum.photos/400/400?random=11",
-      text_post: false,
-      created_at: "2024-02-08",
-      username: "john_doe",
-    },
-    {
-      id: 15,
-      text_post: true,
-      caption:
-        "Coffee and creativity ☕ Starting the day with fresh ideas and positive energy. What inspires you?",
-      created_at: "2024-02-05",
-      post_hashtags: [
-        "coffee",
-        "creativity",
-        "inspiration",
-        "morning",
-        "energy",
-      ],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 38,
-      comments_count: 8,
-      affiliated: true,
-      affiliation: {
-        productID: 101,
-        brandName: "BrewMaster",
-        brandLogo: "https://picsum.photos/100/100?random=20",
-        productName: "Premium Coffee Beans",
-        productImage: "https://picsum.photos/300/300?random=21",
-        productDescription:
-          "Freshly roasted premium coffee beans sourced from the best coffee farms around the world. Perfect for starting your creative morning with rich, aromatic flavor.",
-        productRegularPrice: 899,
-        productSalePrice: 649,
+    console.log("Fetching posts for user:", userId);
+
+    // Mock posts data (same as profiles route for consistency)
+    return [
+      {
+        id: 101,
+        imageUrl:
+          "https://img.freepik.com/free-photo/painting-mountain-lake-with-mountain-background_188544-9126.jpg",
+        type: "image",
       },
-    },
-
-    // January 2024
-    {
-      id: 16,
-      media_url: "https://picsum.photos/400/400?random=12",
-      text_post: false,
-      created_at: "2024-01-30",
-      username: "john_doe",
-    },
-    {
-      id: 17,
-      media_url: "https://picsum.photos/400/400?random=13",
-      text_post: false,
-      created_at: "2024-01-28",
-      username: "john_doe",
-    },
-    {
-      id: 18,
-      media_url: "https://picsum.photos/400/400?random=14",
-      text_post: false,
-      created_at: "2024-01-25",
-      username: "john_doe",
-    },
-    {
-      id: 19,
-      text_post: true,
-      caption:
-        "New year, new adventures! 🎉 Already making progress on my 2024 goals. What's on your bucket list this year?",
-      created_at: "2024-01-20",
-      post_hashtags: [
-        "newyear",
-        "goals",
-        "adventure",
-        "2024",
-        "motivation",
-        "bucketlist",
-      ],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 67,
-      comments_count: 23,
-    },
-    {
-      id: 20,
-      media_url: "https://picsum.photos/400/400?random=15",
-      text_post: false,
-      created_at: "2024-01-15",
-      username: "john_doe",
-    },
-    {
-      id: 21,
-      media_url: "https://picsum.photos/400/400?random=16",
-      text_post: false,
-      created_at: "2024-01-12",
-      username: "john_doe",
-    },
-    {
-      id: 22,
-      text_post: true,
-      caption:
-        "Weekend vibes! 🌅 Sometimes the best moments are the quiet ones. Taking time to appreciate the little things.",
-      created_at: "2024-01-08",
-      post_hashtags: ["weekend", "vibes", "mindfulness", "grateful", "peace"],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 52,
-      comments_count: 15,
-    },
-    {
-      id: 23,
-      media_url: "https://picsum.photos/400/400?random=17",
-      text_post: false,
-      created_at: "2024-01-05",
-      username: "john_doe",
-    },
-    {
-      id: 24,
-      text_post: true,
-      caption:
-        "Fresh start, fresh mindset! 💫 Ready to make 2024 the best year yet. Here's to new beginnings!",
-      created_at: "2024-01-01",
-      post_hashtags: [
-        "freshstart",
-        "mindset",
-        "2024",
-        "newbeginnings",
-        "motivation",
-      ],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 89,
-      comments_count: 34,
-    },
-  ]);
-  const [userReels] = useState([
-    {
-      id: 1,
-      thumbnail_url: "https://picsum.photos/400/600?random=4",
-      reels_views_aggregate: { aggregate: { count: 1250 } },
-    },
-    {
-      id: 2,
-      thumbnail_url: "https://picsum.photos/400/600?random=5",
-      reels_views_aggregate: { aggregate: { count: 3400 } },
-    },
-  ]);
-  const [productsAffiliated] = useState([
-    {
-      id: 1,
-      name: "Wireless Headphones",
-      main_image: "https://picsum.photos/300/300?random=6",
-      sale_price: 2999,
-    },
-    {
-      id: 2,
-      name: "Smartphone Case",
-      main_image: "https://picsum.photos/300/300?random=7",
-      sale_price: 799,
-    },
-  ]);
-  const [userID] = useState(
-    params.user
-      ? Number(Array.isArray(params.user) ? params.user[0] : params.user) ||
-          currentUser.id
-      : currentUser.id
-  );
-  const [following, setFollowing] = useState("");
-  const [bioExpanded, setBioExpanded] = useState(false);
-
-  // Function to format numbers (e.g., 1000 -> 1k)
-  const kFormatter = (num: number): string => {
-    if (Math.abs(num) > 999999999) {
-      return (Math.sign(num) * (Math.abs(num) / 1000000000)).toFixed(1) + "B";
-    } else if (Math.abs(num) > 999999) {
-      return (Math.sign(num) * (Math.abs(num) / 1000000)).toFixed(1) + "M";
-    } else if (Math.abs(num) > 999) {
-      return (Math.sign(num) * (Math.abs(num) / 1000)).toFixed(1) + "K";
-    } else {
-      return (Math.sign(num) * Math.abs(num)).toString();
-    }
+      {
+        id: 102,
+        imageUrl:
+          "https://img.freepik.com/free-photo/wide-angle-shot-single-tree-growing-clouded-sky-during-sunset-surrounded-by-grass_181624-22807.jpg",
+        type: "image",
+      },
+      {
+        id: 103,
+        imageUrl:
+          "https://img.freepik.com/free-photo/beautiful-shot-sea-with-black-sand-beach-stokksnes-iceland_181624-9274.jpg",
+        type: "image",
+      },
+      {
+        id: 104,
+        imageUrl:
+          "https://img.freepik.com/free-photo/beautiful-shot-white-british-shorthair-kitten_181624-57681.jpg",
+        type: "image",
+      },
+      {
+        id: 105,
+        imageUrl:
+          "https://img.freepik.com/free-photo/view-illuminated-neon-gaming-keyboard-setup-controller_23-2149529367.jpg",
+        type: "image",
+      },
+      {
+        id: 106,
+        imageUrl:
+          "https://img.freepik.com/free-photo/top-view-desk-concept-with-tech-device_23-2148757781.jpg",
+        type: "image",
+      },
+      {
+        id: 107,
+        type: "text",
+        text: "Just finished reading an amazing book! 📚 Highly recommend it to everyone!",
+        timestamp: "2024-03-15",
+      },
+      {
+        id: 108,
+        imageUrl:
+          "https://img.freepik.com/free-photo/workplace-with-smartphone-laptop_23-2147842490.jpg",
+        type: "image",
+      },
+      {
+        id: 109,
+        imageUrl:
+          "https://img.freepik.com/free-photo/beautiful-tropical-beach-sea_74190-6786.jpg",
+        type: "image",
+      },
+      {
+        id: 110,
+        type: "text",
+        text: "Starting a new project today! Excited for what's ahead 🚀 #motivation #productivity",
+        timestamp: "2024-03-10",
+      },
+      {
+        id: 111,
+        imageUrl:
+          "https://img.freepik.com/free-photo/creative-reels-composition_23-2149711507.jpg",
+        type: "image",
+      },
+      {
+        id: 112,
+        imageUrl:
+          "https://img.freepik.com/free-photo/delicious-italian-pasta-white-surface_144627-43981.jpg",
+        type: "image",
+      },
+      {
+        id: 113,
+        type: "text",
+        text: "Coffee + Code = Productivity ☕💻 #developerlife #coding",
+        timestamp: "2024-03-08",
+      },
+      {
+        id: 114,
+        imageUrl:
+          "https://img.freepik.com/free-photo/red-white-cat-i-white-studio_155003-13189.jpg",
+        type: "image",
+      },
+      {
+        id: 115,
+        imageUrl:
+          "https://img.freepik.com/free-photo/photorealistic-view-tree-nature-with-branches-trunk_23-2151478039.jpg",
+        type: "image",
+      },
+      {
+        id: 116,
+        type: "text",
+        text: "Weekend vibes! Time to relax and recharge 🌴 #weekend #selfcare",
+        timestamp: "2024-03-05",
+      },
+      {
+        id: 117,
+        imageUrl:
+          "https://img.freepik.com/free-photo/sports-car-driving-asphalt-road-night-generative-ai_188544-8052.jpg",
+        type: "image",
+      },
+      {
+        id: 118,
+        imageUrl:
+          "https://img.freepik.com/free-photo/abstract-autumn-beauty-multi-colored-leaf-vein-pattern-generated-by-ai_188544-9871.jpg",
+        type: "image",
+      },
+      {
+        id: 119,
+        type: "text",
+        text: "Grateful for all the support! Thank you everyone 🙏❤️",
+        timestamp: "2024-03-01",
+      },
+      {
+        id: 120,
+        imageUrl:
+          "https://img.freepik.com/free-photo/milky-way-starry-night-sky-astronomy-photography_53876-148115.jpg",
+        type: "image",
+      },
+      {
+        id: 121,
+        imageUrl:
+          "https://img.freepik.com/free-photo/colorful-design-with-spiral-design_188544-9588.jpg",
+        type: "image",
+      },
+      {
+        id: 122,
+        type: "text",
+        text: "New blog post is live! Check it out 🎉 Link in bio #blog #writing",
+        timestamp: "2024-02-28",
+      },
+      {
+        id: 123,
+        imageUrl:
+          "https://img.freepik.com/free-photo/futuristic-moon-background_23-2150931730.jpg",
+        type: "image",
+      },
+      {
+        id: 124,
+        type: "text",
+        text: "Learning something new every day! 📖✨ #growth #learning",
+        timestamp: "2024-01-25",
+      },
+    ];
   };
 
-  // Mock user details for demo
-  useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      setUserDetails({
-        id: userID,
-        username: (params.username as string) || "john_doe",
-        first_name: "John",
-        last_name: "Doe",
-        bio: "Photography enthusiast • Travel lover • Coffee addict ☕️ ssfsfs sffsfsf sffssfsf sfsfsfs sfsf sfsf sf sf sfsf sfsfsfs sfsf swrwrw wrwrwrwrw wwr wr wwrw wrwrwrrw wr wrwrwr wr wr wqahlskhlfkhashlf hahs ahfslkfh lkfhl akfhslksjhfalksfjh lakshf h afsakhflkfhlskhlak hasf hlakfh. fhashlffhfasl ",
-        profile_picture: "https://randomuser.me/api/portraits/men/1.jpg",
-        banner_image:
-          "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg",
-        is_creator: true,
-        postsCount: 12,
-        reelsCount: 5,
-        followersCount: 1250,
-        followingCount: 890,
-        social_media_accounts: [
-          {
-            instagram_username: "john_doe_photo",
-            twitter_username: "johndoe",
-            youtube_username: "johndoevlogs",
-          },
-        ],
-      });
-      setLoading(false);
-    }, 1000);
-  }, [userID, params.username]);
+  const fetchUserReels = async (userId: number) => {
+    // TODO: Replace with real API call
+    // const response = await fetch(`/api/users/${userId}/reels`);
+    // return await response.json();
 
-  const toggleFollow = async () => {
-    setFollowing(following === "followed" ? "" : "followed");
+    console.log("Fetching reels for user:", userId);
+
+    // Mock reels data - must match the expected structure
+    return [
+      {
+        id: 201,
+        thumbnail_url:
+          "https://img.freepik.com/free-photo/beautiful-scenery-phragmites-australis-communis-reeds-sunset_181624-29440.jpg",
+        reels_views_aggregate: { aggregate: { count: 1200000 } }, // 1.2M views
+      },
+      {
+        id: 202,
+        thumbnail_url:
+          "https://img.freepik.com/free-photo/wide-angle-shot-single-tree-growing-clouded-sky-during-sunset-surrounded-by-grass_181624-22807.jpg",
+        reels_views_aggregate: { aggregate: { count: 856000 } }, // 856K views
+      },
+      {
+        id: 203,
+        thumbnail_url:
+          "https://img.freepik.com/free-photo/wide-angle-shot-single-tree-growing-clouded-sky-during-sunset-surrounded-by-grass_181624-22807.jpg",
+        reels_views_aggregate: { aggregate: { count: 856000 } }, // 856K views
+      },
+    ];
   };
 
-  const handleOpenSheet = async (label: string) => {
-    console.log("Opening sheet for:", label);
+  const fetchUserProducts = async (userId: number) => {
+    // TODO: Replace with real API call
+    // const response = await fetch(`/api/users/${userId}/products`);
+    // return await response.json();
+
+    console.log("Fetching products for user:", userId);
+
+    // Mock products data
+    return [
+      {
+        id: 301,
+        imageUrl:
+          "https://img.freepik.com/free-photo/levitating-music-headphones-display_23-2149817605.jpg",
+        name: "Premium Headphones",
+        price: "$199",
+      },
+      {
+        id: 302,
+        imageUrl:
+          "https://img.freepik.com/free-photo/still-life-wireless-cyberpunk-headphones_23-2151072247.jpg",
+        name: "Wireless Earbuds",
+        price: "$149",
+      },
+    ];
   };
 
-  const stats = [
-    {
-      label: "Posts",
-      value: (userDetails?.postsCount || 0) + (userDetails?.reelsCount || 0),
-    },
-    { label: "Followers", value: userDetails?.followersCount || 0 },
-    { label: "Following", value: userDetails?.followingCount || 0 },
-  ];
-
-  const tabs = userDetails?.is_creator
-    ? ["All", "Photos", "Videos", "Notes", " "]
-    : ["All", "Photos", "Videos", "Notes"];
-
-  const renderGridLayout = () => {
-    const groupedImages: { [key: string]: any[] } = {};
-    const months: string[] = [];
-
-    const filteredPosts = posts.filter((post) => post.text_post === false);
-    if (filteredPosts.length === 0) {
-      return (
-        <View className="items-center justify-center py-12">
-          <Feather name="image" size={48} color="#ccc" />
-          <Text className="text-sm text-gray-500 text-center mt-4 max-w-4/5">
-            No posts yet. Content shared will appear here.
-          </Text>
-        </View>
-      );
-    }
-
-    filteredPosts.forEach((image) => {
-      const month = new Date(image.created_at).toLocaleString("default", {
-        month: "long",
-      });
-      const year = new Date(image.created_at).getFullYear();
-      const key = month + " " + year;
-
-      if (!groupedImages[key]) {
-        groupedImages[key] = [];
-        months.push(key);
-      }
-      groupedImages[key].push(image);
-    });
-
-    // Calculate responsive dimensions for small screens
-    const containerWidth = width - 32; // Account for horizontal padding
-    const gap = 4;
-    const imageHeight = Math.min(220, containerWidth * 0.6); // Responsive height with max limit
-
-    return (
-      <View>
-        {Object.entries(groupedImages).map(([date, dateImages]) => (
-          <View key={date}>
-            <Text className="text-base font-semibold text-gray-900 mb-3">
-              {date}
-            </Text>
-            <View className="w-full">
-              {/* Single image - full width */}
-              {dateImages.length === 1 && (
-                <TouchableOpacity
-                  className="w-full rounded-xl overflow-hidden"
-                  style={{ height: imageHeight }}
-                  onPress={() => {
-                    router.push({
-                      pathname: "/(profiles)/profilePosts",
-                      params: {
-                        posts: JSON.stringify(posts),
-                        focusedIndexPost: dateImages[0].id,
-                      },
-                    });
-                  }}
-                >
-                  <Image
-                    source={{ uri: dateImages[0].media_url }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                    onError={(error) => {
-                      console.log(
-                        "renderGridLayout image load error:",
-                        error.nativeEvent.error
-                      );
-                    }}
-                    onLoad={() => {
-                      console.log("renderGridLayout image loaded successfully");
-                    }}
-                  />
-                </TouchableOpacity>
-              )}
-
-              {/* Two images - side by side with equal width */}
-              {dateImages.length === 2 && (
-                <View className="flex-row justify-between">
-                  {dateImages.map((image, index) => (
-                    <TouchableOpacity
-                      key={image.id}
-                      className="rounded-xl overflow-hidden"
-                      style={{
-                        width: (containerWidth - gap) / 2,
-                        height: imageHeight * 0.8, // Slightly shorter for better proportion
-                      }}
-                      onPress={() => {
-                        router.push({
-                          pathname: "/(profiles)/profilePosts",
-                          params: {
-                            posts: JSON.stringify(posts),
-                            focusedIndexPost: image.id,
-                          },
-                        });
-                      }}
-                    >
-                      <Image
-                        source={{ uri: image.media_url }}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                        onError={(error) => {
-                          console.log(
-                            "renderGridLayout image load error:",
-                            error.nativeEvent.error
-                          );
-                        }}
-                        onLoad={() => {
-                          console.log(
-                            "renderGridLayout image loaded successfully"
-                          );
-                        }}
-                      />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {/* Three images - one large on left, two stacked on right */}
-              {dateImages.length === 3 && (
-                <View className="flex-row" style={{ gap: gap }}>
-                  {/* Large image on left */}
-                  <TouchableOpacity
-                    className="rounded-xl overflow-hidden"
-                    style={{
-                      width: (containerWidth - gap) * 0.6,
-                      height: imageHeight,
-                    }}
-                    onPress={() => {
-                      router.push({
-                        pathname: "/(profiles)/profilePosts",
-                        params: {
-                          posts: JSON.stringify(posts),
-                          focusedIndexPost: dateImages[0].id,
-                        },
-                      });
-                    }}
-                  >
-                    <Image
-                      source={{ uri: dateImages[0].media_url }}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                      }}
-                      resizeMode="cover"
-                    />
-                  </TouchableOpacity>
-
-                  {/* Two smaller images stacked on right */}
-                  <View className="flex-1" style={{ gap: gap }}>
-                    {dateImages.slice(1, 3).map((image) => (
-                      <TouchableOpacity
-                        key={image.id}
-                        className="rounded-xl overflow-hidden"
-                        style={{
-                          height: (imageHeight - gap) / 2,
-                        }}
-                        onPress={() => {
-                          router.push({
-                            pathname: "/(profiles)/profilePosts",
-                            params: {
-                              posts: JSON.stringify(posts),
-                              focusedIndexPost: image.id,
-                            },
-                          });
-                        }}
-                      >
-                        <Image
-                          source={{ uri: image.media_url }}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                          }}
-                          resizeMode="cover"
-                        />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {/* Four or more images - one large on top, three small below */}
-              {dateImages.length >= 4 && (
-                <View>
-                  {/* Large featured image */}
-                  <TouchableOpacity
-                    className="w-full rounded-xl overflow-hidden mb-1"
-                    style={{ height: imageHeight }}
-                    onPress={() => {
-                      router.push({
-                        pathname: "/(profiles)/profilePosts",
-                        params: {
-                          posts: JSON.stringify(posts),
-                          focusedIndexPost: dateImages[0].id,
-                        },
-                      });
-                    }}
-                  >
-                    <Image
-                      source={{ uri: dateImages[0].media_url }}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                      }}
-                      resizeMode="cover"
-                    />
-                  </TouchableOpacity>
-
-                  {/* Three images in a row below */}
-                  <View className="flex-row justify-between">
-                    {dateImages.slice(1, 4).map((image, index) => (
-                      <TouchableOpacity
-                        key={image.id}
-                        className="rounded-xl overflow-hidden relative"
-                        style={{
-                          width: (containerWidth - gap * 2) / 3,
-                          height: (containerWidth - gap * 2) / 3,
-                        }}
-                        onPress={() => {
-                          router.push({
-                            pathname: "/(profiles)/profilePosts",
-                            params: {
-                              posts: JSON.stringify(posts),
-                              focusedIndexPost: image.id,
-                            },
-                          });
-                        }}
-                      >
-                        <Image
-                          source={{ uri: image.media_url }}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                          }}
-                          resizeMode="cover"
-                        />
-                        {/* Show overlay on last image if there are more */}
-                        {index === 2 && dateImages.length > 4 && (
-                          <View className="absolute inset-0 bg-black/60 justify-center items-center">
-                            <Text className="text-white text-lg font-bold">
-                              +{dateImages.length - 4}
-                            </Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-          </View>
-        ))}
-      </View>
-    );
+  const handleFollow = async (userId: number) => {
+    // Call your follow API here
+    // await fetch(`/api/users/${userId}/follow`, { method: 'POST' });
+    console.log("Following user:", userId);
   };
 
-  const renderSquareGrid = () => {
-    const filteredPosts = posts.filter((post) => post.text_post === false);
-    if (filteredPosts.length === 0) {
-      return (
-        <View className="items-center justify-center py-12">
-          <Feather name="image" size={48} color="#ccc" />
-          <Text className="text-sm text-gray-500 text-center mt-4 max-w-4/5">
-            No photos yet. Photos shared will appear here.
-          </Text>
-        </View>
-      );
-    }
-
-    // Calculate responsive dimensions
-    const containerWidth = width - 32; // Account for horizontal padding
-    const gap = 2;
-    const imageSize = (containerWidth - gap * 2) / 3; // 3 images per row with gaps
-
-    // Group images into rows of 3
-    const rows = [];
-    for (let i = 0; i < filteredPosts.length; i += 3) {
-      rows.push(filteredPosts.slice(i, i + 3));
-    }
-
-    return (
-      <View>
-        {rows.map((row, rowIndex) => (
-          <View key={rowIndex} className="flex-row mb-1" style={{ gap: gap }}>
-            {row.map((image, imageIndex) => (
-              <TouchableOpacity
-                key={image.id}
-                className="rounded-xl overflow-hidden"
-                style={{
-                  width: imageSize,
-                  height: imageSize,
-                }}
-                onPress={() => {
-                  router.push({
-                    pathname: "/(profiles)/profilePosts",
-                    params: {
-                      posts: JSON.stringify(posts),
-                      focusedIndexPost: image.id,
-                    },
-                  });
-                }}
-              >
-                <Image
-                  source={{ uri: image.media_url }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
-            ))}
-
-            {/* Fill remaining space if row has less than 3 images */}
-            {row.length < 3 && (
-              <View
-                style={{
-                  flex: 3 - row.length,
-                  minWidth:
-                    imageSize * (3 - row.length) + gap * (3 - row.length - 1),
-                }}
-              />
-            )}
-          </View>
-        ))}
-      </View>
-    );
+  const handleUnfollow = async (userId: number) => {
+    // Call your unfollow API here
+    // await fetch(`/api/users/${userId}/unfollow`, { method: 'POST' });
+    console.log("Unfollowing user:", userId);
   };
-
-  const renderVideosGrid = () => {
-    if (userReels.length === 0) {
-      return (
-        <View className="items-center justify-center py-12">
-          <Feather name="video" size={48} color="#ccc" />
-          <Text className="text-sm text-gray-500 text-center mt-4 max-w-4/5">
-            No videos yet. Videos shared will appear here.
-          </Text>
-        </View>
-      );
-    }
-
-    // Calculate responsive dimensions
-    const containerWidth = width - 32; // Account for horizontal padding
-    const gap = 2;
-    const videoWidth = (containerWidth - gap * 2) / 3; // 3 videos per row with gaps
-    const videoHeight = videoWidth * 1.5; // 3:2 aspect ratio for videos
-
-    // Group videos into rows of 3
-    const rows = [];
-    for (let i = 0; i < userReels.length; i += 3) {
-      rows.push(userReels.slice(i, i + 3));
-    }
-
-    return (
-      <View>
-        {rows.map((row, rowIndex) => (
-          <View key={rowIndex} className="flex-row mb-1" style={{ gap: gap }}>
-            {row.map((video, videoIndex) => (
-              <TouchableOpacity
-                key={video.id}
-                className="rounded-xl overflow-hidden relative"
-                style={{
-                  width: videoWidth,
-                  height: videoHeight,
-                }}
-              >
-                <Image
-                  source={{ uri: video.thumbnail_url }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-                <View className="absolute bottom-2 left-2 flex-row items-center bg-black/50 px-2 py-1 rounded-xl">
-                  <Feather name="play" size={16} color="#fff" />
-                  <Text className="text-white text-xs ml-1">
-                    {kFormatter(video?.reels_views_aggregate.aggregate.count)}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-
-            {/* Fill remaining space if row has less than 3 videos */}
-            {row.length < 3 && (
-              <View
-                style={{
-                  flex: 3 - row.length,
-                  minWidth:
-                    videoWidth * (3 - row.length) + gap * (3 - row.length - 1),
-                }}
-              />
-            )}
-          </View>
-        ))}
-      </View>
-    );
-  };
-
-  const renderProductGrid = () => {
-    if (productsAffiliated.length === 0) {
-      return (
-        <View className="items-center justify-center py-12">
-          <SimpleLineIcons name="handbag" size={48} color="#ccc" />
-          <Text className="text-sm text-gray-500 text-center mt-4 max-w-4/5">
-            No affiliated products yet.
-          </Text>
-        </View>
-      );
-    }
-    return (
-      <View className="flex-row flex-wrap justify-between">
-        {productsAffiliated.map((product) => (
-          <TouchableOpacity
-            key={product.id}
-            className="mb-4 rounded-xl overflow-hidden bg-gray-50 border border-gray-200"
-            style={{ width: (width - 40) / 2 }}
-          >
-            <Image
-              source={{ uri: product.main_image }}
-              className="w-full h-40"
-              resizeMode="cover"
-            />
-            <View className="p-2">
-              <Text className="text-sm font-medium text-gray-900">
-                {product.name.length > 15
-                  ? product.name.slice(0, 15) + "..."
-                  : product.name}
-              </Text>
-              <Text className="text-sm font-semibold text-gray-900 mt-1">
-                ₹{product.sale_price}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
-
-  const renderTextPosts = () => {
-    const filteredPosts = posts.filter((post) => post.text_post === true);
-    if (filteredPosts.length === 0) {
-      return (
-        <View className="items-center justify-center py-12">
-          <Foundation name="text-color" size={48} color="#ccc" />
-          <Text className="text-sm text-gray-500 text-center mt-4 max-w-4/5">
-            No notes yet. Notes shared will appear here.
-          </Text>
-        </View>
-      );
-    }
-    return (
-      <View className="gap-2">
-        {filteredPosts.map((item) => (
-          <TextPost
-            key={item.id}
-            item={item}
-            onPress={() => {
-              router.push({
-                pathname: "/(profiles)/profilePosts",
-                params: {
-                  posts: JSON.stringify(posts),
-                  focusedIndexPost: item.id,
-                },
-              });
-            }}
-            likedPosts={[]}
-            likedPostIDs={[]}
-            handleShare={() => {}}
-            toggleLike={() => {}}
-            commentBox={() => {}}
-            toggleFollow={() => {}}
-            followedUsers={[]}
-            setFocusedPostID={() => {}}
-            hideActions={true}
-          />
-        ))}
-      </View>
-    );
-  };
-
-  if (loading) {
-    return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <ActivityIndicator size="large" color="#1a1a1a" />
-      </View>
-    );
-  }
-
-  if (!userDetails) {
-    return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <Text className="text-base text-gray-600 text-center">
-          Failed to load user profile
-        </Text>
-      </View>
-    );
-  }
 
   return (
-    <View className="flex-1 bg-gray-100">
-      <ScrollView
-        bounces={false}
-        overScrollMode="never"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          flexGrow: 1,
-        }}
-        nestedScrollEnabled={true}
-      >
-        {/* Header with Banner - Fixed height */}
-        <View className="relative h-52">
-          <Image
-            source={{
-              uri:
-                userDetails.banner_image ||
-                "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg?semt=ais_hybrid",
-            }}
-            className="w-full h-full"
-            resizeMode="cover"
-            onError={(error) => {
-              console.log("Banner image load error:", error.nativeEvent.error);
-            }}
-            onLoad={() => {
-              console.log("Banner image loaded successfully");
-            }}
-          />
-
-          <View
-            className="absolute inset-0 flex-row justify-end px-4"
-            style={{ paddingTop: insets.top }}
-          >
-            {/* <TouchableOpacity
-              className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-              onPress={() => router.back()}
-            >
-              <MaterialIcons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity> */}
-
-            {userID === currentUser.id && (
-              <TouchableOpacity
-                className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-                onPress={() => {
-                  router.push("/(settings)");
-                }}
-              >
-                <Ionicons name="settings-outline" size={24} color="#fff" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Social Media Buttons */}
-          <View className="flex-row absolute bottom-9 right-4 gap-2">
-            {userDetails?.social_media_accounts &&
-              userDetails.social_media_accounts.length > 0 && (
-                <>
-                  {userDetails.social_media_accounts[0]?.instagram_username &&
-                    userDetails.social_media_accounts[0].instagram_username
-                      .length > 2 && (
-                      <TouchableOpacity
-                        className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-                        onPress={() =>
-                          Linking.openURL(
-                            `https://instagram.com/${userDetails.social_media_accounts![0].instagram_username}`
-                          )
-                        }
-                      >
-                        <FontAwesome5 name="instagram" size={18} color="#fff" />
-                      </TouchableOpacity>
-                    )}
-                  {userDetails.social_media_accounts[0]?.twitter_username &&
-                    userDetails.social_media_accounts[0].twitter_username
-                      .length > 2 && (
-                      <TouchableOpacity
-                        className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-                        onPress={() =>
-                          Linking.openURL(
-                            `https://twitter.com/${userDetails.social_media_accounts![0].twitter_username}`
-                          )
-                        }
-                      >
-                        <FontAwesome5 name="twitter" size={18} color="#fff" />
-                      </TouchableOpacity>
-                    )}
-                  {userDetails.social_media_accounts[0]?.youtube_username &&
-                    userDetails.social_media_accounts[0].youtube_username
-                      .length > 2 && (
-                      <TouchableOpacity
-                        className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-                        onPress={() =>
-                          Linking.openURL(
-                            `https://youtube.com/${userDetails.social_media_accounts![0].youtube_username}`
-                          )
-                        }
-                      >
-                        <FontAwesome5 name="youtube" size={18} color="#fff" />
-                      </TouchableOpacity>
-                    )}
-                </>
-              )}
-          </View>
-        </View>
-
-        {/* Profile Info Section */}
-        <View className="px-4 pt-4 bg-gray-100 rounded-t-3xl rounded-t-6 -mt-4">
-          <View className="flex-row items-start">
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={async () => {
-                // Copy profile link functionality
-                console.log("Profile link copied");
-              }}
-            >
-              <Image
-                source={{
-                  uri:
-                    userDetails.profile_picture ||
-                    "https://media.istockphoto.com/id/1223671392/vector/default-profile-picture-avatar-photo-placeholder-vector-illustration.jpg?s=612x612&w=0&k=20&c=s0aTdmT5aU6b8ot7VKm11DeID6NctRCpB755rA1BIP0=",
-                }}
-                className="w-24 h-24 rounded-full border-3 border-white -mt-12"
-              />
-            </TouchableOpacity>
-
-            <View className="ml-2 flex-1">
-              <View className="mb-1 -mt-3">
-                {(userDetails?.first_name || userDetails?.last_name) && (
-                  <Text className="text-lg font-bold text-gray-900">
-                    {(
-                      (userDetails?.first_name || "") +
-                      " " +
-                      (userDetails?.last_name || "")
-                    ).trim()}
-                  </Text>
-                )}
-                <View className="flex-row items-center">
-                  <Text className="text-base text-gray-600">
-                    @{userDetails.username}
-                  </Text>
-                  {userDetails.is_creator && (
-                    <Octicons
-                      name="verified"
-                      size={16}
-                      color="#1a1a1a"
-                      className="ml-1"
-                    />
-                  )}
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Bio Section - Optimized for expansion */}
-          <TouchableOpacity
-            onPress={() => setBioExpanded(!bioExpanded)}
-            className="py-2"
-          >
-            {userDetails?.bio && (
-              <Text className="text-base text-gray-700 leading-5">
-                {bioExpanded
-                  ? userDetails?.bio
-                  : userDetails?.bio?.length > 100
-                    ? userDetails?.bio?.slice(0, 90).trim() + "..."
-                    : userDetails?.bio?.trim()}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Stats Section */}
-          <View className="flex-row justify-around py-1 border-gray-200 mb-1">
-            {stats.map((stat, index) => (
-              <TouchableOpacity
-                key={index}
-                className="items-center"
-                onPress={() => handleOpenSheet(stat.label)}
-                disabled={userID !== currentUser.id || stat.label === "Posts"}
-              >
-                <Text className="text-sm font-bold text-gray-900">
-                  {kFormatter(stat.value)}
-                </Text>
-                <Text className="text-xs text-gray-600 mt-1">{stat.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Action Buttons */}
-          <View className="flex-row justify-between mb-6">
-            {userID === currentUser.id ? (
-              <>
-                <TouchableOpacity className="flex-1 h-10 rounded-full justify-center items-center bg-white mr-2">
-                  <Text className="text-sm font-semibold text-gray-900">
-                    Edit Profile
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity className="flex-1 h-10 rounded-full justify-center items-center bg-gray-900 ml-2">
-                  <Text className="text-sm font-semibold text-white">
-                    Invite
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  className={`flex-1 h-10 rounded-full justify-center items-center ${
-                    following === "followed" ? "bg-white" : "bg-gray-900"
-                  }`}
-                  onPress={toggleFollow}
-                >
-                  <Text
-                    className={`text-sm font-semibold ${
-                      following === "followed" ? "text-gray-900" : "text-white"
-                    }`}
-                  >
-                    {following === "followed"
-                      ? "Following"
-                      : following === "pending"
-                        ? "Requested"
-                        : "Follow"}
-                  </Text>
-                </TouchableOpacity>
-
-                {following === "followed" && (
-                  <TouchableOpacity className="flex-1 h-10 rounded-full justify-center items-center bg-white ml-2">
-                    <Text className="text-sm font-semibold text-gray-900">
-                      Message
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-          </View>
-
-          {/* Content Tabs and Display */}
-          {userDetails.is_creator ||
-          following === "followed" ||
-          userDetails.id === currentUser.id ? (
-            <>
-              <View className="flex-row justify-between mb-4">
-                {tabs.map((tab) => (
-                  <TouchableOpacity
-                    key={tab}
-                    className={`w-12 h-12 rounded-full justify-center items-center ${
-                      activeTab === tab ? "bg-gray-700" : "bg-gray-100"
-                    }`}
-                    onPress={() => setActiveTab(tab)}
-                  >
-                    {tab === "All" && (
-                      <FontAwesome
-                        name="snowflake-o"
-                        size={30}
-                        color={activeTab === tab ? "#fff" : "#666"}
-                      />
-                    )}
-                    {tab === "Photos" && (
-                      <Ionicons
-                        name="aperture-outline"
-                        size={30}
-                        color={activeTab === tab ? "#fff" : "#666"}
-                      />
-                    )}
-                    {tab === "Videos" && (
-                      <Ionicons
-                        name="play-circle-outline"
-                        size={30}
-                        color={activeTab === tab ? "#fff" : "#666"}
-                      />
-                    )}
-                    {tab === "Notes" && (
-                      <Ionicons
-                        name="at-outline"
-                        size={30}
-                        color={activeTab === tab ? "#fff" : "#666"}
-                      />
-                    )}
-                    {tab === " " && (
-                      <MaterialDesignIcons
-                        name="sale-outline"
-                        size={30}
-                        color={activeTab === tab ? "#fff" : "#666"}
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View
-                style={{
-                  paddingBottom: tabBarHeight,
-                }}
-              >
-                {activeTab === "All" && renderGridLayout()}
-                {activeTab === "Photos" && renderSquareGrid()}
-                {activeTab === "Videos" && renderVideosGrid()}
-                {activeTab === "Notes" && renderTextPosts()}
-                {activeTab === " " && renderProductGrid()}
-              </View>
-
-              {posts.length === 0 && (
-                <View className="items-center justify-center py-12">
-                  <Feather name="image" size={48} color="#ccc" />
-                  <Text className="text-sm text-gray-500 text-center mt-4 max-w-4/5">
-                    No posts yet. Content shared will appear here.
-                  </Text>
-                </View>
-              )}
-            </>
-          ) : (
-            // Private account view
-            <View className="items-center justify-center py-12">
-              <View className="w-16 h-16 rounded-full bg-white justify-center items-center mb-4">
-                <Ionicons name="lock-closed" size={24} color="#1a1a1a" />
-              </View>
-              <Text className="text-lg font-semibold text-gray-900 mb-2">
-                This Account is Private
-              </Text>
-              <Text className="text-sm text-gray-600 text-center max-w-4/5">
-                Follow this account to see their photos and videos
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-    </View>
+    <ProfileScreen
+      currentUserId={1} // Pass your current logged-in user ID
+      fetchUserDetails={fetchUserDetails}
+      fetchUserPosts={fetchUserPosts}
+      fetchUserReels={fetchUserReels}
+      fetchUserProducts={fetchUserProducts}
+      onFollow={handleFollow}
+      onUnfollow={handleUnfollow}
+    />
   );
 };
 

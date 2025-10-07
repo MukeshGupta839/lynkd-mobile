@@ -18,7 +18,10 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSAllowsArbitraryLoadsForMedia": true
-        }
+        },
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload profile and banner images.",
+        "NSCameraUsageDescription": "This app needs access to your camera to take profile and banner photos.",
+        "NSPhotoLibraryAddUsageDescription": "This app needs access to save photos to your library."
       },
       "podfileProperties": {
         "ios.buildReactNativeFromSource": "true",
