@@ -1,4 +1,6 @@
 // app/cart.tsx
+import AddressCard from "@/components/cart/AddressCard";
+import ProductRow, { PriceDetails } from "@/components/cart/ProductRow";
 import {
   CART_DATA as CART_DATA_CONST,
   CartItemT,
@@ -17,35 +19,43 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import AddressCard from "@/components/cart/AddressCard";
-import ProductRow, { PriceDetails } from "@/components/cart/ProductRow";
+/* ------------------------------------------------------------------ */
+/* INR formatters */
+/* ------------------------------------------------------------------ */
 
-/* ------------------------------------------------------------------ */
-/* Local INR formatter (Indian grouping). */
-/* ------------------------------------------------------------------ */
+// For normal (non-decimal) numbers — used everywhere except total
 const fmtINR = (n?: number | null) => {
-  const num = typeof n === "number" ? Math.round(n) : Number(n ?? 0);
+  const num = typeof n === "number" ? n : Number(n ?? 0);
   if (!isFinite(num)) return "₹0";
   return `₹${num.toLocaleString("en-IN")}`;
+};
+
+// For totalStr — only final total shows decimals
+const fmtINRDecimal = (n?: number | null) => {
+  const num = typeof n === "number" ? n : Number(n ?? 0);
+  if (!isFinite(num)) return "₹0.00";
+  return `₹${num.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 };
 
 type CartItemWithQty = CartItemT & { quantity: number };
 
 function subtotalFromCart(cart: CartItemWithQty[]) {
-  return Math.round(
-    cart.reduce((s, it) => s + it.price * (it.quantity ?? 1), 0)
-  );
+  return cart.reduce((s, it) => s + it.price * (it.quantity ?? 1), 0);
 }
 
 function totalMRPFromCart(cart: CartItemWithQty[]) {
-  return Math.round(
-    cart.reduce(
-      (s, it) =>
-        s +
-        (typeof it.mrp === "number" ? it.mrp : it.price) * (it.quantity ?? 1),
-      0
-    )
-  );
+  return cart.reduce((s, it) => {
+    const price = Number(it.price ?? 0);
+    const mrp = Number(it.mrp ?? 0);
+    let original = price;
+    if (mrp > price)
+      original = mrp; // mrp is original price
+    else if (mrp > 0 && mrp < price) original = price + mrp; // mrp is discount amount
+    return s + original * (it.quantity ?? 1);
+  }, 0);
 }
 
 function mapWishlistToCartItem(w: WishlistItemT): CartItemWithQty {
@@ -60,8 +70,6 @@ function mapWishlistToCartItem(w: WishlistItemT): CartItemWithQty {
   } as CartItemWithQty;
 }
 
-/* ------------------------------------------------------------------ */
-
 const TAB_BAR_HEIGHT = 45;
 const TAX_RATE = 0.18; // 18% GST placeholder
 
@@ -75,7 +83,7 @@ export default function CartAndWishlistScreen() {
       quantity: (c as any).quantity ?? 1,
     }))
   );
-  const [wishlistData, setWishlistData] = useState<WishlistItemT[]>(() => [
+  const [wishlistData, setWishlistData] = useState<WishlistItemT[]>([
     ...WISHLIST_DATA_CONST,
   ]);
 
@@ -89,13 +97,18 @@ export default function CartAndWishlistScreen() {
   const subtotal = useMemo(() => subtotalFromCart(cartData), [cartData]);
   const totalMRP = useMemo(() => totalMRPFromCart(cartData), [cartData]);
   const discount = useMemo(
-    () => Math.max(0, Math.round(totalMRP - subtotal)),
+    () => Math.max(0, totalMRP - subtotal),
     [totalMRP, subtotal]
   );
-  const tax = useMemo(() => Math.round(subtotal * TAX_RATE), [subtotal]);
-  const total = useMemo(() => Math.round(subtotal + tax), [subtotal, tax]);
-  const totalStr = useMemo(() => fmtINR(total), [total]);
-  const originalStr = useMemo(() => fmtINR(totalMRP), [totalMRP]);
+  const tax = useMemo(() => subtotal * TAX_RATE, [subtotal]);
+  const total = useMemo(
+    () => subtotal - discount + tax,
+    [subtotal, discount, tax]
+  );
+
+  // Format totals for display
+  const totalStr = useMemo(() => fmtINRDecimal(total), [total]); // show decimals
+  const originalStr = useMemo(() => fmtINR(totalMRP + tax), [totalMRP, tax]); // full original before discount
   const itemsCount = useMemo(
     () => cartData.reduce((s, it) => s + it.quantity, 0),
     [cartData]
@@ -131,12 +144,10 @@ export default function CartAndWishlistScreen() {
     setWishlistData((prevWishlist) => {
       const found = prevWishlist.find((w) => w.id === id);
       const newWishlist = prevWishlist.filter((w) => w.id !== id);
-
       if (found) {
         const newCartItem = mapWishlistToCartItem(found);
         setCartData((prevCart) => [newCartItem, ...prevCart]);
       }
-
       return newWishlist;
     });
   }, []);
@@ -168,8 +179,6 @@ export default function CartAndWishlistScreen() {
     [removeFromWishlist, moveWishlistToCart]
   );
 
-  /* ----------------- Memoized styles/components ----------------- */
-
   const cartContentContainerStyle = useMemo(
     () => ({ paddingBottom: footerPadding, paddingTop: 12 }),
     [footerPadding]
@@ -180,45 +189,21 @@ export default function CartAndWishlistScreen() {
     [insets.bottom]
   );
 
-  const CartListHeader = useMemo(
-    () => () => (
-      <View>
-        <AddressCard />
-      </View>
-    ),
-    []
-  );
+  const CartListHeader = useMemo(() => () => <AddressCard />, []);
 
   const CartListFooter = useMemo(() => {
-    const Footer = function CartListFooter() {
-      return (
-        <View className="mt-4">
-          <PriceDetails
-            itemsCount={itemsCount}
-            subtotal={subtotal}
-            discount={discount}
-            tax={tax}
-          />
-        </View>
-      );
-    };
-    Footer.displayName = "CartListFooter";
+    const Footer = () => (
+      <View className="mt-4">
+        <PriceDetails
+          itemsCount={itemsCount}
+          subtotal={subtotal}
+          discount={discount}
+          tax={tax}
+        />
+      </View>
+    );
     return Footer;
   }, [itemsCount, subtotal, discount, tax]);
-
-  const useFixedRowHeight = false;
-  const ITEM_HEIGHT = 160;
-  const getItemLayout = useMemo(
-    () =>
-      useFixedRowHeight
-        ? (_data: any, index: number) => ({
-            length: ITEM_HEIGHT,
-            offset: ITEM_HEIGHT * index,
-            index,
-          })
-        : undefined,
-    [useFixedRowHeight]
-  );
 
   const removeClippedSubviewsForPlatform = Platform.OS === "android";
 
@@ -228,7 +213,7 @@ export default function CartAndWishlistScreen() {
     <View className="flex-1 bg-gray-100 pt-safe">
       <StatusBar style="dark" translucent backgroundColor="transparent" />
 
-      {/* Header + tabs */}
+      {/* Header Tabs */}
       <View className="w-full bg-white rounded-b-xl">
         <View className="flex-row items-center">
           <TouchableOpacity
@@ -262,18 +247,11 @@ export default function CartAndWishlistScreen() {
             data={cartData}
             keyExtractor={(i) => i.id}
             renderItem={renderCartItem}
-            getItemLayout={getItemLayout}
             ListHeaderComponent={CartListHeader}
             ListFooterComponent={CartListFooter}
             contentContainerStyle={cartContentContainerStyle}
-            initialNumToRender={5}
-            maxToRenderPerBatch={8}
-            windowSize={7}
-            removeClippedSubviews={removeClippedSubviewsForPlatform}
             showsVerticalScrollIndicator={false}
-            bounces={false}
-            alwaysBounceVertical={false}
-            overScrollMode="never"
+            removeClippedSubviews={removeClippedSubviewsForPlatform}
           />
         ) : (
           <FlatList
@@ -281,20 +259,13 @@ export default function CartAndWishlistScreen() {
             keyExtractor={(i) => i.id}
             renderItem={renderWishlistItem}
             contentContainerStyle={wishlistContentContainerStyle}
-            initialNumToRender={6}
-            maxToRenderPerBatch={8}
-            windowSize={7}
-            removeClippedSubviews={removeClippedSubviewsForPlatform}
             showsVerticalScrollIndicator={false}
-            bounces={false}
-            alwaysBounceVertical={false}
-            overScrollMode="never"
-            ListEmptyComponent={<View />}
+            removeClippedSubviews={removeClippedSubviewsForPlatform}
           />
         )}
       </View>
 
-      {/* Continue bar */}
+      {/* Sticky bottom total */}
       {tab === "cart" && (
         <View
           style={{
@@ -304,19 +275,17 @@ export default function CartAndWishlistScreen() {
             zIndex: 30,
           }}>
           <View className="bg-white rounded-xl px-3 py-3 flex-row justify-between items-center">
-            {/* Left: total */}
             <View>
+              {/* Final total (decimal) */}
               <Text className="text-xl font-semibold">{totalStr}</Text>
+              {/* Original total before discount (no decimals) */}
               <Text className="text-xs text-gray-400 line-through">
                 {originalStr}
               </Text>
             </View>
 
-            {/* Buy Now */}
             <TouchableOpacity
-              onPress={() => {
-                /* continue action */
-              }}
+              onPress={() => {}}
               activeOpacity={0.9}
               className="items-center justify-center bg-[#26FF91] rounded-xl px-14 py-4 shadow-sm">
               <Text className="text-base font-semibold">Buy Now</Text>

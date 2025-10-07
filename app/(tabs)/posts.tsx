@@ -1,10 +1,11 @@
-// src/screens/VideoFeed.tsx
+// app/(tabs)/posts.tsx
 /// <reference types="react" />
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import { USERS } from "@/constants/PostCreation";
 import { Ionicons } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -12,6 +13,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Linking,
   ListRenderItemInfo,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -29,9 +31,13 @@ import Reanimated, {
 } from "react-native-reanimated";
 import Send from "../../assets/posts/send.svg";
 
+// ✅ Added: import the comments sheet component + handle
+import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
+
 const { width, height } = Dimensions.get("window");
 const BOTTOM_NAV_HEIGHT = 80;
 const TRUNCATE_LEN = 25;
+const router = useRouter();
 
 type Post = {
   id: number;
@@ -55,17 +61,17 @@ type Post = {
 const SAMPLE_REMOTE_VIDEOS = [
   // 16:9 landscape
   {
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    url: "https://cdn.pixabay.com/video/2022/07/24/125314-733046618_tiny.mp4",
     aspectRatio: "16:9",
   },
   // 9:16 vertical/portrait
   {
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+    url: "https://cdn.pixabay.com/video/2022/11/07/138173-768820177_large.mp4",
     aspectRatio: "9:16",
   },
   // 1:1 square
   {
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    url: "https://cdn.pixabay.com/video/2023/11/19/189692-886572510_tiny.mp4",
     aspectRatio: "1:1",
   },
   // 4:5 portrait (Instagram style)
@@ -107,7 +113,7 @@ const DUMMY_POSTS: Post[] = Array.from({ length: 8 }).map((_, i) => {
     username: user?.username ?? `user_${id}`,
     user_id: Number(user?.id ?? id),
     verified: i % 3 === 0,
-    caption: `This is a sample caption for reel #${id}. Video aspect ratio: ${videoData.aspectRatio}. Additional details and hashtags #bird #dj #video #bb #hero #dog #wired #god #cricket #greatleader #srikanth #beauty.`,
+    caption: `This is a sample caption for reel #${id}. Video aspect ratio: ${videoData.aspectRatio}. Additional details and hashtags #bird #dj #video #bb #hero #dog #wired #god #cricket #greatleader #srikanth #beauty #LYNKD.`,
     likes: Math.floor(Math.random() * 200),
     commentsCount: Math.floor(Math.random() * 20),
     shareUrl: `https://example.com/reel/${id}`,
@@ -145,6 +151,8 @@ const PostItem: React.FC<{
   centerVisible: boolean;
   isPlaying: boolean;
   onCenterToggle: () => void;
+  // ✅ Added: a callback to open comments for this item
+  onOpenComments: () => void;
 }> = memo(
   ({
     item,
@@ -161,6 +169,7 @@ const PostItem: React.FC<{
     centerVisible,
     isPlaying,
     onCenterToggle,
+    onOpenComments, // ✅ Added
   }: any) => {
     const [imgLoading, setImgLoading] = useState(false);
     const [imgError, setImgError] = useState(false);
@@ -208,30 +217,79 @@ const PostItem: React.FC<{
       }
     };
 
+    // ✅ UPDATED: Linkify caption parts (hashtags -> search screen, mentions -> profile, URLs -> open)
     const renderCaptionParts = (text: string) => {
-      const parts = text.split(/(\s+)/);
-      return parts.map((part, i) => {
-        if (!part.trim()) return <Text key={`sp-${i}`}>{part}</Text>;
-        if (part.startsWith("#")) {
-          const tag = part.replace(/[^#\w-]/g, "");
+      return text
+        .split(/((?:@|#)[\w.]+|(?:https?:\/\/|www\.)\S+)/gi)
+        .map((part, i) => {
+          if (!part) return null;
+
+          // Mention
+          if (part.startsWith("@")) {
+            const username = part.slice(1);
+            return (
+              <Text
+                key={`m-${i}`}
+                className="text-blue-400"
+                suppressHighlighting
+                onPress={() =>
+                  router.push({
+                    pathname: "/(profiles)" as any,
+                    params: {
+                      username,
+                      user: 999999,
+                    },
+                  })
+                }
+                onLongPress={onOpenPostOptions}>
+                {part}
+              </Text>
+            );
+          }
+
+          // Hashtag
+          if (part.startsWith("#")) {
+            const tag = part; // keep leading '#'
+            return (
+              <Text
+                key={`h-${i}`}
+                className="text-white font-semibold"
+                suppressHighlighting
+                onPress={() =>
+                  router.push({
+                    pathname: "/(search)/searchPostsWithTags" as any,
+                    params: { tag },
+                  })
+                }
+                onLongPress={onOpenPostOptions}>
+                {part}
+              </Text>
+            );
+          }
+
+          // URL
+          if (/^(https?:\/\/|www\.)/i.test(part)) {
+            const url = part.startsWith("www.") ? `https://${part}` : part;
+            return (
+              <Text
+                key={`u-${i}`}
+                className="text-blue-400"
+                style={{ textDecorationLine: "underline" }}
+                suppressHighlighting
+                onPress={() => Linking.openURL(url)}
+                onLongPress={onOpenPostOptions}>
+                {part}
+              </Text>
+            );
+          }
+
+          // Plain text
           return (
-            <Text
-              key={`h-${i}`}
-              onPress={() => {
-                console.log("hashtag clicked:", tag);
-              }}
-              className="font-bold"
-            >
+            <Text key={`t-${i}`} className="text-white">
               {part}
             </Text>
           );
-        }
-        return (
-          <Text key={`t-${i}`} className="text-white">
-            {part}
-          </Text>
-        );
-      });
+        });
     };
 
     return (
@@ -257,8 +315,7 @@ const PostItem: React.FC<{
         {centerVisible && active && (
           <View
             className="absolute inset-0 items-center justify-center"
-            style={{ zIndex: 30 }}
-          >
+            style={{ zIndex: 30 }}>
             <TouchableOpacity onPress={onCenterToggle} activeOpacity={0.9}>
               <View
                 style={{
@@ -268,8 +325,7 @@ const PostItem: React.FC<{
                   alignItems: "center",
                   justifyContent: "center",
                   backgroundColor: "rgba(0,0,0,0.32)",
-                }}
-              >
+                }}>
                 <Ionicons
                   name={isPlaying ? "pause" : "play"}
                   size={32}
@@ -283,15 +339,13 @@ const PostItem: React.FC<{
         {/* right action column (icons) */}
         <View
           className="absolute right-3 bottom-1/4 items-center"
-          style={{ zIndex: 30 }}
-        >
+          style={{ zIndex: 30 }}>
           {item.isProduct && (
             <>
               <TouchableOpacity
                 className="w-12 h-12 rounded-full items-center justify-center mb-1 bg-white/20"
                 onPress={() => {}}
-                activeOpacity={0.8}
-              >
+                activeOpacity={0.8}>
                 <Ionicons name="bag-outline" size={20} color="#fff" />
               </TouchableOpacity>
               <Text className="text-white text-xs mt-2">
@@ -303,8 +357,7 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={() => onToggleLike()}
-            activeOpacity={0.8}
-          >
+            activeOpacity={0.8}>
             <Ionicons
               name={item.liked || isFavorited ? "heart" : "heart-outline"}
               size={20}
@@ -315,9 +368,9 @@ const PostItem: React.FC<{
 
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
-            onPress={() => {}}
-            activeOpacity={0.8}
-          >
+            // ✅ Changed: open the comments sheet
+            onPress={onOpenComments}
+            activeOpacity={0.8}>
             <Ionicons name="chatbubble-outline" size={18} color="#fff" />
           </TouchableOpacity>
           <Text className="text-white text-xs mt-2">
@@ -327,8 +380,7 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={onShare}
-            activeOpacity={0.8}
-          >
+            activeOpacity={0.8}>
             <Send width={20} height={20} />
           </TouchableOpacity>
           <Text className="text-white text-xs mt-2">Share</Text>
@@ -336,8 +388,7 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={() => onOpenPostOptions()}
-            activeOpacity={0.8}
-          >
+            activeOpacity={0.8}>
             <Ionicons name="ellipsis-horizontal" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -348,16 +399,14 @@ const PostItem: React.FC<{
           style={{
             bottom: BOTTOM_NAV_HEIGHT + 10,
             zIndex: 40,
-          }}
-        >
+          }}>
           <TouchableOpacity
             onPress={() => {
               onToggleFollow(item.user_id);
               setLocalFollowing((s) => !s);
             }}
             activeOpacity={0.95}
-            className="absolute right-3 top-2 z-10 rounded-full px-3 py-1 border border-white/70 bg-white/8"
-          >
+            className="absolute right-3 top-2 z-10 rounded-full px-3 py-1 border border-white/70 bg-white/8">
             <Text className="text-white font-semibold">
               {localFollowing ? "Following" : "Follow"}
             </Text>
@@ -389,13 +438,17 @@ const PostItem: React.FC<{
 
             <View className="ml-3 flex-1">
               <View className="flex-row items-center">
-                <StyledText
-                  className="text-white font-bold text-lg mr-2"
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {item.username}
-                </StyledText>
+                <TouchableOpacity
+                  onPress={() => onOpenProfile(item.user_id)}
+                  activeOpacity={0.7}>
+                  <StyledText
+                    className="text-white font-bold text-base mr-2"
+                    numberOfLines={1}
+                    ellipsizeMode="tail">
+                    {item.username}
+                  </StyledText>
+                </TouchableOpacity>
+
                 {item.verified && (
                   <Octicons
                     name="verified"
@@ -417,20 +470,17 @@ const PostItem: React.FC<{
           </View>
 
           <Reanimated.View
-            style={[{ overflow: "hidden" }, captionAnimatedStyle]}
-          >
+            style={[{ overflow: "hidden" }, captionAnimatedStyle]}>
             <Text
               numberOfLines={captionOpen ? undefined : 1}
               ellipsizeMode="tail"
-              className="text-white text-lg mt-2 leading-7"
-            >
+              className="text-white text-base mt-2 leading-7">
               {captionOpen ? (
                 <>
                   {renderCaptionParts(item.caption ?? "")}
                   <Text
                     onPress={() => setCaptionOpen(false)}
-                    style={{ color: "rgba(255,255,255,0.75)" }}
-                  >
+                    style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>
                     {"  "}Show less
                   </Text>
                 </>
@@ -440,8 +490,7 @@ const PostItem: React.FC<{
                   {needsTruncate ? (
                     <Text
                       onPress={() => setCaptionOpen(true)}
-                      style={{ color: "rgba(255,255,255,0.75)" }}
-                    >
+                      style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>
                       {" "}
                       ... more
                     </Text>
@@ -539,6 +588,16 @@ const VideoFeed: React.FC = () => {
   // parent-level center icon state and playing state
   const [centerVisible, setCenterVisible] = useState(false);
   const [isPlayingState, setIsPlayingState] = useState(false);
+
+  // ✅ Added: comments sheet ref + selected post state
+  const commentsRef = useRef<CommentsSheetHandle>(null);
+  const [commentsPost, setCommentsPost] = useState<Post | null>(null);
+
+  // ✅ Added: open comments handler
+  const openCommentsFor = useCallback((post: Post) => {
+    setCommentsPost(post);
+    commentsRef.current?.present();
+  }, []);
 
   // create single player for currentMedia
   const player = useVideoPlayer(
@@ -805,9 +864,7 @@ const VideoFeed: React.FC = () => {
             }
           }
         }
-      } catch (error) {
-        // Ignore errors silently
-      }
+      } catch (error) {}
     };
 
     // Start monitoring when video is likely playing
@@ -1407,15 +1464,13 @@ const VideoFeed: React.FC = () => {
                 alignItems: "center",
                 // Show spinner with slight delay or immediately based on showLoadingSpinner
                 opacity: showLoadingSpinner ? 1 : 0.7,
-              }}
-            >
+              }}>
               <View
                 style={{
                   backgroundColor: "rgba(0,0,0,0.4)",
                   borderRadius: 50,
                   padding: 16,
-                }}
-              >
+                }}>
                 <ActivityIndicator size="large" color="#ffffff" />
               </View>
             </View>
@@ -1440,7 +1495,10 @@ const VideoFeed: React.FC = () => {
                 index={index}
                 active={active}
                 onOpenProfile={(uid) =>
-                  navigation.navigate?.("NonTabProfile", { user: uid })
+                  router.push({
+                    pathname: "/(profiles)" as any,
+                    params: { user: uid, username: item.username },
+                  })
                 }
                 onToggleLike={() =>
                   setPosts((prev) =>
@@ -1478,6 +1536,8 @@ const VideoFeed: React.FC = () => {
                 centerVisible={centerVisible && active}
                 isPlaying={isPlayingState && active}
                 onCenterToggle={onCenterToggle}
+                // ✅ Pass the per-item comments opener
+                onOpenComments={() => openCommentsFor(item)}
               />
             </View>
           );
@@ -1500,6 +1560,15 @@ const VideoFeed: React.FC = () => {
         maxToRenderPerBatch={1}
         windowSize={3}
         removeClippedSubviews={true}
+      />
+
+      {/* ✅ Added: Comments sheet instance */}
+      <CommentsSheet
+        ref={commentsRef}
+        snapPoints={["40%", "85%"]}
+        title={
+          commentsPost ? `Comments • @${commentsPost.username}` : "Comments"
+        }
       />
 
       <PostOptionsBottomSheet

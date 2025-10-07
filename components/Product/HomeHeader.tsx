@@ -1,43 +1,40 @@
-// components/HomeHeader.tsx
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { usePathname, useRouter } from "expo-router";
-import { useMemo } from "react";
+// components/Product/HomeHeader.tsx
+import { Ionicons } from "@expo/vector-icons";
+import { usePathname, useRouter } from "expo-router"; // ← added usePathname
 import { Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// Badge background colors per tab
-const BADGE_COLORS: Record<string, string> = {
-  product: "#000000",
-  services: "#1B19A8",
-  bookings: "#B15CDE",
-  pay: "#532ADB",
-};
-
-export default function HomeHeader() {
+export default function HomeHeader({ count = 0 }: { count?: number }) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname(); // ← added
+  const insets = useSafeAreaInsets();
 
-  const activeTab = useMemo(() => {
-    if (pathname?.includes("/product")) return "product";
-    if (pathname?.includes("/services")) return "services";
-    if (pathname?.includes("/bookings")) return "bookings";
-    if (pathname?.includes("/pay")) return "pay";
-    return "product";
-  }, [pathname]);
+  // ← added: detect current tab from path
+  const activeTab = pathname?.includes("/services")
+    ? "services"
+    : pathname?.includes("/bookings")
+      ? "bookings"
+      : pathname?.includes("/pay")
+        ? "pay"
+        : "product";
 
   return (
-    <View className="w-full">
-      {/* Row: left stacked (2 rows) + right bell (centered) */}
-      <View className="w-full flex-row items-center py-1 ">
-        {/* LEFT: stacked column (HOME row, address row) */}
+    <View
+      style={{
+        paddingTop: insets.top + 5,
+      }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}>
+        {/* LEFT: stacked HOME + address */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => router.push("/Address/selectAddress")}
-          accessibilityRole="button"
-          accessibilityLabel="Select address"
-          className="flex-1"
-        >
+          className="flex-1">
           <View className="flex-col">
-            {/* top: icon + HOME */}
             <View className="flex-row items-center">
               <View className="w-5 h-5 rounded-md bg-black items-center justify-center mr-3">
                 <Ionicons name="paper-plane" size={12} color="#fff" />
@@ -51,59 +48,49 @@ export default function HomeHeader() {
               </View>
             </View>
 
-            {/* bottom: address */}
             <Text className="text-gray-600 text-sm mt-1" numberOfLines={1}>
               Electronic City Phase 1, Doddathogur Cross ..
             </Text>
           </View>
         </TouchableOpacity>
 
-        {/* RIGHT: bell - vertically centered relative to left's stacked content */}
-        <TouchableOpacity
-          activeOpacity={0.9}
-          // the notifications screens live in the (notifications) group folder.
-          // Files inside a group map to top-level routes, so the ecommerce
-          // notifications screen is available at `/ecommerceNotifications`.
+        {/* RIGHT: dynamic NotificationBell */}
+        <NotificationBell
+          count={count}
           onPress={() =>
             router.push({
               pathname: "/ecommerceNotifications",
-              params: { tab: activeTab },
+              params: { tab: activeTab }, // ← added tab param
             })
           }
-          accessibilityRole="button"
-          accessibilityLabel="Open notifications"
-          className="ml-3"
-        >
-          <View className="items-center justify-center">
-            <View
-              className="rounded-full items-center justify-center"
-              style={{
-                width: 40,
-                height: 40,
-                backgroundColor: "#EDE8FD4D",
-              }}
-            >
-              <MaterialCommunityIcons name="bell" size={22} color="#0F0F2D" />
-
-              <View
-                className="absolute items-center justify-center rounded-full"
-                style={{
-                  top: 4,
-                  right: 4,
-                  minWidth: 18,
-                  minHeight: 18,
-                  backgroundColor: BADGE_COLORS[activeTab],
-                  borderWidth: 2,
-                  borderColor: "#fff",
-                  paddingHorizontal: 4,
-                }}
-              >
-                <Text className="text-xs font-bold text-white">5</Text>
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
+        />
       </View>
     </View>
+  );
+}
+
+/* ---------- NotificationBell identical to index.tsx ---------- */
+function NotificationBell({
+  count = 0,
+  onPress,
+}: {
+  count?: number;
+  onPress?: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      className="relative w-9 h-9 -top-2  rounded-full  ">
+      <Ionicons name="notifications-outline" size={24} color="#000" />
+      {count > 0 && (
+        <View
+          className="absolute -top-2 right-0 bg-black rounded-full h-6 w-6 
+                     items-center justify-center border border-white">
+          <Text className="text-white text-xs font-bold">
+            {count > 99 ? "99+" : count}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
   );
 }

@@ -1,4 +1,3 @@
-// app/(tabs)/bookings.tsx
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -10,9 +9,12 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useIsFocused, useNavigation } from "@react-navigation/native";
+import {
+  useFocusEffect,
+  useIsFocused,
+  useNavigation,
+} from "@react-navigation/native";
 
 import Categories from "@/components/Bookings/Categories";
 import EventCard from "@/components/Bookings/EventCard";
@@ -22,15 +24,15 @@ import SearchBar from "@/components/Searchbar";
 
 import { POPULAR_EVENTS, UPCOMING_EVENTS } from "@/constants/bookings";
 import { useFavorites } from "@/context/FavoritesContext";
+import { useCategoryTheme } from "@/stores/useThemeStore";
 
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
-// ----- typed Bottom Tab param list (add other tabs if you use them) -----
+// ----- typed Bottom Tab param list -----
 type TabParamList = {
   Bookings: undefined;
   Home: undefined;
   Services?: undefined;
-  // add other tab routes here if used
 };
 type BookingsNavProp = BottomTabNavigationProp<TabParamList, "Bookings">;
 
@@ -39,12 +41,24 @@ export default function Bookings() {
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const { isFavorite, toggleFavorite } = useFavorites();
   const { width: screenWidth } = useWindowDimensions();
+  const setPreset = useCategoryTheme((s) => s.setThemePreset);
+
+  // ✅ Dynamic notification count (same pattern)
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setPreset("blue"); // booking theme color
+      // simulate async fetch
+      setTimeout(() => setNotificationCount(6), 800);
+    }, [setPreset])
+  );
 
   const CARD_PERCENT = 0.6;
   const ITEM_GAP = 12;
   const CARD_WIDTH = Math.round(screenWidth * CARD_PERCENT);
 
-  // ---------- filters (memoized)
+  // ---------- filters ----------
   const upcomingFiltered = useMemo(() => {
     if (!activeCategory || activeCategory === "all") return UPCOMING_EVENTS;
     return UPCOMING_EVENTS.filter(
@@ -59,7 +73,7 @@ export default function Bookings() {
     );
   }, [activeCategory]);
 
-  // ---------- renderers (stable)
+  // ---------- renderers ----------
   const renderUpcomingItem = useCallback(
     ({ item }: ListRenderItemInfo<(typeof UPCOMING_EVENTS)[number]>) => (
       <View style={{ width: CARD_WIDTH }}>
@@ -133,7 +147,7 @@ export default function Bookings() {
     []
   );
 
-  // ---------- memoized header (ListTop)
+  // ---------- Header (ListTop) ----------
   const ListTop = useMemo(() => {
     return (
       <View>
@@ -143,8 +157,10 @@ export default function Bookings() {
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
             className="w-full rounded-b-2xl overflow-hidden">
-            <SafeAreaView edges={["top"]} className="px-3 py-1">
-              <HomeHeader />
+            <View className="px-3 py-1">
+              {/* ✅ pass count to HomeHeader */}
+              <HomeHeader count={notificationCount} />
+
               <QuickActions />
               <TouchableOpacity
                 onPress={() => router.push("/Searchscreen?tab=booking")}
@@ -153,7 +169,7 @@ export default function Bookings() {
                 accessibilityLabel="Search bookings">
                 <SearchBar placeholder="Search Bookings" readOnly />
               </TouchableOpacity>
-            </SafeAreaView>
+            </View>
           </LinearGradient>
         </View>
 
@@ -176,7 +192,7 @@ export default function Bookings() {
             </TouchableOpacity>
           </View>
 
-          {/* Horizontal FlatList with responsive card width */}
+          {/* Horizontal FlatList */}
           <FlatList
             data={upcomingFiltered}
             keyExtractor={(i) => i.id}
@@ -219,18 +235,15 @@ export default function Bookings() {
     horizontalGetItemLayout,
     listEdgeSpacer,
     emptyUpcomingComponent,
+    notificationCount,
   ]);
 
-  // -------------------------
-  // NEW: listRef + navigation listener for tabPress (scroll-to-top + refresh)
-  // -------------------------
+  // ---------- Scroll + Refresh ----------
   const listRef = useRef<FlatList<any> | null>(null);
   const navigation = useNavigation<BookingsNavProp>();
   const isFocused = useIsFocused();
   const [refreshKey, setRefreshKey] = useState<number>(() => Date.now());
 
-  // when tab is pressed while focused, scroll to top and trigger refresh
-  // (typed navigation makes "tabPress" available)
   useMemo(() => {
     const unsubscribe = navigation.addListener("tabPress", (e: any) => {
       if (isFocused) {
@@ -242,12 +255,9 @@ export default function Bookings() {
         setRefreshKey(Date.now());
       }
     });
-    // return cleanup - navigation.addListener returns an unsubscribe function
-    // note: useMemo is used to create the listener once; cleanup will run on unmount
     return () => {
       unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation, isFocused]);
 
   return (

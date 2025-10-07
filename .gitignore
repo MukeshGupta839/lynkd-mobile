@@ -43,7 +43,5 @@ app-example
 android/hs_err_pid*.log
 android/build-log.txt
 android/replay_pid*.log
-# Local generated videos/assets
-assets/*.mp4
-# Posts folder (if you want it ignored)
-components/Posts/
+
+

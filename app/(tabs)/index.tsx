@@ -76,8 +76,7 @@ const NotificationBell = ({
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="relative w-9 h-9 rounded-full items-center justify-center"
-    >
+      className="relative w-9 h-9 rounded-full items-center justify-center">
       <Ionicons name="notifications-outline" size={24} color="#000" />
 
       {count > 0 && (
@@ -558,8 +557,7 @@ export default function ConsumerHomeUI() {
             rightUnderlayStyle,
             { zIndex: 3 },
           ]}
-          pointerEvents="auto"
-        >
+          pointerEvents="auto">
           <CameraPost onBackToFeed={snapToCenter} active={cameraActive} />
         </Reanimated.View>
 
@@ -568,8 +566,7 @@ export default function ConsumerHomeUI() {
             { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
             leftUnderlayStyle,
           ]}
-          pointerEvents="auto"
-        >
+          pointerEvents="auto">
           {/* Chats screen */}
           <Chats />
         </Reanimated.View>
@@ -581,8 +578,7 @@ export default function ConsumerHomeUI() {
             feedStyle,
             { zIndex: 1 },
           ]}
-          pointerEvents="auto"
-        >
+          pointerEvents="auto">
           <View className="flex-1 bg-[#F3F4F8]">
             {/* Top bar */}
             <Reanimated.View
@@ -592,14 +588,12 @@ export default function ConsumerHomeUI() {
                   height: TOP_BAR_HEIGHT,
                 },
                 headerAnimatedStyle,
-              ]}
-            >
+              ]}>
               <View
                 style={{
                   paddingTop: insets.top - 10,
                   backgroundColor: "white",
-                }}
-              >
+                }}>
                 <View
                   style={{
                     height: NAV_BAR_CONTENT_HEIGHT,
@@ -607,16 +601,14 @@ export default function ConsumerHomeUI() {
                     alignItems: "center",
                     justifyContent: "space-between",
                     paddingHorizontal: 12,
-                  }}
-                >
+                  }}>
                   <Text className="text-2xl font-bold">LYNKD</Text>
                   <View className="flex-row items-center space-x-3">
                     <TouchableOpacity
                       className="w-9 h-9 rounded-full items-center justify-center"
                       onPress={() => {
                         router.push("/(search)");
-                      }}
-                    >
+                      }}>
                       <Ionicons name="search-outline" size={24} color="#000" />
                     </TouchableOpacity>
                     <NotificationBell
@@ -738,8 +730,7 @@ export default function ConsumerHomeUI() {
             right: 0,
             bottom: 0,
             zIndex: 20,
-          }}
-        >
+          }}>
           {/* Animated container to move the button up/down when tab bar hides/shows */}
           <FloatingPostButton
             insets={insets}
@@ -794,12 +785,10 @@ function FloatingPostButton({
       <View
         className="items-end pr-4"
         style={{ paddingBottom: insets.bottom }}
-        pointerEvents="box-none"
-      >
+        pointerEvents="box-none">
         <Pressable
           onPress={() => onPressFab?.()}
-          className="w-14 h-14 rounded-full overflow-hidden items-center justify-center shadow-lg"
-        >
+          className="w-14 h-14 rounded-full overflow-hidden items-center justify-center shadow-lg">
           <BlurView
             intensity={60}
             tint="dark"

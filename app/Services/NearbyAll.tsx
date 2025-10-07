@@ -37,7 +37,7 @@ export default function NearbyAll() {
               params: { id: item.id, title: item.title },
             })
           }
-          className="bg-white rounded-xl overflow-hidden shadow-md">
+          className="bg-white rounded-lg overflow-hidden shadow-md">
           {/* image */}
           {item?.image ? (
             <Image
@@ -89,8 +89,8 @@ export default function NearbyAll() {
           renderItem={renderItem}
           numColumns={2}
           showsVerticalScrollIndicator={false}
-          columnWrapperClassName="gap-x-2" // horizontal gap
-          contentContainerClassName="gap-y-2" // vertical gap
+          columnWrapperClassName="gap-x-3" // horizontal gap
+          contentContainerClassName="gap-y-4" // vertical gap
           ListEmptyComponent={() => (
             <View className="p-5">
               <Text className="text-gray-500 text-center">

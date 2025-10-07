@@ -156,8 +156,7 @@ function HighlightedText({
     <Text
       style={styles.base}
       allowFontScaling={false}
-      textBreakStrategy="simple"
-    >
+      textBreakStrategy="simple">
       {parts.map((p, i) => (
         <Text key={i} style={p.isBlue ? styles.mention : undefined}>
           {p.text}
@@ -588,8 +587,7 @@ export default function PostCreate() {
       }}
       onLayout={(event) => {
         setContainerLayout(event.nativeEvent.layout);
-      }}
-    >
+      }}>
       <ProductModal
         visible={showProductModal}
         onClose={() => setShowProductModal(false)}
@@ -602,13 +600,11 @@ export default function PostCreate() {
       {/* Header */}
       <View
         className="flex-row justify-between items-center border-gray-300 px-3"
-        style={{ height: 56 }}
-      >
+        style={{ height: 56 }}>
         <TouchableOpacity
           className="flex items-center justify-center rounded-full w-9 h-9"
           onPress={() => router.back()}
-          accessibilityLabel="Close"
-        >
+          accessibilityLabel="Close">
           <Ionicons name="close" size={24} color="#000" />
         </TouchableOpacity>
         <Text className="text-2xl text-black font-opensans-semibold text-center">
@@ -637,8 +633,7 @@ export default function PostCreate() {
           onLayout={(event) => {
             layoutRef.current = event.nativeEvent.layout;
             setMainContainerLayout(event.nativeEvent.layout);
-          }}
-        >
+          }}>
           <ScrollView
             ref={scrollViewRef}
             keyboardShouldPersistTaps="handled"
@@ -646,8 +641,7 @@ export default function PostCreate() {
             onScroll={(e) => {
               setScrollOffset(e.nativeEvent.contentOffset.y);
             }}
-            scrollEventThrottle={16}
-          >
+            scrollEventThrottle={16}>
             <View className="flex-1 pt-3 gap-3">
               <View className="flex flex-row items-center px-3">
                 <Image
@@ -660,12 +654,10 @@ export default function PostCreate() {
 
                 <View
                   className="ml-3 flex flex-row items-center"
-                  style={{ minWidth: 0 }}
-                >
+                  style={{ minWidth: 0 }}>
                   <Text
                     className="text-sm font-opensans-semibold"
-                    numberOfLines={1}
-                  >
+                    numberOfLines={1}>
                     Karthik Kumar
                   </Text>
 
@@ -763,8 +755,7 @@ export default function PostCreate() {
                     borderRadius: 999,
                     padding: 6,
                   }}
-                  accessibilityRole="button"
-                >
+                  accessibilityRole="button">
                   <Entypo name="cross" size={16} color="#fff" />
                 </Pressable>
               </View>
@@ -790,15 +781,13 @@ export default function PostCreate() {
                   className="
                     flex-row w-3/4 items-center rounded-xl bg-white border border-black/10
                     px-3 py-3
-                  "
-                >
+                  ">
                   {/* Left product tile */}
                   <View
                     className="
                       w-14 h-14 rounded-xl bg-white border border-neutral-200
                       items-center justify-center overflow-hidden
-                    "
-                  >
+                    ">
                     <Image
                       source={require("../../assets/images/Product/phone.png")}
                       className="w-12 h-12"
@@ -809,8 +798,7 @@ export default function PostCreate() {
                   {/* Name */}
                   <Text
                     className="flex-1 text-[16px] font-opensans-semibold text-neutral-900 ml-3"
-                    numberOfLines={1}
-                  >
+                    numberOfLines={1}>
                     {selectedProduct.name}
                   </Text>
 
@@ -832,8 +820,7 @@ export default function PostCreate() {
         {/* Bottom selector with stable positioning. When mentioning, show smart mention list here */}
         <Animated.View
           style={[keyboardPadding, { minHeight: 60 }]}
-          className="bg-white flex flex-row items-center px-3 gap-2"
-        >
+          className="bg-white flex flex-row items-center px-3 gap-2">
           {mentioning && filteredUsers.length > 0 ? (
             // When mentioning, show the Mention UI in place of the bottom selector.
             // Center it and use ~100% width so the left/right parts of the bar remain visible.
@@ -858,15 +845,13 @@ export default function PostCreate() {
                   onPress={async () => {
                     await dismissKeyboardAndWait();
                     console.log("Camera");
-                  }}
-                >
+                  }}>
                   <Camera width={22} height={22} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
-                  onPress={pickMedia}
-                >
+                  onPress={pickMedia}>
                   <Gallery width={22} height={22} />
                 </TouchableOpacity>
 
@@ -876,8 +861,7 @@ export default function PostCreate() {
                     await dismissKeyboardAndWait();
                     openProductModal();
                     console.log("GIF picker");
-                  }}
-                >
+                  }}>
                   <Cart width={22} height={22} />
                 </TouchableOpacity>
 
@@ -886,8 +870,7 @@ export default function PostCreate() {
                   onPress={async () => {
                     await dismissKeyboardAndWait();
                     setStatusOpen(true);
-                  }}
-                >
+                  }}>
                   <Community width={22} height={22} />
                 </TouchableOpacity>
 
@@ -896,16 +879,14 @@ export default function PostCreate() {
                   onPress={async () => {
                     await dismissKeyboardAndWait();
                     console.log("Location");
-                  }}
-                >
+                  }}>
                   <Location width={22} height={22} />
                 </TouchableOpacity>
               </View>
 
               <TouchableOpacity
                 className="bg-black flex-row rounded-full items-center justify-center px-3 py-2.5 gap-1"
-                onPress={createPost}
-              >
+                onPress={createPost}>
                 <Send width={16} height={16} />
                 <Text className="text-white text-sm font-opensans-semibold">
                   POST

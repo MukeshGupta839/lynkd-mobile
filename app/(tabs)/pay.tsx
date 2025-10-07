@@ -3,7 +3,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { ScrollView, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import HomeHeader from "@/components/Product/HomeHeader";
 import QuickActions from "@/components/Product/QuickActions";
@@ -17,7 +16,6 @@ type TabParamList = {
   ProductHome?: undefined;
   Services?: undefined;
   Bookings?: undefined;
-  // add other tabs if needed
 };
 
 type HomeNavProp = BottomTabNavigationProp<TabParamList, "Home">;
@@ -49,9 +47,20 @@ function GradientWrapper({
 export default function Home() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView | null>(null);
-
   const navigation = useNavigation<HomeNavProp>();
   const isFocused = useIsFocused();
+
+  // ✅ Dynamic notification count (same logic as others)
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  // Simulate fetching notifications or unseen updates dynamically
+  useEffect(() => {
+    if (isFocused) {
+      setTimeout(() => {
+        setNotificationCount(10); // Example: update from backend later
+      }, 800);
+    }
+  }, [isFocused]);
 
   // lightweight refresh (forces remount)
   const [refreshKey, setRefreshKey] = useState<number>(() => Date.now());
@@ -68,7 +77,6 @@ export default function Home() {
         setRefreshKey(Date.now());
       }
     });
-
     return unsubscribe;
   }, [navigation, isFocused]);
 
@@ -81,8 +89,10 @@ export default function Home() {
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           className="rounded-b-2xl overflow-hidden">
-          <SafeAreaView edges={["top"]} className="px-3 py-1">
-            <HomeHeader />
+          <View className="px-3 py-1">
+            {/* ✅ Pass dynamic count to HomeHeader */}
+            <HomeHeader count={notificationCount} />
+
             <QuickActions />
             <TouchableOpacity
               onPress={() => router.push("/Searchscreen")}
@@ -90,7 +100,7 @@ export default function Home() {
               className="mt-3">
               <SearchBar placeholder="Search" readOnly />
             </TouchableOpacity>
-          </SafeAreaView>
+          </View>
         </GradientWrapper>
       </View>
 
@@ -108,7 +118,7 @@ export default function Home() {
             <TouchableOpacity
               onPress={() => router.push("/Product/Productview")}
               activeOpacity={0.8}>
-              {/* You can add a preview or banner here if needed */}
+              {/* Placeholder for banners or quick items */}
             </TouchableOpacity>
           </View>
         </ScrollView>

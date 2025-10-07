@@ -1,4 +1,3 @@
-// app/(tabs)/services.tsx
 import {
   useFocusEffect,
   useIsFocused,
@@ -14,10 +13,7 @@ import React, {
   useState,
 } from "react";
 import { ScrollView, TouchableOpacity, View } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import PromoBannerCarousel from "@/components/Product/BannerCarousel";
 import CategoryList from "@/components/Product/CategoryList";
@@ -68,9 +64,19 @@ export default function Services() {
   const setPreset = useCategoryTheme((s) => s.setThemePreset);
   const insets = useSafeAreaInsets();
 
+  // ✅ Dynamic notification count (same logic as ProductHome)
+  const [notificationCount, setNotificationCount] = useState(0);
+
   useFocusEffect(
     useCallback(() => {
       setPreset("blue");
+
+      // simulate fetching new notifications
+      setTimeout(() => {
+        setNotificationCount(4); // for example
+      }, 800);
+
+      return () => {};
     }, [setPreset])
   );
 
@@ -100,20 +106,22 @@ export default function Services() {
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           className="rounded-b-2xl overflow-hidden">
-          <SafeAreaView edges={["top"]} className="px-3  py-1">
-            <HomeHeader />
+          <View className="px-3 py-1">
+            {/* ✅ Pass dynamic count here */}
+            <HomeHeader count={notificationCount} />
+
             <QuickActions />
             <TouchableOpacity
               onPress={() => router.push("/Searchscreen?tab=service")}
               activeOpacity={0.8}
-              className="mt-3 ">
+              className="mt-3">
               <SearchBar placeholder="Search Services" readOnly />
             </TouchableOpacity>
-          </SafeAreaView>
+          </View>
         </GradientWrapper>
       </View>
     ),
-    [router]
+    [router, notificationCount]
   );
 
   // -------------------------
@@ -146,8 +154,7 @@ export default function Services() {
   return (
     <View className="flex-1 bg-gray-50">
       <ScrollView
-        // key forces a remount when refreshKey changes (lightweight refresh)
-        key={String(refreshKey)}
+        key={String(refreshKey)} // remounts on refresh
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -155,7 +162,7 @@ export default function Services() {
         }}
         bounces={false}
         overScrollMode="never">
-        {/* Header + content */}
+        {/* ✅ Header with dynamic notification count */}
         {ListHeader}
 
         <View className="mt-3">
@@ -167,7 +174,7 @@ export default function Services() {
         </View>
 
         {/* Nearby preview (only 3 items shown here) */}
-        <View className="mt-4 ">
+        <View className="mt-4">
           <NearbyList
             title="Near by You"
             data={nearbyPreview}

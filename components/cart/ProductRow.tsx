@@ -7,29 +7,42 @@ import { Image, Text, TouchableOpacity, View } from "react-native";
 
 type CartRowItem = CartItemT & {
   quantity?: number;
-  mrp?: number;
   rating?: number;
+  reviews?: number;
 };
-type WishlistRowItem = WishlistItemT & { mrp?: number; rating?: number };
+type WishlistRowItem = WishlistItemT & {
+  rating?: number;
+  reviews?: number;
+};
 
 type Props = {
-  item?: CartRowItem | WishlistRowItem | null; // made optional to be defensive
+  item?: CartRowItem | WishlistRowItem | null;
   variant: "cart" | "wishlist";
   onIncrement?: () => void;
   onDecrement?: () => void;
-  onRemove: () => void;
+  onRemove?: () => void;
   onAddToCart?: () => void;
   onPress?: () => void;
 };
 
-/* local INR helper (kept inside file) */
+/* Format INR without decimals for product prices */
 const INR = (n?: number | null) => {
-  const num = typeof n === "number" ? Math.round(n) : Number(n ?? 0);
+  const num = typeof n === "number" ? n : Number(n ?? 0);
   if (!isFinite(num)) return "₹0";
   return `₹${num.toLocaleString("en-IN")}`;
 };
 
-export default React.memo(function ProductRow({
+/* Format INR with decimals for totals */
+const INR_DECIMAL = (n?: number | null) => {
+  const num = typeof n === "number" ? n : Number(n ?? 0);
+  if (!isFinite(num)) return "₹0.00";
+  return `₹${num.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+function ProductRowImpl({
   item,
   variant,
   onIncrement,
@@ -37,42 +50,47 @@ export default React.memo(function ProductRow({
   onRemove,
   onAddToCart,
 }: Props) {
-  // Defensive: warn if item missing and avoid crash
   useEffect(() => {
-    if (item == null) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        "ProductRow: received undefined/null `item`. Check data source.",
-        {
-          variant,
-        }
-      );
-    }
+    if (!item) console.warn("ProductRow: missing item", { variant });
   }, [item, variant]);
 
-  if (!item) {
-    // don't render a broken row — return null to avoid crashes
-    return null;
-  }
+  if (!item) return null;
 
-  // normalize fields safely with fallbacks
-  const name = (item as any).name ?? "";
-  const price = Number((item as any).price ?? 0);
-  const mrp = Number((item as any).mrp ?? price);
-  const image = (item as any).image;
+  const name = item.name ?? "";
+  const price = Number(item.price ?? 0);
+  const mrp = Number((item as any).mrp ?? 0);
+  const image = item.image;
   const quantity = Number((item as any).quantity ?? 1);
   const reviews = Number((item as any).reviews ?? 0);
   const rating =
     typeof (item as any).rating === "number" ? (item as any).rating : 4.5;
 
-  // compute discount percent (rounded, no decimals)
-  const discountPercent = useMemo(() => {
-    if (!isFinite(mrp) || mrp <= 0) return 0;
-    const pct = Math.round((1 - price / mrp) * 100);
-    return Math.max(0, pct);
+  /**
+   * Logic:
+   * - If mrp > price => treat as original price.
+   * - Else if mrp < price => treat as discount amount.
+   * - Only show % if > 5%.
+   */
+  const { originalPrice, discountPercent, showDiscount } = useMemo(() => {
+    let original = price;
+
+    if (mrp > price) {
+      original = mrp;
+    } else if (mrp > 0 && mrp < price) {
+      original = price + mrp;
+    }
+
+    const percent = original > 0 ? ((original - price) / original) * 100 : 0;
+    const show = percent > 5;
+
+    return {
+      originalPrice: original,
+      discountPercent: percent.toFixed(1), // 1 decimal point
+      showDiscount: show,
+    };
   }, [price, mrp]);
 
-  // star rendering: compute full/half/empty counts from rating (0..5)
+  // Rating stars
   const starCounts = useMemo(() => {
     const normalized = Math.max(0, Math.min(5, Number(rating) || 0));
     const full = Math.floor(normalized);
@@ -81,7 +99,6 @@ export default React.memo(function ProductRow({
     return { full, half, empty, normalized };
   }, [rating]);
 
-  // Variant-specific classes (kept but simple)
   const contentWrapClass = "w-[90%] self-center p-2";
   const imageBasisClass = variant === "cart" ? "basis-[33%]" : "basis-[16%]";
   const imageAspectClass =
@@ -89,9 +106,8 @@ export default React.memo(function ProductRow({
 
   return (
     <View className="w-full bg-white rounded-2xl mt-3 overflow-hidden">
-      {/* TOP ROW */}
       <View className={`flex-row items-center ${contentWrapClass}`}>
-        {/* Image column */}
+        {/* Product Image */}
         <View
           className={`${imageBasisClass} rounded-xl overflow-hidden bg-gray-50`}>
           <View className={`w-full ${imageAspectClass}`}>
@@ -109,32 +125,35 @@ export default React.memo(function ProductRow({
           </View>
         </View>
 
-        {/* Gap */}
         <View className="w-4" />
 
-        {/* DETAILS column */}
+        {/* Product Info */}
         <View className="basis-[65%]">
-          {/* Title */}
           <Text
             className="text-base font-semibold text-black"
             numberOfLines={2}
-            ellipsizeMode="tail"
-            accessibilityRole="header">
+            ellipsizeMode="tail">
             {name}
           </Text>
 
-          {/* Price row */}
-          <View className="flex-row items-center">
+          {/* Pricing */}
+          <View className="flex-row items-center flex-wrap">
             <Text className="text-lg font-bold mr-2">{INR(price)}</Text>
-            <Text className="text-xs line-through text-gray-400 mr-2">
-              {INR(mrp)}
-            </Text>
-            <Text className="text-lg font-semibold text-green-600">
-              {discountPercent}%{/* computed discount */}
-            </Text>
+
+            {originalPrice > price && (
+              <Text className="text-xs line-through text-gray-400 mr-2">
+                {INR(originalPrice)}
+              </Text>
+            )}
+
+            {showDiscount && (
+              <Text className="text-lg font-semibold text-green-600">
+                {discountPercent}% off
+              </Text>
+            )}
           </View>
 
-          {/* Cart-only metadata */}
+          {/* Cart Details */}
           {variant === "cart" && (
             <>
               <View className="flex-row items-center mt-2">
@@ -164,13 +183,12 @@ export default React.memo(function ProductRow({
                 </Text>
               </View>
 
-              {/* QuantitySelector inside details */}
               <View className="mt-2">
                 <QuantitySelector
                   quantity={quantity}
                   onIncrement={onIncrement ?? (() => {})}
                   onDecrement={onDecrement ?? (() => {})}
-                  onRemove={onRemove}
+                  onRemove={onRemove ?? (() => {})}
                 />
               </View>
             </>
@@ -178,14 +196,12 @@ export default React.memo(function ProductRow({
         </View>
       </View>
 
-      {/* Wishlist actions row (below top row) */}
+      {/* Wishlist Buttons */}
       {variant === "wishlist" && (
         <View className="px-3 pb-4">
           <View className="w-[90%] self-center flex-row items-center justify-between">
             <TouchableOpacity
               onPress={onRemove}
-              accessibilityRole="button"
-              accessibilityLabel="Remove from collection"
               className="basis-[55%] flex-row items-center justify-center bg-[#FFEFEF] rounded-2xl px-4 py-3">
               <Ionicons name="trash-outline" size={18} color="#FF0000" />
               <Text className="ml-3 text-red-500 font-medium text-sm">
@@ -195,8 +211,6 @@ export default React.memo(function ProductRow({
 
             <TouchableOpacity
               onPress={onAddToCart}
-              accessibilityRole="button"
-              accessibilityLabel="Add to cart"
               className="basis-[35%] flex-row items-center justify-center bg-[#26FF91] rounded-2xl px-3 py-3">
               <Ionicons name="cart-outline" size={18} color="#000" />
               <Text className="ml-3 text-black font-semibold text-sm">
@@ -208,7 +222,12 @@ export default React.memo(function ProductRow({
       )}
     </View>
   );
-});
+}
+
+const ProductRow = React.memo(ProductRowImpl);
+ProductRow.displayName = "ProductRow";
+export default ProductRow;
+
 /* ------------------ PriceDetails ------------------ */
 export function PriceDetails({
   itemsCount,
@@ -221,16 +240,9 @@ export function PriceDetails({
   discount?: number;
   tax?: number;
 }) {
-  // local INR helper here too for footer (kept local per your request)
-  const INR2 = (n?: number | null) => {
-    const num = typeof n === "number" ? Math.round(n) : Number(n ?? 0);
-    if (!isFinite(num)) return "₹0";
-    return `₹${num.toLocaleString("en-IN")}`;
-  };
-
   const total = subtotal - discount + tax;
 
-  function Row({
+  const Row = ({
     label,
     value,
     labelClass = "",
@@ -240,35 +252,36 @@ export function PriceDetails({
     value: string;
     labelClass?: string;
     valueClass?: string;
-  }) {
-    return (
-      <View className="flex-row justify-between items-center">
-        <Text className={`text-sm text-black ${labelClass}`}>{label}</Text>
-        <Text className={`text-sm font-semibold text-black ${valueClass}`}>
-          {value}
-        </Text>
-      </View>
-    );
-  }
+  }) => (
+    <View className="flex-row justify-between items-center">
+      <Text className={`text-sm text-black ${labelClass}`}>{label}</Text>
+      <Text className={`text-sm font-semibold text-black ${valueClass}`}>
+        {value}
+      </Text>
+    </View>
+  );
 
   return (
-    <View className="bg-white rounded-2xl p-4">
+    <View className="bg-white rounded-2xl p-4 mt-3">
       <Text className="text-lg font-semibold">Price Details</Text>
 
       <View className="mt-3 space-y-3">
-        <Row label={`Price (${itemsCount} item)`} value={INR2(subtotal)} />
+        <Row
+          label={`Price (${itemsCount} item)`}
+          value={INR_DECIMAL(subtotal)}
+        />
         <Row
           label="Discount"
-          value={`- ${INR2(discount)}`}
+          value={`- ${INR_DECIMAL(discount)}`}
           valueClass="text-green-600 font-bold"
         />
-        <Row label="Tax Included" value={INR2(tax)} />
+        <Row label="Tax Included" value={INR_DECIMAL(tax)} />
       </View>
 
       <View className="mt-4 border-t border-black/10 pt-3">
         <Row
           label="Total"
-          value={INR2(total)}
+          value={INR_DECIMAL(total)}
           labelClass="text-lg font-bold"
           valueClass="text-lg font-bold"
         />

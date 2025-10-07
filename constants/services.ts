@@ -28,7 +28,7 @@ export const NEARBY_DATA: NearbyItem[] = [
     Address:
       "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
     distance: "250 Meters Away",
-    image: require("@/assets/images/kfc.png"),
+    image: require("@/assets/images/dominos.png"),
   },
   {
     id: "hotel",
@@ -36,7 +36,7 @@ export const NEARBY_DATA: NearbyItem[] = [
     Address:
       "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
     distance: "350 Meters Away",
-    image: require("@/assets/images/hotel.png"),
+    image: require("@/assets/images/dominos.png"),
   },
   {
     id: "dominos",
@@ -52,7 +52,7 @@ export const NEARBY_DATA: NearbyItem[] = [
     Address:
       "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
     distance: "350 Meters Away",
-    image: require("@/assets/images/hotel.png"),
+    image: require("@/assets/images/dominos.png"),
   },
   {
     id: "FiveStarHotel",
@@ -60,7 +60,7 @@ export const NEARBY_DATA: NearbyItem[] = [
     Address:
       "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
     distance: "350 Meters Away",
-    image: require("@/assets/images/hotel.png"),
+    image: require("@/assets/images/dominos.png"),
   },
   {
     id: "FiveStarHotel2",
@@ -68,7 +68,7 @@ export const NEARBY_DATA: NearbyItem[] = [
     Address:
       "Vincom Center, No. 70 Le Thanh Ton, Ben Nghe Ward, District 1, HCMC",
     distance: "350 Meters Away",
-    image: require("@/assets/images/hotel.png"),
+    image: require("@/assets/images/dominos.png"),
   },
   // add more nearby items here as needed
 ];

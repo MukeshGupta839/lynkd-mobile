@@ -27,7 +27,7 @@ export const CART_DATA: CartItemT[] = [
     name: "Apple iPhone 16 (Ultramarine, 128 GB)",
     image: require("@/assets/images/Product/iphonesmall.png"),
     price: 79999,
-    mrp: 2000,
+    mrp: 10000,
     reviews: 2495,
   },
   {
@@ -43,7 +43,7 @@ export const CART_DATA: CartItemT[] = [
     name: "Apple iPhone 16 (Mint, 128 GB)",
     image: require("@/assets/images/Product/iphonec4.png"),
     price: 79999,
-    mrp: 200,
+    mrp: 24000,
   },
 ];
 

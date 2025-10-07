@@ -1,4 +1,3 @@
-// app/(tabs)/ProductHome.tsx
 import {
   useFocusEffect,
   useIsFocused,
@@ -8,7 +7,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import Banner from "@/components/Product/BannerCarousel";
 import BestDealsGrid from "@/components/Product/BestDealsGrid";
@@ -64,9 +62,18 @@ const ProductHome = () => {
   const isFocused = useIsFocused();
   const setPreset = useCategoryTheme((s) => s.setThemePreset);
 
+  // ✅ Dynamic notification count
+  const [notificationCount, setNotificationCount] = useState(0);
+
   useFocusEffect(
     useCallback(() => {
       setPreset("green");
+
+      // Simulate fetching notifications (replace with API later)
+      setTimeout(() => {
+        setNotificationCount(8); // dynamic example value
+      }, 1000);
+
       return () => {};
     }, [setPreset])
   );
@@ -146,8 +153,10 @@ const ProductHome = () => {
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           className="rounded-b-2xl overflow-hidden">
-          <SafeAreaView edges={["top"]} className="px-3 py-1">
-            <HomeHeader />
+          <View className="px-3 py-1">
+            {/* ✅ pass dynamic count to HomeHeader */}
+            <HomeHeader count={notificationCount} />
+
             <QuickActions />
             <TouchableOpacity
               onPress={() => router.push("/Searchscreen?tab=product")}
@@ -155,7 +164,7 @@ const ProductHome = () => {
               className="mt-3">
               <SearchBar placeholder="Search" readOnly />
             </TouchableOpacity>
-          </SafeAreaView>
+          </View>
         </GradientWrapper>
       </View>
 

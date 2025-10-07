@@ -36,7 +36,7 @@ export default function RecommendedAll() {
               params: { id: item.id, title: item.title },
             })
           }
-          className="bg-white rounded-xl overflow-hidden shadow-md">
+          className="bg-white rounded-lg overflow-hidden shadow-md">
           {item?.image ? (
             <Image
               source={item.image}
@@ -76,7 +76,7 @@ export default function RecommendedAll() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
-      <View className="flex-row items-center justify-between bg-white border-b border-gray-200 px-4 py-3">
+      <View className="flex-row items-center justify-between bg-white border-b border-gray-200 px-3 py-3">
         <TouchableOpacity
           onPress={onBack}
           className="p-2 rounded-full bg-gray-100">
@@ -88,13 +88,14 @@ export default function RecommendedAll() {
         <View className="w-8" />
       </View>
 
-      <View className="flex-1 px-4 py-2">
+      <View className="flex-1 px-3 py-2">
         <FlatList
           data={items}
           keyExtractor={(i, idx) => String(i?.id ?? idx)}
           renderItem={renderItem}
           numColumns={2}
           columnWrapperClassName="gap-x-2"
+          contentContainerClassName="gap-y-4" // vertical gap
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={() => (
             <View className="p-5">
