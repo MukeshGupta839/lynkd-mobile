@@ -518,6 +518,16 @@ const VideoFeed: React.FC = () => {
   // Preload nearby videos for smooth Instagram-like experience
   const preloadedPlayersRef = useRef<Map<number, any>>(new Map());
 
+  // Track if we've triggered playback-based preloading for current video
+  const playbackPreloadTriggeredRef = useRef<Set<number>>(new Set());
+
+  // CACHE WINDOW: Track the current cache window (10 videos)
+  const CACHE_SIZE = 10; // Total videos to keep in cache
+  const BATCH_LOAD_TRIGGER = 5; // Load more when reaching this index in cache window
+  const BATCH_LOAD_SIZE = 5; // How many videos to load in next batch
+  const cacheWindowStartRef = useRef<number>(0); // Start of current cache window
+  const batchLoadTriggeredRef = useRef<Set<number>>(new Set()); // Track batch loads
+
   // track per-index manual pause state map
   const pausedMapRef = useRef<Map<number, boolean>>(new Map());
   const manualPausedRef = useRef(false);
@@ -672,48 +682,329 @@ const VideoFeed: React.FC = () => {
     prefetchAll();
   }, [posts]);
 
-  // PRELOAD next and previous videos for Instagram-like smooth transitions
+  // CONTINUOUS PLAYBACK MONITORING: Preload next video while current is playing
   useEffect(() => {
-    const preloadNearbyVideos = async () => {
-      try {
-        // Preload next video
-        const nextIndex = currentIndex + 1;
-        if (
-          nextIndex < posts.length &&
-          !preloadedPlayersRef.current.has(nextIndex)
-        ) {
-          const nextPost = posts[nextIndex];
-          if (nextPost?.media_url && typeof nextPost.media_url === "string") {
-            // Mark as loading to prevent duplicate preloads
-            preloadedPlayersRef.current.set(nextIndex, "loading");
-            // Prefetch the video URL to cache it
-            fetch(nextPost.media_url, { method: "HEAD" }).catch(() => {});
-          }
-        }
+    let playbackMonitor: ReturnType<typeof setInterval> | null = null;
+    let cancelled = false;
 
-        // Preload previous video
-        const prevIndex = currentIndex - 1;
-        if (prevIndex >= 0 && !preloadedPlayersRef.current.has(prevIndex)) {
-          const prevPost = posts[prevIndex];
-          if (prevPost?.media_url && typeof prevPost.media_url === "string") {
-            preloadedPlayersRef.current.set(prevIndex, "loading");
-            fetch(prevPost.media_url, { method: "HEAD" }).catch(() => {});
+    const monitorPlaybackAndPreload = async () => {
+      try {
+        const p = playerRef.current ?? (player as any);
+        if (!p || cancelled) return;
+
+        // Check if video is actively playing
+        if (typeof p.getStatusAsync === "function") {
+          const status: any = await p.getStatusAsync();
+
+          // If video is playing and we haven't triggered preload yet
+          if (
+            status?.isPlaying &&
+            !playbackPreloadTriggeredRef.current.has(currentIndex)
+          ) {
+            playbackPreloadTriggeredRef.current.add(currentIndex);
+            console.log(
+              `🎥 Video ${currentIndex} is playing - triggering aggressive preload of next videos`
+            );
+
+            // Trigger aggressive preloading of next videos
+            const nextIndex = currentIndex + 1;
+            const nextNextIndex = currentIndex + 2;
+
+            // Preload next video completely
+            if (nextIndex < posts.length) {
+              const nextPost = posts[nextIndex];
+              if (
+                nextPost?.media_url &&
+                typeof nextPost.media_url === "string"
+              ) {
+                if (
+                  !preloadedPlayersRef.current.has(nextIndex) ||
+                  preloadedPlayersRef.current.get(nextIndex) === "loading"
+                ) {
+                  preloadedPlayersRef.current.set(nextIndex, "loading");
+                  console.log(
+                    `📥 Starting full download of video ${nextIndex} while video ${currentIndex} plays`
+                  );
+
+                  fetch(nextPost.media_url, { method: "GET" })
+                    .then(() => {
+                      preloadedPlayersRef.current.set(
+                        nextIndex,
+                        "fully-loaded"
+                      );
+                      console.log(
+                        `✅ Fully loaded video ${nextIndex} during playback`
+                      );
+
+                      // Also preload thumbnail
+                      if (nextPost.thumbnail_url) {
+                        Image.prefetch(nextPost.thumbnail_url).catch(() => {});
+                      }
+                    })
+                    .catch((err) => {
+                      console.log(
+                        `❌ Failed to preload video ${nextIndex}:`,
+                        err
+                      );
+                      preloadedPlayersRef.current.delete(nextIndex);
+                    });
+                }
+              }
+            }
+
+            // Preload next 2-3 videos partially for smooth scrolling
+            const nextVideosToPreload = [
+              nextNextIndex,
+              currentIndex + 3,
+              currentIndex + 4,
+            ];
+            for (const idx of nextVideosToPreload) {
+              if (idx < posts.length && !preloadedPlayersRef.current.has(idx)) {
+                const nextPost = posts[idx];
+                if (
+                  nextPost?.media_url &&
+                  typeof nextPost.media_url === "string"
+                ) {
+                  preloadedPlayersRef.current.set(idx, "loading");
+
+                  fetch(nextPost.media_url, {
+                    method: "GET",
+                    headers: { Range: "bytes=0-307200" }, // 300KB for better cache
+                  })
+                    .then(() => {
+                      preloadedPlayersRef.current.set(idx, "loaded");
+                      console.log(`✅ Preloaded video ${idx} during playback`);
+                    })
+                    .catch(() => {
+                      preloadedPlayersRef.current.delete(idx);
+                    });
+                }
+              }
+            }
+          }
+
+          // Check playback progress for additional optimizations
+          if (
+            status?.isPlaying &&
+            status?.durationMillis &&
+            status?.positionMillis
+          ) {
+            const progress = status.positionMillis / status.durationMillis;
+
+            // When video is 30% played, ensure next video is fully loaded
+            if (progress > 0.3 && progress < 0.4) {
+              const nextIndex = currentIndex + 1;
+              if (
+                nextIndex < posts.length &&
+                preloadedPlayersRef.current.get(nextIndex) !== "fully-loaded"
+              ) {
+                console.log(
+                  `🎯 Video ${currentIndex} at 30% - ensuring next video fully loaded`
+                );
+              }
+            }
           }
         }
-      } catch (e) {
-        console.log("Preload error:", e);
+      } catch (error) {
+        // Ignore errors silently
       }
     };
 
-    // Delay preload slightly to prioritize current video
-    const preloadTimer = setTimeout(preloadNearbyVideos, 200);
-    return () => clearTimeout(preloadTimer);
+    // Start monitoring when video is likely playing
+    if (isPlayingState && !mediaLoading) {
+      playbackMonitor = setInterval(monitorPlaybackAndPreload, 1000); // Check every second
+    }
+
+    return () => {
+      cancelled = true;
+      if (playbackMonitor) {
+        clearInterval(playbackMonitor);
+      }
+    };
+  }, [currentIndex, isPlayingState, mediaLoading, posts, player]);
+
+  // DYNAMIC CACHE WINDOW: Intelligent 10-video cache with batch loading
+  useEffect(() => {
+    const manageCacheWindow = async () => {
+      try {
+        // Update cache window start based on current position
+        const newCacheStart = Math.max(0, currentIndex - 2); // Keep 2 behind current
+        cacheWindowStartRef.current = newCacheStart;
+        const cacheEnd = Math.min(posts.length, newCacheStart + CACHE_SIZE);
+
+        console.log(
+          `📦 Cache window: [${newCacheStart} to ${cacheEnd - 1}] (current: ${currentIndex})`
+        );
+
+        // Calculate position within cache window
+        const positionInCache = currentIndex - newCacheStart;
+
+        // TRIGGER BATCH LOAD: When reaching 5th video in cache, load next 5
+        if (
+          positionInCache === BATCH_LOAD_TRIGGER &&
+          !batchLoadTriggeredRef.current.has(currentIndex)
+        ) {
+          batchLoadTriggeredRef.current.add(currentIndex);
+          const batchStart = cacheEnd;
+          const batchEnd = Math.min(posts.length, batchStart + BATCH_LOAD_SIZE);
+
+          console.log(
+            `🚀 BATCH LOAD TRIGGERED at video ${currentIndex}! Loading videos [${batchStart} to ${batchEnd - 1}]`
+          );
+
+          // Load next batch of 5 videos
+          for (let idx = batchStart; idx < batchEnd; idx++) {
+            const post = posts[idx];
+            if (post?.media_url && typeof post.media_url === "string") {
+              if (!preloadedPlayersRef.current.has(idx)) {
+                preloadedPlayersRef.current.set(idx, "loading");
+                console.log(`📥 Batch loading video ${idx}`);
+
+                fetch(post.media_url, {
+                  method: "GET",
+                  headers: { Range: "bytes=0-307200" }, // 300KB for batch load
+                })
+                  .then(() => {
+                    preloadedPlayersRef.current.set(idx, "batch-loaded");
+                    console.log(`✅ Batch loaded video ${idx}`);
+                  })
+                  .catch(() => {
+                    preloadedPlayersRef.current.delete(idx);
+                  });
+
+                // Preload thumbnail
+                if (post.thumbnail_url) {
+                  Image.prefetch(post.thumbnail_url).catch(() => {});
+                }
+              }
+            }
+          }
+        }
+
+        // PRELOAD VIDEOS IN CACHE WINDOW
+        const indicesToPreload: number[] = [];
+
+        // Priority order:
+        // 1. Next immediate video (full load)
+        // 2. Next 2-4 videos (partial load)
+        // 3. Previous 1-2 videos (partial load)
+
+        for (let i = 0; i < CACHE_SIZE; i++) {
+          const idx = newCacheStart + i;
+          if (idx >= 0 && idx < posts.length && idx !== currentIndex) {
+            indicesToPreload.push(idx);
+          }
+        }
+
+        // Preload videos in cache window
+        for (const idx of indicesToPreload) {
+          if (!preloadedPlayersRef.current.has(idx)) {
+            const post = posts[idx];
+            if (post?.media_url && typeof post.media_url === "string") {
+              preloadedPlayersRef.current.set(idx, "loading");
+
+              // Full load for next immediate video, partial for others
+              const isNextVideo = idx === currentIndex + 1;
+              const distanceFromCurrent = Math.abs(idx - currentIndex);
+
+              if (
+                isNextVideo &&
+                playbackPreloadTriggeredRef.current.has(currentIndex)
+              ) {
+                // Full download for immediate next video when triggered by playback
+                fetch(post.media_url, { method: "GET" })
+                  .then(() => {
+                    preloadedPlayersRef.current.set(idx, "fully-loaded");
+                    console.log(`✅ Fully preloaded video ${idx}`);
+                  })
+                  .catch(() => {
+                    preloadedPlayersRef.current.delete(idx);
+                  });
+              } else if (distanceFromCurrent <= 3) {
+                // High priority: videos 1-3 positions away
+                fetch(post.media_url, {
+                  method: "GET",
+                  headers: { Range: "bytes=0-307200" }, // 300KB
+                })
+                  .then(() => {
+                    preloadedPlayersRef.current.set(idx, "loaded");
+                    console.log(`✅ Preloaded video ${idx} (priority)`);
+                  })
+                  .catch(() => {
+                    preloadedPlayersRef.current.delete(idx);
+                  });
+              } else {
+                // Lower priority: videos 4+ positions away
+                fetch(post.media_url, {
+                  method: "GET",
+                  headers: { Range: "bytes=0-204800" }, // 200KB
+                })
+                  .then(() => {
+                    preloadedPlayersRef.current.set(idx, "loaded");
+                    console.log(`✅ Preloaded video ${idx} (background)`);
+                  })
+                  .catch(() => {
+                    preloadedPlayersRef.current.delete(idx);
+                  });
+              }
+
+              // Also prefetch thumbnail
+              if (post.thumbnail_url) {
+                Image.prefetch(post.thumbnail_url).catch(() => {});
+              }
+            }
+          }
+        }
+
+        // CLEANUP: Remove videos outside cache window (keep 10 in cache)
+        const keysToRemove: number[] = [];
+        preloadedPlayersRef.current.forEach((_, idx) => {
+          const distanceFromWindow = Math.min(
+            Math.abs(idx - newCacheStart),
+            Math.abs(idx - (cacheEnd - 1))
+          );
+
+          // Remove if outside cache window by more than 2 positions
+          if (idx < newCacheStart - 2 || idx > cacheEnd + 2) {
+            keysToRemove.push(idx);
+          }
+        });
+
+        if (keysToRemove.length > 0) {
+          console.log(
+            `🧹 Cleaning up ${keysToRemove.length} videos outside cache window`
+          );
+          keysToRemove.forEach((key) =>
+            preloadedPlayersRef.current.delete(key)
+          );
+        }
+
+        // Cleanup old batch load triggers
+        const triggersToRemove: number[] = [];
+        batchLoadTriggeredRef.current.forEach((idx) => {
+          if (idx < currentIndex - 10) {
+            triggersToRemove.push(idx);
+          }
+        });
+        triggersToRemove.forEach((idx) =>
+          batchLoadTriggeredRef.current.delete(idx)
+        );
+      } catch (error) {
+        console.log("Cache management error:", error);
+      }
+    };
+
+    // Start cache management immediately
+    const cacheTimer = setTimeout(manageCacheWindow, 50);
+    return () => clearTimeout(cacheTimer);
   }, [currentIndex, posts]);
 
   // monitor player status for load -> autoplay (handles initial & switches)
   useEffect(() => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let pollCount = 0;
+    const MAX_POLL_COUNT = 100; // 10 seconds max (100ms * 100)
 
     const startPolling = () => {
       if (pollTimer) return;
@@ -721,19 +1012,41 @@ const VideoFeed: React.FC = () => {
         try {
           const p = playerRef.current ?? (player as any);
           if (!p || cancelled) return;
+
+          pollCount++;
+
+          // Safety: stop polling after max attempts
+          if (pollCount > MAX_POLL_COUNT) {
+            console.warn(
+              `⚠️ Video ${currentIndex} failed to load after ${MAX_POLL_COUNT} attempts`
+            );
+            if (pollTimer) {
+              clearInterval(pollTimer);
+              pollTimer = null;
+            }
+            setMediaLoading(false);
+            setShowLoadingSpinner(false);
+            return;
+          }
+
           if (typeof p.getStatusAsync === "function") {
             const status: any = await p.getStatusAsync();
+            // Improved ready detection: video is ready when loaded and has minimal buffering
             const readyToRender =
               status?.isLoaded &&
-              !status?.isBuffering &&
-              (status?.isPlaying ||
+              (!status?.isBuffering ||
+                status?.isPlaying ||
                 (typeof status?.positionMillis === "number" &&
-                  status.positionMillis > 20));
+                  status.positionMillis > 0));
+
             if (readyToRender) {
               if (cancelled) return;
               if (!loadedSetRef.current.has(currentIndex)) {
                 loadedSetRef.current.add(currentIndex);
                 setLoadedVersion((v) => v + 1);
+                console.log(
+                  `✅ Video ${currentIndex} loaded after ${pollCount} polls`
+                );
               }
               setMediaLoading(false);
               setShowLoadingSpinner(false);
@@ -783,8 +1096,9 @@ const VideoFeed: React.FC = () => {
               pollTimer = null;
             }
           }
-        } catch (e) {
-          // ignore
+        } catch (error) {
+          // ignore but log for debugging
+          console.log("Poll error:", error);
         }
       }, 100);
     };
@@ -800,7 +1114,7 @@ const VideoFeed: React.FC = () => {
       }
       clearTimeout(startDelay);
     };
-  }, [currentMedia, safePlay, safePause, currentIndex]);
+  }, [currentMedia, safePlay, safePause, currentIndex, player]);
 
   // pause/resume on screen focus
   useEffect(() => {
@@ -839,6 +1153,18 @@ const VideoFeed: React.FC = () => {
       loadingTimeoutRef.current = null;
     }
 
+    // Clean up old playback preload triggers (keep only recent videos)
+    const triggersToRemove: number[] = [];
+    playbackPreloadTriggeredRef.current.forEach((idx) => {
+      if (Math.abs(idx - currentIndex) > 10) {
+        // Increased for larger cache
+        triggersToRemove.push(idx);
+      }
+    });
+    triggersToRemove.forEach((idx) =>
+      playbackPreloadTriggeredRef.current.delete(idx)
+    );
+
     // Always set loading to true first to show thumbnail immediately and hide previous video
     setMediaLoading(true);
     setShowLoadingSpinner(false);
@@ -850,14 +1176,16 @@ const VideoFeed: React.FC = () => {
       setTimeout(() => {
         setMediaLoading(false);
         setShowLoadingSpinner(false);
-      }, 100);
+      }, 50); // Reduced delay for faster transition
     } else {
-      // Show loading spinner after 800ms if still loading (network issue)
+      // Show loading spinner after 500ms if still loading (network issue)
+      // Reduced from 800ms for better user feedback
       loadingTimeoutRef.current = setTimeout(() => {
         if (!loadedSetRef.current.has(currentIndex)) {
+          console.log(`⏳ Showing spinner for video ${currentIndex}`);
           setShowLoadingSpinner(true);
         }
-      }, 800);
+      }, 500);
     }
 
     return () => {
@@ -980,24 +1308,28 @@ const VideoFeed: React.FC = () => {
   };
 
   // video style — keep under PostItem
+  // Important: completely hide video during loading to prevent flicker on Android
   const videoStyle = {
     width,
     height,
-    backgroundColor: "black",
-    // Hide video during loading to prevent previous video from showing, show when ready
+    backgroundColor: "#000000",
+    // Hide video completely during loading to prevent previous video from showing
     opacity: mediaLoading ? 0 : 1,
-    zIndex: 0,
+    display: mediaLoading ? "none" : "flex", // Extra safety for Android
+    zIndex: mediaLoading ? -1 : 0, // Push behind during loading
   } as any;
 
   // shared thumbnail overlay is mandatory while mediaLoading is true
+  // High z-index ensures it covers video during transitions on both iOS and Android
   const sharedThumbStyle = {
-    position: "absolute",
+    position: "absolute" as const,
     left: 0,
     top: 0,
     width,
     height,
-    zIndex: 10, // Higher z-index to cover video during transition
-  } as const;
+    backgroundColor: "#000000", // Solid background to prevent any bleed-through
+    zIndex: 15, // Higher z-index to definitely cover video during transition
+  };
 
   // -------------------------
   // NEW: add tabPress listener to scroll to top + refresh when tab is tapped again
@@ -1028,16 +1360,42 @@ const VideoFeed: React.FC = () => {
         </View>
 
         {/* mandatory shared thumbnail: visible while mediaLoading is true */}
-        {mediaLoading && currentMedia?.thumbnail_url && (
+        {mediaLoading && (
           <View pointerEvents="none" style={sharedThumbStyle}>
-            <Image
-              source={{ uri: currentMedia.thumbnail_url }}
-              style={{ width, height }}
-              resizeMode="cover"
-              onError={() => {
-                /* If thumbnail fails, we still avoid blank screen; keep this silent or log as needed */
-              }}
-            />
+            {currentMedia?.thumbnail_url ? (
+              <>
+                <Image
+                  source={{ uri: currentMedia.thumbnail_url }}
+                  style={{ width, height }}
+                  resizeMode="cover"
+                  onError={(e) => {
+                    console.log("Thumbnail load error:", currentMedia.id);
+                  }}
+                />
+                {/* Subtle overlay to indicate loading state */}
+                <View
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: "rgba(0,0,0,0.15)",
+                  }}
+                />
+              </>
+            ) : (
+              // Fallback if no thumbnail - show dark background
+              <View
+                style={{
+                  width,
+                  height,
+                  backgroundColor: "#000000",
+                }}
+              />
+            )}
+
+            {/* Loading spinner - show immediately for better feedback */}
             <View
               style={{
                 position: "absolute",
@@ -1045,26 +1403,22 @@ const VideoFeed: React.FC = () => {
                 top: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: "rgba(0,0,0,0.12)",
+                justifyContent: "center",
+                alignItems: "center",
+                // Show spinner with slight delay or immediately based on showLoadingSpinner
+                opacity: showLoadingSpinner ? 1 : 0.7,
               }}
-            />
-
-            {/* Loading spinner - only show if taking too long (network issue) */}
-            {showLoadingSpinner && (
+            >
               <View
                 style={{
-                  position: "absolute",
-                  left: 0,
-                  top: 0,
-                  right: 0,
-                  bottom: 0,
-                  justifyContent: "center",
-                  alignItems: "center",
+                  backgroundColor: "rgba(0,0,0,0.4)",
+                  borderRadius: 50,
+                  padding: 16,
                 }}
               >
                 <ActivityIndicator size="large" color="#ffffff" />
               </View>
-            )}
+            </View>
           </View>
         )}
       </Reanimated.View>
