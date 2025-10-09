@@ -44,8 +44,7 @@ const CommentsSheet = forwardRef<CommentsSheetHandle>((_props, ref) => {
       <BottomSheetView style={{ padding: 16, gap: 12 }}>
         {/* Inner card with red background (equivalent to bg-red-500) so text is visible */}
         <View
-          style={{ backgroundColor: "#ef4444", borderRadius: 12, padding: 12 }}
-        >
+          style={{ backgroundColor: "#ef4444", borderRadius: 12, padding: 12 }}>
           <Text style={{ fontSize: 18, fontWeight: "600", color: "#fff" }}>
             Comments
           </Text>

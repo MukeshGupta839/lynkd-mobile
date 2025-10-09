@@ -18,6 +18,7 @@ import {
   FlatList,
   Image,
   ScrollView,
+  Share,
   Text,
   TouchableOpacity,
   View,
@@ -50,6 +51,25 @@ export default function ProductView() {
   const [selectedThumbnail, setSelectedThumbnail] = useState<number | null>(
     null
   );
+  const handleShare = async () => {
+    try {
+      const result = await Share.share({
+        message: "Check this out! 🚀 \nhttps://yourapp.link/share-content", // <-- your link or message here
+      });
+
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          console.log("Shared with activity type:", result.activityType);
+        } else {
+          console.log("Shared successfully!");
+        }
+      } else if (result.action === Share.dismissedAction) {
+        console.log("Share dismissed");
+      }
+    } catch (error) {
+      console.error("Error sharing:", error);
+    }
+  };
 
   // navigation callbacks
   const goBack = useCallback(() => router.back(), [router]);
@@ -224,12 +244,16 @@ export default function ProductView() {
                 {product.name}
               </Text>
 
-              <View
-                className="p-2 bg-white rounded-full"
-                accessibilityLabel="Search"
-                accessibilityRole="button">
-                <Ionicons name="search" size={18} color="black" />
-              </View>
+              <TouchableOpacity
+                onPress={() => router.push("/Searchscreen?tab=product")}
+                activeOpacity={0.8}>
+                <View
+                  className="p-2 bg-white rounded-full"
+                  accessibilityLabel="Search"
+                  accessibilityRole="button">
+                  <Ionicons name="search" size={18} color="black" />
+                </View>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -264,9 +288,7 @@ export default function ProductView() {
                 accessibilityLabel="Share"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 className="p-2 bg-white rounded-full mt-4"
-                onPress={() => {
-                  console.log("Share pressed");
-                }}>
+                onPress={handleShare}>
                 <Ionicons
                   name="share-social-outline"
                   size={iconSize}
