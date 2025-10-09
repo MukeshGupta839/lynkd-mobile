@@ -2,13 +2,24 @@ import BlockUserPopup from "@/components/BlockUserPopup";
 import CameraPost from "@/components/CameraPost";
 import Chats from "@/components/chat/Chat";
 import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
+import FeedSkeletonPlaceholder from "@/components/Placeholder/FeedSkeletonPlaceholder";
 
 import { PostCard } from "@/components/PostCard";
 
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
-import { POSTS } from "@/constants/HomeData";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  clearPostsCache,
+  fetchComment,
+  fetchMorePosts,
+  fetchPostsAPI,
+  FetchPostsResponse,
+  fetchUserFollowings,
+  fetchUserLikedPosts,
+} from "@/lib/api/api";
 import { cameraActiveSV, tabBarHiddenSV } from "@/lib/tabBarVisibility";
+import { Post } from "@/types";
 import { FontAwesome6 } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -76,7 +87,8 @@ const NotificationBell = ({
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="relative w-9 h-9 rounded-full items-center justify-center">
+      className="relative w-9 h-9 rounded-full items-center justify-center"
+    >
       <Ionicons name="notifications-outline" size={24} color="#000" />
 
       {count > 0 && (
@@ -98,6 +110,7 @@ const NotificationBell = ({
 export default function ConsumerHomeUI() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const NAV_BAR_CONTENT_HEIGHT = 56;
   const TOP_BAR_HEIGHT = insets.top - 10 + NAV_BAR_CONTENT_HEIGHT;
   const flatListRef = useRef<FlatList>(null);
@@ -111,13 +124,18 @@ export default function ConsumerHomeUI() {
   const [followedUsers, setFollowedUsers] = useState<string[]>([]);
   // Camera active state: only mount/start CameraPost when true
   const [cameraActive, setCameraActive] = useState(false);
+  const [page, setPage] = useState(2);
+  const [backupPosts, setBackupPosts] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [commentsClicked, setCommentsClicked] = useState(false);
+  const [selectedComment, setSelectedComment] = useState<string | null>(null);
 
   // Mock user data - replace with your actual user context
-  const user = { id: "1", username: "current_user" };
+  // const user = { id: "1", username: "current_user" };
 
   // Header animation state
   const [headerHidden, setHeaderHidden] = useState(false);
-  const [isFetchingNextPage] = useState(false); // You can connect this to your API loading state
+  const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
   // Use Reanimated shared value for header translation
   const headerTranslateY = useSharedValue(0);
   const lastScrollY = useRef(0);
@@ -302,29 +320,58 @@ export default function ConsumerHomeUI() {
   // const tabBarHeight = useBottomTabBarHeight();
   // const footerSpacing = tabBarHeight;
 
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
-  }, []);
-
   const { width } = Dimensions.get("window");
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
   const isGestureActive = useSharedValue(false);
   const [isGestureActiveState, setIsGestureActiveState] = useState(false);
   const [commentsPost, setCommentsPost] = useState<any>(null);
+  const [postComments, setPostComments] = useState<any[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [shouldNavigateToChat, setShouldNavigateToChat] = useState(false);
 
   // ref to control the modal
   const commentsRef = useRef<CommentsSheetHandle>(null);
 
-  // open handler passed down to PostCard
-  const openComments = useCallback((post: any) => {
-    setCommentsPost(post);
-    commentsRef.current?.present();
+  console.log("commentsRef: ", commentsRef.current);
+
+  // Fetch comments for a specific post
+  const fetchCommentsForPost = useCallback(async (postId: string) => {
+    setIsLoadingComments(true);
+    try {
+      const response: any = await fetchComment(postId);
+      // Transform API response to match CommentItem type
+      const commentsData = (response.comments || []).map((comment: any) => ({
+        id: comment.id,
+        userId: comment.user_id,
+        comment: comment.content,
+        username: comment.user.username,
+        userImage: comment.user.profile_picture,
+        time: new Date(comment.created_at).toLocaleDateString(),
+        likes: 0, // Add likes if available in your API
+      }));
+      setPostComments(commentsData);
+      console.log("Fetched comments for post:", postId, commentsData);
+    } catch (error) {
+      console.error("Error fetching comments for post:", postId, error);
+      setPostComments([]);
+    } finally {
+      setIsLoadingComments(false);
+    }
   }, []);
+
+  // open handler passed down to PostCard
+  const openComments = useCallback(
+    async (post: any) => {
+      setCommentsPost(post);
+      // Clear previous comments immediately to avoid showing old comments
+      setPostComments([]);
+      // Fetch comments before presenting the sheet
+      await fetchCommentsForPost(post.id);
+      commentsRef.current?.present();
+    },
+    [fetchCommentsForPost]
+  );
 
   // Handle navigation to chat after gesture completes
   useEffect(() => {
@@ -337,12 +384,17 @@ export default function ConsumerHomeUI() {
         translateX.value = 0;
       }, 100);
     }
-  }, [shouldNavigateToChat, router]);
+  }, [shouldNavigateToChat, router, translateX]);
 
   // Debug gesture state
   useEffect(() => {
     console.log("isGestureActiveState changed to:", isGestureActiveState);
   }, [isGestureActiveState]);
+
+  // Debug fetching state
+  useEffect(() => {
+    console.log("📊 isFetchingNextPage changed to:", isFetchingNextPage);
+  }, [isFetchingNextPage]);
 
   // Safety mechanism to reset gesture state if it gets stuck
   useEffect(() => {
@@ -542,6 +594,162 @@ export default function ConsumerHomeUI() {
     };
   });
 
+  const fetchPosts = async (): Promise<void> => {
+    try {
+      const { userFeed, randomPosts }: FetchPostsResponse = await fetchPostsAPI(
+        user.id
+      );
+
+      console.log("Response:", userFeed);
+      console.log("Response2:", randomPosts);
+
+      const mainFeed = userFeed.data.length ? userFeed.data : randomPosts.data;
+
+      if (userFeed.data.length === 0) {
+        console.log("No posts found");
+        setPosts([]);
+        setBackupPosts(true);
+      }
+
+      // Combine user feed + random posts (deduplicated)
+      const combinedResponse = [
+        ...userFeed.data,
+        ...randomPosts.data.filter(
+          (randPost) =>
+            !userFeed.data.some((feedPost) => feedPost.id === randPost.id)
+        ),
+      ];
+
+      const postsData: Post[] = combinedResponse.map((post) => ({
+        id: post.id,
+        user_id: post.user_id,
+        is_creator: post.user.is_creator,
+        caption: post.caption,
+        createdAt: post.created_at,
+        username: post.user.username,
+        userProfilePic: post.user.profile_picture,
+        postImage: post.media_url,
+        aspect_ratio: post.aspect_ratio,
+        affiliated: post.affiliated,
+        affiliation: {
+          affiliationID: post.PostToPostAffliation?.id,
+          brandName: post.PostToPostAffliation?.brand?.brand_name,
+          productID: post.PostToPostAffliation?.productID,
+          productURL: post.PostToPostAffliation?.productURL,
+          productName: post.PostToPostAffliation?.product?.name,
+          productImage: post.PostToPostAffliation?.product?.main_image,
+          brandLogo: post.PostToPostAffliation?.brand?.brandLogoURL,
+          productDescription: post.PostToPostAffliation?.product?.description,
+          productRegularPrice:
+            post.PostToPostAffliation?.product?.regular_price,
+          productSalePrice: post.PostToPostAffliation?.product?.sale_price,
+        },
+        likes_count: post.likes_aggregate.aggregate.count,
+        comments_count: post.comments_aggregate.aggregate.count,
+        text_post: post.text_post,
+        post_hashtags: post.PostToTagsMultiple.map((tag) => tag.tag.name),
+      }));
+
+      console.log("Posts:", JSON.stringify(postsData));
+      setPosts(postsData);
+      setRefreshing(false);
+      setPage(2);
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, [user]);
+
+  const onRefresh = async () => {
+    await clearPostsCache(user.id);
+    fetchPosts();
+    await fetchUserLikedPosts(user.id);
+    await fetchUserFollowings(user.id);
+  };
+
+  const fetchMorePostsAPI = async () => {
+    if (isFetchingNextPage) return; // Prevent multiple simultaneous fetches
+
+    try {
+      console.log("🔄 Fetching more posts... Page:", page);
+      setIsFetchingNextPage(true);
+      const morePosts = await fetchMorePosts(user.id, page);
+      console.log("✅ Fetched more posts:", morePosts.data.length, "posts");
+      const postsData = morePosts.data.map((post) => {
+        console.log("Post Aff", post.PostToPostAffliation);
+        return {
+          id: post.id,
+          user_id: post.user_id,
+          caption: post.caption,
+          is_creator: post.user.is_creator,
+          createdAt: post.created_at,
+          username: post.user.username,
+          userProfilePic: post.user.profile_picture,
+          postImage: post.media_url,
+          aspect_ratio: post.aspect_ratio,
+          affiliated: post?.affiliated,
+          affiliation: {
+            affiliationID: post.PostToPostAffliation?.id,
+            brandName: post.PostToPostAffliation?.brand?.brand_name,
+            productID: post.PostToPostAffliation?.productID,
+            productURL: post.PostToPostAffliation?.productURL,
+            productName: post.PostToPostAffliation?.product?.name,
+            productImage: post.PostToPostAffliation?.product?.main_image,
+            brandLogo: post.PostToPostAffliation?.brand?.brandLogoURL,
+            productDescription: post.PostToPostAffliation?.product?.description,
+            productRegularPrice:
+              post.PostToPostAffliation?.product?.regular_price,
+            productSalePrice: post.PostToPostAffliation?.product?.sale_price,
+          },
+          likes_count: post.likes_aggregate.aggregate.count,
+          comments_count: post.comments_aggregate.aggregate.count,
+          text_post: post.text_post,
+          post_hashtags: post.PostToTagsMultiple.map((tag) => {
+            return tag.tag.name;
+          }),
+        };
+      });
+      // setPosts([...posts, ...postsData]);
+      // check for duplicates
+      const combinedResponse = [
+        ...posts,
+        ...postsData.filter(
+          (item) => !posts.some((item2) => item.id === item2.id)
+        ),
+      ];
+      setPosts(combinedResponse);
+      setPage((prevPage) => prevPage + 1);
+    } catch (error) {
+      console.error("Error fetching more posts:", error);
+    } finally {
+      setIsFetchingNextPage(false);
+    }
+  };
+
+  const fetchPostComments = async (postId: string) => {
+    try {
+      const comments = await fetchComment(postId);
+      setCommentsPost(comments);
+      console.log("Fetched comments for post:", postId, comments);
+    } catch (error) {
+      console.error("Error fetching comments for post:", postId, error);
+    }
+  };
+
+  const toggleChat = (postID: string) => {
+    setCommentsClicked(!commentsClicked);
+    // setHideNavBar(!hideNavBar);
+    // setPanGestureEnabled(!panGestureEnabled);
+    fetchPostComments(postID);
+    setSelectedComment(postID);
+  };
+
+  console.log("posts state:", posts);
+  console.log("auth user:", user);
+
   return (
     <GestureDetector gesture={panGesture}>
       <Reanimated.View style={{ flex: 1 }}>
@@ -557,7 +765,8 @@ export default function ConsumerHomeUI() {
             rightUnderlayStyle,
             { zIndex: 3 },
           ]}
-          pointerEvents="auto">
+          pointerEvents="auto"
+        >
           <CameraPost onBackToFeed={snapToCenter} active={cameraActive} />
         </Reanimated.View>
 
@@ -566,7 +775,8 @@ export default function ConsumerHomeUI() {
             { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
             leftUnderlayStyle,
           ]}
-          pointerEvents="auto">
+          pointerEvents="auto"
+        >
           {/* Chats screen */}
           <Chats />
         </Reanimated.View>
@@ -578,7 +788,8 @@ export default function ConsumerHomeUI() {
             feedStyle,
             { zIndex: 1 },
           ]}
-          pointerEvents="auto">
+          pointerEvents="auto"
+        >
           <View className="flex-1 bg-[#F3F4F8]">
             {/* Top bar */}
             <Reanimated.View
@@ -588,12 +799,14 @@ export default function ConsumerHomeUI() {
                   height: TOP_BAR_HEIGHT,
                 },
                 headerAnimatedStyle,
-              ]}>
+              ]}
+            >
               <View
                 style={{
                   paddingTop: insets.top - 10,
                   backgroundColor: "white",
-                }}>
+                }}
+              >
                 <View
                   style={{
                     height: NAV_BAR_CONTENT_HEIGHT,
@@ -601,14 +814,16 @@ export default function ConsumerHomeUI() {
                     alignItems: "center",
                     justifyContent: "space-between",
                     paddingHorizontal: 12,
-                  }}>
+                  }}
+                >
                   <Text className="text-2xl font-bold">LYNKD</Text>
                   <View className="flex-row items-center space-x-3">
                     <TouchableOpacity
                       className="w-9 h-9 rounded-full items-center justify-center"
                       onPress={() => {
                         router.push("/(search)");
-                      }}>
+                      }}
+                    >
                       <Ionicons name="search-outline" size={24} color="#000" />
                     </TouchableOpacity>
                     <NotificationBell
@@ -625,7 +840,7 @@ export default function ConsumerHomeUI() {
             {/* Feed list */}
             <FlatList
               ref={flatListRef}
-              data={POSTS}
+              data={posts}
               showsVerticalScrollIndicator={false}
               keyExtractor={(item) => item.id}
               scrollEventThrottle={16}
@@ -633,6 +848,10 @@ export default function ConsumerHomeUI() {
                 [{ nativeEvent: { contentOffset: { y: scrollY } } }],
                 { useNativeDriver: false, listener: handleOnScroll }
               )}
+              onEndReached={() => {
+                console.log("📍 onEndReached triggered");
+                fetchMorePostsAPI();
+              }}
               contentContainerStyle={{
                 // On Android we add paddingTop so the feed content sits below
                 // the absolute header. On iOS we use contentInset/contentOffset
@@ -672,7 +891,10 @@ export default function ConsumerHomeUI() {
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
-                  onRefresh={onRefresh}
+                  onRefresh={() => {
+                    setPage(2);
+                    onRefresh();
+                  }}
                   colors={["#4D70D1"]}
                   tintColor={"#4D70D1"}
                   progressBackgroundColor={"#F3F4F8"}
@@ -690,6 +912,23 @@ export default function ConsumerHomeUI() {
               windowSize={3}
               initialNumToRender={2}
               onEndReachedThreshold={0.5}
+              ListFooterComponent={
+                isFetchingNextPage ? (
+                  <View
+                    style={{
+                      paddingBottom: Platform.OS === "android" ? 20 : 0,
+                    }}
+                  >
+                    <FeedSkeletonPlaceholder />
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                <>
+                  <FeedSkeletonPlaceholder />
+                  <FeedSkeletonPlaceholder />
+                </>
+              }
             />
 
             {/* Bottom sheets / popups */}
@@ -706,7 +945,30 @@ export default function ConsumerHomeUI() {
               user={user}
             />
 
-            <CommentsSheet ref={commentsRef} snapPoints={["40%", "85%"]} />
+            <CommentsSheet
+              key={commentsPost?.id} // Force re-render when post changes
+              ref={commentsRef}
+              snapPoints={["40%", "85%"]}
+              comments={postComments}
+              postId={commentsPost?.id}
+              onFetchComments={fetchCommentsForPost}
+              onSendComment={async (text) => {
+                if (!commentsPost?.id) return;
+                try {
+                  // Add your API call to post comment
+                  console.log(
+                    "Sending comment:",
+                    text,
+                    "for post:",
+                    commentsPost.id
+                  );
+                  // Refresh comments after posting
+                  await fetchCommentsForPost(commentsPost.id);
+                } catch (error) {
+                  console.error("Error sending comment:", error);
+                }
+              }}
+            />
 
             <ReportPostBottomSheet
               show={reportVisible}
@@ -730,7 +992,8 @@ export default function ConsumerHomeUI() {
             right: 0,
             bottom: 0,
             zIndex: 20,
-          }}>
+          }}
+        >
           {/* Animated container to move the button up/down when tab bar hides/shows */}
           <FloatingPostButton
             insets={insets}
@@ -785,10 +1048,12 @@ function FloatingPostButton({
       <View
         className="items-end pr-4"
         style={{ paddingBottom: insets.bottom }}
-        pointerEvents="box-none">
+        pointerEvents="box-none"
+      >
         <Pressable
           onPress={() => onPressFab?.()}
-          className="w-14 h-14 rounded-full overflow-hidden items-center justify-center shadow-lg">
+          className="w-14 h-14 rounded-full overflow-hidden items-center justify-center shadow-lg"
+        >
           <BlurView
             intensity={60}
             tint="dark"

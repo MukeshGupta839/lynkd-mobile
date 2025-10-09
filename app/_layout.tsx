@@ -20,6 +20,8 @@ import { setVideoCacheSizeAsync } from "expo-video";
 import { useEffect } from "react";
 import { MD3LightTheme, PaperProvider } from "react-native-paper";
 
+import "../ReactotronConfig";
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({
@@ -59,7 +61,8 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <PaperProvider theme={MD3LightTheme}>
           <ThemeProvider
-            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+          >
             <BottomSheetModalProvider>
               <KeyboardProvider>
                 <AuthProvider>
@@ -68,7 +71,8 @@ export default function RootLayout() {
                       screenOptions={{
                         animation: "slide_from_right",
                         contentStyle: { backgroundColor: "#fff" },
-                      }}>
+                      }}
+                    >
                       <Stack.Screen
                         name="index"
                         options={{ headerShown: false }}

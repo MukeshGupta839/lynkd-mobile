@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Dimensions, Image, Text, TouchableOpacity, View } from "react-native";
+import { Dimensions, Image, TouchableOpacity, View } from "react-native";
 import {
   Gesture,
   GestureDetector,
@@ -9,6 +9,12 @@ import { scheduleOnRN } from "react-native-worklets";
 import { ImageViewer } from "./ImageViewer";
 
 const windowWidth = Dimensions.get("window").width;
+
+// Cache for image dimensions to prevent layout shift on re-renders
+const imageDimensionsCache = new Map<
+  string,
+  { width: number; height: number }
+>();
 
 export const FacebookStyleImage = ({
   uri,
@@ -26,7 +32,7 @@ export const FacebookStyleImage = ({
   const [imageSize, setImageSize] = useState<{
     width: number;
     height: number;
-  } | null>(null);
+  } | null>(() => imageDimensionsCache.get(uri) || null); // Check cache on mount
   const [showViewer, setShowViewer] = useState(false);
   const containerWidth = windowWidth - 24; // Account for padding
 
@@ -50,14 +56,23 @@ export const FacebookStyleImage = ({
   };
 
   useEffect(() => {
+    // Skip if already in cache
+    if (imageDimensionsCache.has(uri)) {
+      return;
+    }
+
     Image.getSize(
       uri,
       (width, height) => {
-        setImageSize({ width, height });
+        const dimensions = { width, height };
+        imageDimensionsCache.set(uri, dimensions); // Cache the dimensions
+        setImageSize(dimensions);
       },
       (error) => {
         console.error("Failed to get image size:", error);
-        setImageSize({ width: containerWidth, height: containerWidth }); // Fallback to square
+        const fallback = { width: containerWidth, height: containerWidth };
+        imageDimensionsCache.set(uri, fallback); // Cache fallback too
+        setImageSize(fallback); // Fallback to square
       }
     );
   }, [uri, containerWidth]);
@@ -86,26 +101,32 @@ export const FacebookStyleImage = ({
     setShowViewer(true);
   });
 
+  // Calculate clampedHeight - use a default aspect ratio while loading
+  const clampedHeight = imageSize
+    ? getClampedHeight(imageSize.width, imageSize.height)
+    : containerWidth / 1.2; // Default to a reasonable 1.2:1 ratio while loading
+
   if (!imageSize) {
     return (
       <View
         style={[
           {
             width: containerWidth,
-            height: 200,
+            height: clampedHeight, // Use calculated height instead of fixed 200
             backgroundColor: "#f0f0f0",
             justifyContent: "center",
             alignItems: "center",
           },
           style,
         ]}
+        className="rounded-2xl animate-pulse"
       >
-        <Text style={{ color: "#666", fontSize: 12 }}>Loading...</Text>
+        <View className="mt-4">
+          <View className="w-full bg-gray-300 rounded-xl flex-1" />
+        </View>
       </View>
     );
   }
-
-  const clampedHeight = getClampedHeight(imageSize.width, imageSize.height);
 
   return (
     <>

@@ -32,7 +32,7 @@ const PostMedia = ({
   isGestureActive = false,
   panGesture,
 }: {
-  media?: { type: "images"; uris: string[] };
+  media?: string | { type: "images"; uris: string[] };
   isVisible: boolean;
   postId: string;
   onLongPress?: () => void;
@@ -42,7 +42,7 @@ const PostMedia = ({
   const [showMultiViewer, setShowMultiViewer] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  console.log("PostMedia rendered with:", media, "isVisible:", isVisible);
+  // console.log("PostMedia rendered with:", media, "isVisible:", isVisible);
 
   const handlePressImage = useCallback(
     (index: number) => {
@@ -53,9 +53,26 @@ const PostMedia = ({
     [isGestureActive]
   );
 
+  console.log("postImage :", media);
+
   // If no media, return null
   if (!media) {
     return null;
+  }
+
+  // Handle string URL (legacy/simple format)
+  if (typeof media === "string") {
+    return (
+      <View>
+        <FacebookStyleImage
+          uri={media}
+          style={{ marginBottom: 0 }}
+          onLongPress={onLongPress}
+          isGestureActive={isGestureActive}
+          panGesture={panGesture}
+        />
+      </View>
+    );
   }
 
   // Handle single image
@@ -151,7 +168,7 @@ export const PostCard: React.FC<PostCardProps> = ({
     });
   };
 
-  const getHashtagsWithinLimit = (hashtags: string[], limit = 50) => {
+  const getHashtagsWithinLimit = (hashtags: string[], limit = 300) => {
     let totalLength = 0;
     if (!hashtags) return [];
 
@@ -239,19 +256,21 @@ export const PostCard: React.FC<PostCardProps> = ({
                         />
                       )}
                     </View>
-                    <View className="flex-row items-center">
-                      {item.location && (
-                        <Text className="text-xs text-[#257AF1] mr-2 font-opensans-regular">
-                          {item.location}
-                        </Text>
-                      )}
-                      <View className="w-1 h-1 rounded-full bg-black mr-1.5" />
-                      {item.postDate && (
-                        <Text className="text-xs text-black font-opensans-regular">
-                          {item.postDate}
-                        </Text>
-                      )}
-                    </View>
+                    {item.location && item.postDate && (
+                      <View className="flex-row items-center">
+                        {item.location && (
+                          <Text className="text-xs text-[#257AF1] mr-2 font-opensans-regular">
+                            {item.location}
+                          </Text>
+                        )}
+                        <View className="w-1 h-1 rounded-full bg-black mr-1.5" />
+                        {item.postDate && (
+                          <Text className="text-xs text-black font-opensans-regular">
+                            {item.postDate}
+                          </Text>
+                        )}
+                      </View>
+                    )}
                   </View>
                 </TouchableOpacity>
               </GestureDetector>
@@ -261,7 +280,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
             {/* Media Display */}
             <PostMedia
-              media={item.media}
+              media={item.postImage}
               isVisible={isVisible}
               postId={item.id}
               onLongPress={() => onLongPress?.(item)}

@@ -57,6 +57,10 @@ export type CommentsSheetProps = Omit<
   setTypedComment?: (v: string) => void;
   onSendComment?: (text: string) => void;
   currentUserAvatar?: string;
+  // API integration props
+  comments?: CommentItem[]; // Pass comments from API
+  postId?: string; // Current post ID
+  onFetchComments?: (postId: string) => Promise<void>; // Fetch comments callback
 };
 
 type CommentItem = {
@@ -315,6 +319,10 @@ const CommentsSheet = forwardRef<CommentsSheetHandle, CommentsSheetProps>(
       setTypedComment,
       onSendComment,
       currentUserAvatar,
+      // API integration props
+      comments: commentsFromProps,
+      postId,
+      onFetchComments,
       ...rest
     },
     ref
@@ -323,8 +331,14 @@ const CommentsSheet = forwardRef<CommentsSheetHandle, CommentsSheetProps>(
     const insets = useSafeAreaInsets();
     const [footerHeight, setFooterHeight] = useState(FOOTER_HEIGHT);
 
+    // Use comments from props if provided, otherwise use dummy data
+    const displayComments = commentsFromProps || comments;
+
     useImperativeHandle(ref, () => ({
-      present: () => modalRef.current?.present(),
+      present: () => {
+        modalRef.current?.present();
+        // Don't fetch here - let the parent handle fetching before calling present()
+      },
       dismiss: () => modalRef.current?.dismiss(),
     }));
 
@@ -436,7 +450,7 @@ const CommentsSheet = forwardRef<CommentsSheetHandle, CommentsSheetProps>(
         {...rest}
       >
         <BottomSheetFlatList
-          data={comments}
+          data={displayComments}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           className="flex-1"
@@ -450,9 +464,24 @@ const CommentsSheet = forwardRef<CommentsSheetHandle, CommentsSheetProps>(
               <View className="h-px bg-gray-200" />
             </View>
           }
+          ListEmptyComponent={
+            <View
+              style={{
+                height: screenHeight * 0.3,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="chatbubble-outline" size={48} color="#ccc" />
+              <Text className="text-gray-400 font-opensans-regular text-base mt-3">
+                No comments available
+              </Text>
+            </View>
+          }
           contentContainerStyle={[
             {
               paddingBottom: footerHeight,
+              flexGrow: 1,
             },
             contentContainerStyle as any,
           ]}
