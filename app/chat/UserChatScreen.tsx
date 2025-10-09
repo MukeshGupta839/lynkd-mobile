@@ -48,6 +48,10 @@ import Document from "../../assets/posts/document.svg";
 import Gallery from "../../assets/posts/gallery.svg";
 import Location from "../../assets/posts/location.svg";
 
+// ✅ NEW: pull messages shared from the ShareSheet/local chat store
+// These come from constants/chat.ts that you shared earlier
+import { getMessagesWith } from "@/constants/chat";
+
 type Message = {
   id: string;
   text?: string;
@@ -56,6 +60,10 @@ type Message = {
   userId: string;
   username?: string;
   product?: { id: string; name: string } | null;
+
+  // ✅ NEW: support "post" messages inserted by ShareSectionBottomSheet
+  messageType?: "text" | "post";
+  postId?: string;
 };
 
 const DEFAULT_AVATAR = "https://www.gravatar.com/avatar/?d=mp";
@@ -122,6 +130,7 @@ const MessageBubble = React.memo(function MessageBubble({
           <View
             style={{ maxWidth: maxBubbleWidth }}
             className={`${mine ? "items-end" : "items-start"}`}>
+            {/* ✅ SHOW ATTACHED PRODUCT */}
             {message.product ? (
               <View className="bg-white border border-black/100 rounded-3xl p-3">
                 <Text className="font-semibold text-black">
@@ -133,6 +142,24 @@ const MessageBubble = React.memo(function MessageBubble({
               </View>
             ) : null}
 
+            {/* ✅ SHOW SHARED POST CARD */}
+            {message.messageType === "post" && message.postId ? (
+              <View className="bg-white border border-gray-200 rounded-2xl p-3 mt-1">
+                <Text className="font-semibold text-black">
+                  {mine ? "You shared a post" : "Shared a post"}
+                </Text>
+                <View className="mt-6 border border-dashed border-gray-300 rounded-xl p-10 items-center justify-center">
+                  <Text className="text-xs text-gray-500">
+                    Post ID: {message.postId}
+                  </Text>
+                  <Text className="text-xs text-gray-400 mt-2">
+                    Tap to view
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Text message */}
             {message.text ? (
               <View
                 className={`py-2 px-3 mt-1  ${
@@ -144,6 +171,7 @@ const MessageBubble = React.memo(function MessageBubble({
               </View>
             ) : null}
 
+            {/* Image message */}
             {message.image ? (
               <Pressable
                 onPress={() => onPressImage?.(message.image)}
@@ -288,7 +316,6 @@ export default function UserChatScreen() {
   // store measured heights per message id for accurate getItemLayout
   const heightCache = useRef<Record<string, number>>({});
   const onMeasureItem = useCallback((id: string, height: number) => {
-    // store but avoid thrashing
     if (!id) return;
     const prev = heightCache.current[id];
     const rounded = Math.round(height);
@@ -321,19 +348,58 @@ export default function UserChatScreen() {
     [cacheKey]
   );
 
-  // Load cached messages once (initial)
+  // ✅ Load cached messages AND any new messages from the local chat store
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
+        // 1) get persisted local history for this DM
         const raw = await SecureStore.getItemAsync(cacheKey);
-        if (raw && mounted) {
-          const parsed: Message[] = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            setMessages(parsed);
-          } else {
-            setMessages([]);
+        const cached: Message[] = raw ? JSON.parse(raw) : [];
+
+        // 2) get messages shared via ShareSheet (from constants/chat.ts)
+        const external = getMessagesWith(String(chattingUser.userId)) || [];
+
+        // 3) map external (ChatItem) -> our Message type
+        const mappedExternal: Message[] = external.map((ci) => ({
+          id: ci.id,
+          text: ci.messageType === "text" ? (ci.content ?? "") : undefined,
+          messageType: ci.messageType,
+          postId: ci.messageType === "post" ? ci.postId : undefined,
+          createdAt: ci.created_at,
+          userId: ci.sender?.id ?? "unknown",
+          username: ci.sender?.username ?? "User",
+        }));
+
+        // 4) merge without duplicates by id, sort DESC by createdAt (inverted list expects newest first)
+        const map = new Map<string, Message>();
+        [...cached, ...mappedExternal].forEach((m) => {
+          if (!m || !m.id) return;
+          map.set(m.id, m);
+        });
+
+        let merged = Array.from(map.values());
+        merged.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        if (mounted) {
+          if (merged.length === 0) {
+            // fallback welcome
+            merged = [
+              {
+                id: "welcome-1",
+                text: `Say hello to ${chattingUser.username}.`,
+                createdAt: new Date().toISOString(),
+                userId: chattingUser.userId,
+                username: chattingUser.username,
+              },
+            ];
           }
+          setMessages(merged);
+
+          // ensure we jump to newest
           InteractionManager.runAfterInteractions(() => {
             try {
               flatListRef.current?.scrollToIndex({ index: 0, animated: false });
@@ -341,28 +407,19 @@ export default function UserChatScreen() {
               flatListRef.current?.scrollToOffset({ offset: 0 });
             }
           });
-        } else if (mounted) {
-          setMessages([
-            {
-              id: "welcome-1",
-              text: `Say hello to ${chattingUser.username}.`,
-              createdAt: new Date().toISOString(),
-              userId: chattingUser.userId,
-              username: chattingUser.username,
-            },
-          ]);
+
+          // persist merged so it's visible next open
+          persistBatched(merged);
         }
       } catch (e) {
-        console.warn("Load cache failed", e);
+        console.warn("Load cache/store failed", e);
       }
     };
     load();
     return () => {
       mounted = false;
     };
-  }, [cacheKey, chattingUser.userId, chattingUser.username]);
-
-  // helper: fingerprint for uniqueness (removed unused assetKey helper)
+  }, [cacheKey, chattingUser.userId, chattingUser.username, persistBatched]);
 
   // helper to reliably scroll to newest (index 0) after layout finishes
   const scrollToNewest = useCallback((animated = true) => {
@@ -516,6 +573,7 @@ export default function UserChatScreen() {
       createdAt: new Date().toISOString(),
       userId: currentUserId,
       username: currentUsername,
+      messageType: "text",
     };
 
     lastSentRef.current = m.id;
@@ -583,7 +641,7 @@ export default function UserChatScreen() {
   // reserve exactly the footer space equal to composer/footer area (inverted list)
   const invertedFooterReserve = Math.max(0, listFooterHeight);
 
-  // EXTRA GAP so last message isn't sticky to composer
+  // EXTRA BOTTOM GAP so last message isn't sticky to composer
   const EXTRA_BOTTOM_GAP = 10;
 
   // ------------------- getItemLayout estimator (uses cache if available) -------------------
@@ -603,6 +661,11 @@ export default function UserChatScreen() {
         return Math.round(
           Math.max(avatarH, productH + bubbleVerticalPadding + bubbleExtra)
         );
+      }
+
+      if (msg.messageType === "post") {
+        const cardH = 140; // approximate for the post card
+        return Math.round(Math.max(avatarH, cardH));
       }
 
       const text = msg.text ?? "";
@@ -630,8 +693,6 @@ export default function UserChatScreen() {
     (data: ArrayLike<Message> | null | undefined, index: number) => {
       const msg = data ? (data[index] as Message | undefined) : undefined;
       const length = estimateItemHeight(msg);
-      // If we have exact cached heights for items up to index, compute offset by summing.
-      // Fallback to length * index for heuristic speed (keeps performance good).
       let offset = length * index;
       try {
         if (data && data.length) {
@@ -695,7 +756,7 @@ export default function UserChatScreen() {
           smallSpacer={smallSpacer}
           timeMarginTop={timeMarginTop}
           timeMarginBottom={timeMarginBottom}
-          onMeasure={onMeasureItem} // report measured height
+          onMeasure={onMeasureItem}
         />
       );
     },
@@ -745,7 +806,6 @@ export default function UserChatScreen() {
   // New: onChangeText that sends when Enter/newline is typed (mobile behavior).
   const onChangeTextHandle = useCallback(
     (val: string) => {
-      // treat newline as send for mobile keyboards
       if (val.includes("\n")) {
         const cleaned = val.replace(/\n+/g, "").trim();
         if (cleaned.length > 0) {
@@ -757,6 +817,7 @@ export default function UserChatScreen() {
               createdAt: new Date().toISOString(),
               userId: currentUserId,
               username: currentUsername,
+              messageType: "text",
             };
             lastSentRef.current = m.id;
             setMessages((prev) => {
@@ -795,14 +856,16 @@ export default function UserChatScreen() {
   // onKeyPress for web/desktop: support Shift+Enter for newline, Enter to send
   const onKeyPress = useCallback(
     (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-      const native = e.nativeEvent as any;
-      const key = native.key ?? native.key;
+      // @ts-ignore
+      const key = e?.nativeEvent?.key;
+      // @ts-ignore
+      const shiftKey = e?.nativeEvent?.shiftKey;
       if (key === "Enter") {
-        if (native.shiftKey) {
+        if (shiftKey) {
           setText((prev) => prev + "\n");
           return;
         }
-        if (native.preventDefault) native.preventDefault();
+        if ((e as any).preventDefault) (e as any).preventDefault();
         if (text.trim() && !sendingRef.current) {
           handleSend();
         }
@@ -924,7 +987,6 @@ export default function UserChatScreen() {
         initialNumToRender={8}
         maxToRenderPerBatch={12}
         windowSize={7}
-        // conditional - avoid removeClippedSubviews on iOS inverted lists (can cause issues)
         removeClippedSubviews={Platform.OS === "android"}
         keyboardShouldPersistTaps="always"
       />
@@ -1037,6 +1099,7 @@ export default function UserChatScreen() {
                       onPress={async () => {
                         await dismissKeyboardAndWait();
                         console.log("Camera");
+                        await takePhoto();
                       }}>
                       <Camera width={22} height={22} />
                     </TouchableOpacity>

@@ -13,7 +13,9 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
@@ -28,7 +30,9 @@
         "ios.useModularHeaders": "true"
       },
       "entitlements": {
-        "com.apple.developer.applesignin": ["Default"],
+        "com.apple.developer.applesignin": [
+          "Default"
+        ],
         "aps-environment": "production"
       },
       "usesAppleSignIn": true,
@@ -94,7 +98,10 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
           "isAccessMediaLocationEnabled": true,
-          "granularPermissions": ["audio", "photo"]
+          "granularPermissions": [
+            "audio",
+            "photo"
+          ]
         }
       ],
       [
@@ -130,7 +137,8 @@
           }
         }
       ],
-      "./plugins/ios-podfile-properties.js"
+      "./plugins/ios-podfile-properties.js",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
