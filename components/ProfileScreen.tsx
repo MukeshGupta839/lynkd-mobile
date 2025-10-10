@@ -327,10 +327,10 @@ const ProfileScreen = ({
   ]);
   const [userID] = useState(
     propUserId ||
-      (params.user
-        ? Number(Array.isArray(params.user) ? params.user[0] : params.user) ||
-          currentUser.id
-        : currentUser.id)
+    (params.user
+      ? Number(Array.isArray(params.user) ? params.user[0] : params.user) ||
+      currentUser.id
+      : currentUser.id)
   );
   const [following, setFollowing] = useState("");
   const [bioExpanded, setBioExpanded] = useState(false);
@@ -389,6 +389,8 @@ const ProfileScreen = ({
         // Fetch user posts
         if (fetchUserPosts) {
           const userPosts = await fetchUserPosts(userID);
+          console.log('Loaded posts:', userPosts.length);
+          console.log('Sample post:', userPosts[0]);
           setPosts(userPosts);
         }
 
@@ -462,7 +464,13 @@ const ProfileScreen = ({
     const groupedImages: { [key: string]: any[] } = {};
     const months: string[] = [];
 
-    const filteredPosts = posts.filter((post) => post.text_post === false);
+    // Filter for posts with images (not text posts) and valid media_url
+    const filteredPosts = posts
+
+    console.log('renderGridLayout - Total posts:', posts.length);
+    console.log('renderGridLayout - Filtered posts:', filteredPosts.length);
+    console.log('renderGridLayout - First post:', posts[0]);
+
     if (filteredPosts.length === 0) {
       return (
         <View className="items-center justify-center py-12">
@@ -714,7 +722,12 @@ const ProfileScreen = ({
   };
 
   const renderSquareGrid = () => {
-    const filteredPosts = posts.filter((post) => post.text_post === false);
+    // Filter for posts with images (not text posts) and valid media_url
+    const filteredPosts = posts
+
+    console.log('renderSquareGrid - Total posts:', posts.length);
+    console.log('renderSquareGrid - Filtered posts:', filteredPosts.length);
+
     if (filteredPosts.length === 0) {
       return (
         <View className="items-center justify-center py-12">
@@ -895,7 +908,9 @@ const ProfileScreen = ({
   };
 
   const renderTextPosts = () => {
+    // Filter for text posts only
     const filteredPosts = posts.filter((post) => post.text_post === true);
+
     if (filteredPosts.length === 0) {
       return (
         <View className="items-center justify-center py-12">
@@ -923,12 +938,12 @@ const ProfileScreen = ({
             }}
             likedPosts={[]}
             likedPostIDs={[]}
-            handleShare={() => {}}
-            toggleLike={() => {}}
-            commentBox={() => {}}
-            toggleFollow={() => {}}
+            handleShare={() => { }}
+            toggleLike={() => { }}
+            commentBox={() => { }}
+            toggleFollow={() => { }}
             followedUsers={[]}
-            setFocusedPostID={() => {}}
+            setFocusedPostID={() => { }}
             hideActions={true}
           />
         ))}
@@ -1160,15 +1175,13 @@ const ProfileScreen = ({
             ) : (
               <>
                 <TouchableOpacity
-                  className={`flex-1 h-10 rounded-full justify-center items-center ${
-                    following === "followed" ? "bg-white" : "bg-gray-900"
-                  }`}
+                  className={`flex-1 h-10 rounded-full justify-center items-center ${following === "followed" ? "bg-white" : "bg-gray-900"
+                    }`}
                   onPress={toggleFollow}
                 >
                   <Text
-                    className={`text-sm font-semibold ${
-                      following === "followed" ? "text-gray-900" : "text-white"
-                    }`}
+                    className={`text-sm font-semibold ${following === "followed" ? "text-gray-900" : "text-white"
+                      }`}
                   >
                     {following === "followed"
                       ? "Following"
@@ -1191,16 +1204,15 @@ const ProfileScreen = ({
 
           {/* Content Tabs and Display */}
           {userDetails.is_creator ||
-          following === "followed" ||
-          userDetails.id === currentUser.id ? (
+            following === "followed" ||
+            userDetails.id === currentUser.id ? (
             <>
               <View className="flex-row justify-between mb-4">
                 {tabs.map((tab) => (
                   <TouchableOpacity
                     key={tab}
-                    className={`w-12 h-12 rounded-full justify-center items-center ${
-                      activeTab === tab ? "bg-gray-900" : "bg-white"
-                    }`}
+                    className={`w-12 h-12 rounded-full justify-center items-center ${activeTab === tab ? "bg-gray-900" : "bg-white"
+                      }`}
                     onPress={() => setActiveTab(tab)}
                   >
                     {tab === "All" && (
