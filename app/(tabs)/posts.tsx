@@ -40,24 +40,6 @@ const { width, height } = Dimensions.get("window");
 const BOTTOM_NAV_HEIGHT = 80;
 const TRUNCATE_LEN = 25;
 
-type Post = {
-  id: number;
-  media_url: string | number;
-  thumbnail_url?: string;
-  photoURL?: string;
-  username?: string;
-  user_id?: number;
-  caption?: string;
-  likes?: number;
-  commentsCount?: number;
-  shareUrl?: string;
-  verified?: boolean;
-  liked?: boolean;
-  following?: boolean;
-  isProduct?: boolean;
-  productCount?: string;
-};
-
 const AnimatedFlatList = Reanimated.createAnimatedComponent(
   FlatList
 ) as unknown as typeof FlatList;
@@ -727,7 +709,9 @@ const VideoFeed: React.FC = () => {
         urls.forEach((u) => {
           Image.prefetch(u).catch(() => {});
         });
-      } catch (e) {}
+      } catch (e) {
+        console.log("prefetchAll error: ", e);
+      }
     };
     prefetchAll();
   }, [posts]);
@@ -855,7 +839,9 @@ const VideoFeed: React.FC = () => {
             }
           }
         }
-      } catch (error) {}
+      } catch (error) {
+        console.log("monitorPlaybackAndPreload error: ", error);
+      }
     };
 
     // Start monitoring when video is likely playing
@@ -1333,7 +1319,9 @@ const VideoFeed: React.FC = () => {
       (async () => {
         try {
           await tryRelease(playerRef.current ?? player);
-        } catch (e) {}
+        } catch (e) {
+          console.log("single tap error: ", e);
+        }
       })();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1393,6 +1381,7 @@ const VideoFeed: React.FC = () => {
           setTimeout(() => setCenterVisible(false), 380);
         }
       } catch (e) {
+        console.log("onOverlayPress error :", e);
         // ignore
       } finally {
         lastTapRef.current = null;
@@ -1417,7 +1406,9 @@ const VideoFeed: React.FC = () => {
         setCenterVisible(true);
         setTimeout(() => setCenterVisible(false), 380);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.log("onCenterToggle error: ", e);
+    }
   };
 
   // viewability - more sensitive detection for Instagram-like feel
