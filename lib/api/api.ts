@@ -53,8 +53,52 @@ export interface RawPost {
   PostToTagsMultiple: PostTag[];
 }
 
+// Reel-specific interface (reels have different aggregate field names)
+export interface RawReel {
+  id: number;
+  user_id: number;
+  caption: string;
+  created_at: string;
+  media_url: string;
+  thumbnail_url?: string;
+  user: {
+    username: string;
+    profile_picture?: string;
+  };
+  reels_likes_aggregate: { aggregate: { count: number } };
+  reels_comments_aggregate: { aggregate: { count: number } };
+  reels_views_aggregate: { aggregate: { count: number } };
+  username: string;
+  photoURL?: string;
+  likesCount: number;
+  commentsCount: number;
+  viewsCount: number;
+  // Client-side state properties (not from API)
+  likes?: number;
+  liked?: boolean;
+  following?: boolean;
+  verified?: boolean;
+  shareUrl?: string;
+  isProduct?: boolean;
+  productCount?: string;
+}
+
 export interface APIResponse<T> {
   data: T[];
+}
+
+export interface FetchReelResponse {
+  message?: string;
+  data: RawReel[];
+  nextCursor: number;
+  hasMore: boolean;
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalReels?: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
 }
 
 export interface FetchPostsResponse {
@@ -98,6 +142,7 @@ export const fetchUserLikedPosts = async (
       `/api/likes/${userId}/likedPosts`,
       "GET"
     )) as Promise<APIResponse<RawPost>>;
+    console.log("likedPosts: ", likedPosts);
     return likedPosts;
   } catch (error) {
     console.error("Error fetching liked posts:", error);
@@ -147,6 +192,31 @@ export const fetchComment = async (
     return comments;
   } catch (error) {
     console.error("Error fetching post comments:", error);
+    throw error;
+  }
+};
+
+export const fetchReelsApi = async (
+  currentCursor: number
+): Promise<FetchReelResponse> => {
+  try {
+    const reels = (await apiCall(
+      `/api/posts/reels?limit=16&page=${currentCursor}`,
+      "GET"
+    )) as FetchReelResponse;
+    console.log("Fetched reels:", reels);
+    return reels;
+  } catch (error) {
+    console.error("Error fetching reels:", error);
+    throw error;
+  }
+};
+
+export const clearReelsCache = async (): Promise<void> => {
+  try {
+    await apiCall(`/api/posts/cache/clearReels`, "DELETE");
+  } catch (error) {
+    console.error("Error clearing reels cache:", error);
     throw error;
   }
 };
