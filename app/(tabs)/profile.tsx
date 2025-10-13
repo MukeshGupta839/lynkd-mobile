@@ -191,6 +191,23 @@ const Profile = () => {
     }
   };
 
+  // Check follow status with real API integration
+  const checkFollowStatus = async (userId: number) => {
+    try {
+      if (!user?.id || userId === user.id) {
+        // Don't check follow status for own profile
+        return null;
+      }
+
+      const response = await apiCall(`/api/follows/isFollowing/${user.id}/${userId}`, 'GET');
+      console.log('Follow status response:', response);
+      return response.isFollowing; // Returns 'followed', 'pending', or false/null
+    } catch (error) {
+      console.error('Error checking follow status:', error);
+      return null;
+    }
+  };
+
   return (
     <ProfileScreen
       currentUserId={user?.id || 1} // Pass current logged-in user ID from context
@@ -200,6 +217,7 @@ const Profile = () => {
       fetchUserProducts={fetchUserProducts}
       onFollow={handleFollow}
       onUnfollow={handleUnfollow}
+      checkFollowStatus={checkFollowStatus}
     />
   );
 };
