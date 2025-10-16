@@ -1,6 +1,7 @@
 // components/ShareSectionBottomSheet.tsx
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
+import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -19,6 +20,16 @@ import {
 import { FlatList, TextInput } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+// ✅ use the same data + helpers as chat.ts
+import {
+  LOGGED_USER,
+  PostPreview,
+  registerPost, // ensure preview is saved to the registry
+  sendPostToChat,
+  sharePostToUsers,
+  USERS,
+} from "@/constants/chat";
+
 /** Types */
 export type ShareUser = {
   id: string | number;
@@ -30,21 +41,24 @@ export type ShareUser = {
 type Props = {
   show?: boolean;
   setShow: (v: boolean) => void;
-  users?: ShareUser[];
+  users?: ShareUser[]; // optional override list
   postId?: string | number;
+
+  // ✅ Optional: pass a preview so DM can render the real post (image/author/caption)
+  postPreview?: PostPreview;
 
   onSelectUser?: (user: ShareUser) => void;
   onShareImage?: (
-    target?: "story" | "whatsapp" | "system" | "facebook" | "instagram"
+    target?: "whatsapp" | "system" | "facebook" | "instagram"
   ) => void;
-  onSendToUsers?: (users: ShareUser[], postId?: string | number) => void;
 
+  // removed onSendToUsers to avoid double-sends
   initialHeightPct?: number;
   maxHeightPct?: number;
   maxSelect?: number;
 };
 
-/** Dummy users */
+/** (kept) Local dummy — not used unless you pass users prop */
 const USERNAMES = [
   "emma_w",
   "oliver",
@@ -132,14 +146,15 @@ const ShareSectionBottomSheet = memo<Props>(
     setShow,
     users = [],
     postId,
+    postPreview, // ✅ we will normalize verified from here
     onSelectUser,
     onShareImage,
-    onSendToUsers,
     initialHeightPct = 0.35,
     maxHeightPct = 0.95,
     maxSelect = 5,
   }) => {
     const insets = useSafeAreaInsets();
+    const router = useRouter();
 
     const NAV_SAFE = Math.max(
       insets.bottom,
@@ -148,7 +163,6 @@ const ShareSectionBottomSheet = memo<Props>(
     const ACTION_ICON_SIZE = 42;
     const ACTIONS_BAR_HEIGHT = ACTION_ICON_SIZE + 30;
     const SEND_BAR_HEIGHT = 60;
-
     const CHIP_HEIGHT = 28;
 
     const SCREEN_H = Dimensions.get("window").height;
@@ -196,10 +210,18 @@ const ShareSectionBottomSheet = memo<Props>(
     ).current;
 
     const [search, setSearch] = useState("");
-    const baseUsers = useMemo<ShareUser[]>(
-      () => (users.length ? users : DUMMY_USERS),
-      [users]
-    );
+
+    // ✅ Default to the same USERS used by chat.ts (keeps everything in sync)
+    const baseUsers = useMemo<ShareUser[]>(() => {
+      if (users.length) return users;
+      return USERS.map((u) => ({
+        id: u.id,
+        username: u.username,
+        profile_picture: u.profile_picture,
+        is_creator: u.role === "Creator",
+      }));
+    }, [users]);
+
     const filteredUsers = useMemo(
       () => filterUsers(baseUsers, search),
       [baseUsers, search]
@@ -270,11 +292,96 @@ const ShareSectionBottomSheet = memo<Props>(
       [onSelectUser, maxSelect]
     );
 
+    // 🔒 simple re-entrancy guard to avoid double-taps
+    const isSendingRef = useRef(false);
+
+    // ✅ helper: normalize any incoming verified-ish flags to a proper boolean
+    const normalizeVerified = (p?: PostPreview) =>
+      Boolean(
+        p &&
+          ((p as any).verified ??
+            (p as any).isVerified ??
+            (p as any).author_verified ??
+            (p as any).user?.verified ??
+            (p as any).user?.isVerified ??
+            (p as any).is_creator)
+      );
+
+    // ✅ The sheet is the ONLY place that sends.
     const handleSend = useCallback(() => {
+      if (isSendingRef.current) return; // guard double-tap
       if (!selectedUsers.length) return;
-      onSendToUsers?.(selectedUsers, postId);
-      closeSheet();
-    }, [selectedUsers, onSendToUsers, postId]);
+
+      if (postId == null || postId === "") {
+        Alert.alert("Nothing to send", "Missing post id.");
+        return;
+      }
+
+      isSendingRef.current = true;
+
+      try {
+        // ✅ Ensure preview is registered so chat/inbox can render it next time
+        if (postPreview?.id) {
+          const normalizedVerified = normalizeVerified(postPreview);
+
+          registerPost({
+            id: String(postPreview.id),
+            image: postPreview.image || "",
+            author: postPreview.author || "",
+            caption: postPreview.caption,
+            author_avatar: postPreview.author_avatar,
+            videoUrl: postPreview.videoUrl,
+            thumb: postPreview.thumb || postPreview.image,
+            verified: normalizedVerified, // ✅ FIXED
+          });
+        }
+
+        // 1) Insert the post into each selected DM (thread store)
+        selectedUsers.forEach((u) => {
+          // also pass a preview with normalized verified so UI shows instantly
+          const normalizedPreview = postPreview
+            ? {
+                ...postPreview,
+                verified: normalizeVerified(postPreview),
+              }
+            : undefined;
+          sendPostToChat(String(u.id), String(postId), normalizedPreview);
+        });
+
+        // 2) Update inbox preview/badges (also normalized)
+        const normalizedForInbox = postPreview
+          ? { ...postPreview, verified: normalizeVerified(postPreview) }
+          : undefined;
+
+        sharePostToUsers(
+          String(postId),
+          selectedUsers.map((u) => String(u.id)),
+          normalizedForInbox
+        );
+
+        // 3) Close sheet
+        closeSheet();
+
+        // 4) Navigate into the first chat (IG behavior)
+        const first = selectedUsers[0];
+        router.push({
+          pathname: "/chat/UserChatScreen",
+          params: {
+            userId: String(first.id),
+            username: first.username,
+            profilePicture: first.profile_picture,
+            loggedUserId: LOGGED_USER.id,
+            loggedUsername: LOGGED_USER.username,
+            loggedAvatar: LOGGED_USER.profile_picture,
+          },
+        });
+      } finally {
+        // slight delay so rapid back-and-forth doesn't re-enter
+        setTimeout(() => {
+          isSendingRef.current = false;
+        }, 400);
+      }
+    }, [selectedUsers, postId, postPreview, router]);
 
     const actions = [
       {
@@ -282,19 +389,6 @@ const ShareSectionBottomSheet = memo<Props>(
         label: "Copy link",
         icon: <Ionicons name="link-outline" size={26} color="#000" />,
         onPress: () => Alert.alert("Link", "Copied!"),
-      },
-      {
-        key: "story",
-        label: "Story",
-        icon: (
-          <MaterialCommunityIcons
-            name="checkbox-multiple-blank-circle-outline"
-            size={26}
-            color="#000"
-            style={{ transform: [{ rotate: "160deg" }] }}
-          />
-        ),
-        onPress: () => onShareImage?.("story"),
       },
       {
         key: "system",
@@ -354,7 +448,7 @@ const ShareSectionBottomSheet = memo<Props>(
               </View>
 
               {/* Search */}
-              <View className="relative px-1 mb-2">
+              <View className="relative  mb-2">
                 <TextInput
                   placeholder="Search"
                   placeholderTextColor="#666"
@@ -380,11 +474,7 @@ const ShareSectionBottomSheet = memo<Props>(
 
               {/* Sticky horizontal chips */}
               {selectedUsers.length > 0 && (
-                <View
-                  style={{
-                    height: CHIP_HEIGHT + 14,
-                    marginBottom: 4,
-                  }}>
+                <View style={{ height: CHIP_HEIGHT + 14, marginBottom: 4 }}>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -507,20 +597,22 @@ const ShareSectionBottomSheet = memo<Props>(
                     paddingBottom: NAV_SAFE,
                   }}>
                   <View
-                    className="flex-row items-center justify-between px-4"
+                    className="flex-row items-center justify-between px-3"
                     style={{ height: SEND_BAR_HEIGHT }}>
                     <Text className="text-gray-700">
                       Send to {selectedUsers.length}/{maxSelect}
                     </Text>
                     <TouchableOpacity
-                      disabled={!selectedUsers.length}
+                      disabled={!selectedUsers.length || isSendingRef.current}
                       onPress={handleSend}
-                      className={`px-4 py-2 rounded-full ${
-                        selectedUsers.length ? "bg-[#0095F6]" : "bg-gray-300"
+                      className={`px-3 py-2 rounded-full ${
+                        selectedUsers.length && !isSendingRef.current
+                          ? "bg-black"
+                          : "bg-gray-300"
                       }`}
-                      activeOpacity={0.9}>
+                      activeOpacity={0.8}>
                       <Text className="text-white font-semibold">
-                        Send ({selectedUsers.length})
+                        {isSendingRef.current ? "Sending..." : "Send"}
                       </Text>
                     </TouchableOpacity>
                   </View>

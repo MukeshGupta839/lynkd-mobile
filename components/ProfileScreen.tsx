@@ -514,8 +514,7 @@ const ProfileScreen = ({
                         focusedIndexPost: dateImages[0].id,
                       },
                     });
-                  }}
-                >
+                  }}>
                   <Image
                     source={{ uri: dateImages[0].media_url }}
                     className="w-full h-full"
@@ -552,8 +551,7 @@ const ProfileScreen = ({
                             focusedIndexPost: image.id,
                           },
                         });
-                      }}
-                    >
+                      }}>
                       <Image
                         source={{ uri: image.media_url }}
                         className="w-full h-full"
@@ -593,8 +591,7 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       });
-                    }}
-                  >
+                    }}>
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -622,8 +619,7 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           });
-                        }}
-                      >
+                        }}>
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -653,8 +649,7 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       });
-                    }}
-                  >
+                    }}>
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -683,8 +678,7 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           });
-                        }}
-                      >
+                        }}>
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -757,8 +751,7 @@ const ProfileScreen = ({
                       focusedIndexPost: image.id,
                     },
                   });
-                }}
-              >
+                }}>
                 <Image
                   source={{ uri: image.media_url }}
                   className="w-full h-full"
@@ -813,8 +806,7 @@ const ProfileScreen = ({
           <View
             key={rowIndex}
             className="flex-row mb-1 gap-1"
-            style={{ gap: gap }}
-          >
+            style={{ gap: gap }}>
             {row.map((video, videoIndex) => (
               <TouchableOpacity
                 key={video.id}
@@ -822,8 +814,7 @@ const ProfileScreen = ({
                 style={{
                   width: videoWidth,
                   height: videoHeight,
-                }}
-              >
+                }}>
                 <Image
                   source={{ uri: video.thumbnail_url }}
                   className="w-full h-full"
@@ -871,8 +862,7 @@ const ProfileScreen = ({
           <TouchableOpacity
             key={product.id}
             className="mb-4 rounded-xl overflow-hidden bg-gray-50 border border-gray-200"
-            style={{ width: (width - 40) / 2 }}
-          >
+            style={{ width: (width - 40) / 2 }}>
             <Image
               source={{ uri: product.main_image }}
               className="w-full h-40"
@@ -961,8 +951,7 @@ const ProfileScreen = ({
         overScrollMode="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
-        nestedScrollEnabled={true}
-      >
+        nestedScrollEnabled={true}>
         {/* Header with Banner - Fixed height */}
         <View className="relative h-52">
           <Image
@@ -983,12 +972,10 @@ const ProfileScreen = ({
 
           <View
             className="absolute inset-0 flex-row justify-between px-4"
-            style={{ paddingTop: insets.top - 10 }}
-          >
+            style={{ paddingTop: insets.top - 10 }}>
             <TouchableOpacity
               className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-              onPress={() => router.back()}
-            >
+              onPress={() => router.back()}>
               <MaterialIcons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
 
@@ -997,8 +984,7 @@ const ProfileScreen = ({
                 className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
                 onPress={() => {
                   router.push("/(settings)");
-                }}
-              >
+                }}>
                 <Ionicons name="settings-outline" size={24} color="#fff" />
               </TouchableOpacity>
             )}
@@ -1018,8 +1004,7 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://instagram.com/${userDetails.social_media_accounts![0].instagram_username}`
                           )
-                        }
-                      >
+                        }>
                         <FontAwesome5 name="instagram" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1032,8 +1017,7 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://twitter.com/${userDetails.social_media_accounts![0].twitter_username}`
                           )
-                        }
-                      >
+                        }>
                         <FontAwesome5 name="twitter" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1046,8 +1030,7 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://youtube.com/${userDetails.social_media_accounts![0].youtube_username}`
                           )
-                        }
-                      >
+                        }>
                         <FontAwesome5 name="youtube" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1064,8 +1047,7 @@ const ProfileScreen = ({
               onPress={async () => {
                 // Copy profile link functionality
                 console.log("Profile link copied");
-              }}
-            >
+              }}>
               <Image
                 source={{
                   uri:
@@ -1107,8 +1089,7 @@ const ProfileScreen = ({
           {/* Bio Section - Optimized for expansion */}
           <TouchableOpacity
             onPress={() => setBioExpanded(!bioExpanded)}
-            className="py-2"
-          >
+            className="py-2">
             {userDetails?.bio && (
               <Text className="text-base text-gray-700 leading-5">
                 {bioExpanded
@@ -1127,8 +1108,7 @@ const ProfileScreen = ({
                 key={index}
                 className="items-center"
                 onPress={() => handleOpenSheet(stat.label)}
-                disabled={userID !== currentUser.id || stat.label === "Posts"}
-              >
+                disabled={userID !== currentUser.id || stat.label === "Posts"}>
                 <Text className="text-sm font-bold text-gray-900">
                   {kFormatter(stat.value)}
                 </Text>
@@ -1145,13 +1125,14 @@ const ProfileScreen = ({
                   className="flex-1 h-10 rounded-full justify-center items-center bg-white mr-2"
                   onPress={() => {
                     router.push("/(profiles)/editProfile");
-                  }}
-                >
+                  }}>
                   <Text className="text-sm font-semibold text-gray-900">
                     Edit Profile
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity className="flex-1 h-10 rounded-full justify-center items-center bg-gray-900 ml-2">
+                <TouchableOpacity
+                  className="flex-1 h-10 rounded-full justify-center items-center bg-gray-900 ml-2"
+                  onPress={() => router.push("/(profiles)/InviteHome")}>
                   <Text className="text-sm font-semibold text-white">
                     Invite
                   </Text>
@@ -1163,13 +1144,11 @@ const ProfileScreen = ({
                   className={`flex-1 h-10 rounded-full justify-center items-center ${
                     following === "followed" ? "bg-white" : "bg-gray-900"
                   }`}
-                  onPress={toggleFollow}
-                >
+                  onPress={toggleFollow}>
                   <Text
                     className={`text-sm font-semibold ${
                       following === "followed" ? "text-gray-900" : "text-white"
-                    }`}
-                  >
+                    }`}>
                     {following === "followed"
                       ? "Following"
                       : following === "pending"
@@ -1201,8 +1180,7 @@ const ProfileScreen = ({
                     className={`w-12 h-12 rounded-full justify-center items-center ${
                       activeTab === tab ? "bg-gray-900" : "bg-white"
                     }`}
-                    onPress={() => setActiveTab(tab)}
-                  >
+                    onPress={() => setActiveTab(tab)}>
                     {tab === "All" && (
                       <FontAwesome
                         name="snowflake-o"

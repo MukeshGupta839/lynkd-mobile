@@ -42,13 +42,11 @@ function DealCard({
       {/* Image Container - Fixed height */}
       <View
         className="w-full relative items-center justify-center"
-        style={{ height: "65%" }}
-      >
+        style={{ height: "65%" }}>
         {badgeText && (
           <View
             className="absolute top-1 left-0 items-center justify-center px-2 py-1 rounded-full z-10"
-            style={{ ...getBadgeStyle(), minHeight: 20 }}
-          >
+            style={{ ...getBadgeStyle(), minHeight: 20 }}>
             <Text className={`font-semibold text-xxs ${textColor}`}>
               {badgeText}
             </Text>
@@ -68,14 +66,12 @@ function DealCard({
       {/* Text Container - Fixed height */}
       <View
         className="w-full justify-center"
-        style={{ height: "35%", paddingTop: 4 }}
-      >
+        style={{ height: "35%", paddingTop: 4 }}>
         <Text
           className="text-sm font-semibold w-full"
           numberOfLines={1}
           ellipsizeMode="tail"
-          style={{ fontSize: 13, lineHeight: 16, marginBottom: 2 }}
-        >
+          style={{ fontSize: 13, lineHeight: 16, marginBottom: 2 }}>
           {name}
         </Text>
         {!!subtitle && (
@@ -88,8 +84,7 @@ function DealCard({
               lineHeight: 12,
               maxWidth: "95%",
               marginBottom: 4,
-            }}
-          >
+            }}>
             {subtitle}
           </Text>
         )}
@@ -97,23 +92,20 @@ function DealCard({
         <View className="flex-row items-center flex-wrap">
           <Text
             className="font-bold mr-2 flex-shrink-0"
-            style={{ fontSize: 13, lineHeight: 16, color: "#000" }}
-          >
+            style={{ fontSize: 13, lineHeight: 16, color: "#000" }}>
             ₹{price}
           </Text>
           {oldPrice && (
             <Text
               className="text-gray-400 line-through mr-2 flex-shrink-0"
-              style={{ fontSize: 11, lineHeight: 13 }}
-            >
+              style={{ fontSize: 11, lineHeight: 13 }}>
               ₹{oldPrice}
             </Text>
           )}
           {discount && (
             <Text
               className="text-green-600 font-bold flex-shrink-0"
-              style={{ fontSize: 12, lineHeight: 14 }}
-            >
+              style={{ fontSize: 12, lineHeight: 14 }}>
               {discount}
             </Text>
           )}
@@ -141,8 +133,7 @@ function GradientWrapper({
       colors={colors}
       start={start}
       end={end}
-      className={`w-full ${className}`}
-    >
+      className={`w-full ${className}`}>
       {children}
     </LinearGradient>
   );
@@ -166,8 +157,7 @@ export default function BestDealsGrid({
           colors={colors}
           className="rounded-3xl overflow-hidden"
           start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-        >
+          end={{ x: 0, y: 1 }}>
           <View className="p-5">
             {/* Create rows of 2 items each */}
             {Array.from({ length: Math.ceil(data.length / 2) }).map(
@@ -176,8 +166,7 @@ export default function BestDealsGrid({
                 return (
                   <View
                     key={rowIndex}
-                    className={`flex-row justify-between ${!isLastRow ? "mb-4" : ""}`}
-                  >
+                    className={`flex-row justify-between ${!isLastRow ? "mb-4" : ""}`}>
                     {data
                       .slice(rowIndex * 2, rowIndex * 2 + 2)
                       .map((item, colIndex) => (
@@ -188,8 +177,7 @@ export default function BestDealsGrid({
                             aspectRatio: 0.92,
                             padding: 9,
                             minHeight: 200,
-                          }}
-                        >
+                          }}>
                           <DealCard {...item} />
                         </View>
                       ))}

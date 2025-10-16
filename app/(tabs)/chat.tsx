@@ -1,9 +1,8 @@
 // app/(tabs)/chat.tsx
 import SearchBar from "@/components/Searchbar";
-import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -27,82 +26,29 @@ import {
   USERS,
 } from "@/constants/chat";
 
-// ✅ added: file access (types-safe workaround below)
-import * as FileSystem from "expo-file-system";
+import { Ionicons } from "@expo/vector-icons";
+import { useEventListener } from "expo";
+import * as ImagePicker from "expo-image-picker";
+import { useVideoPlayer, VideoView } from "expo-video";
 
-/* ---------- helpers: video trim + uri normalization ---------- */
-/**
- * Try to require FFmpeg at runtime so the app still builds if the native module
- * isn't installed yet. If unavailable, we fall back to rejecting >60s videos.
- */
-function getFFmpegKitSafely():
-  | { FFmpegKit: any } // use any to avoid TS friction
-  | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require("ffmpeg-kit-react-native");
-    return mod && mod.FFmpegKit ? { FFmpegKit: mod.FFmpegKit } : null;
-  } catch {
-    return null;
-  }
+/* ---------- helpers (kept) ---------- */
+function normalizeAssetDuration(raw: any): number | undefined {
+  if (typeof raw !== "number" || !isFinite(raw)) return undefined;
+  if (raw > 1000) return raw / 1000;
+  return raw;
 }
 
-// Copies content:// URIs to a file:// path FFmpeg can read
-async function ensureFilePath(inputUri: string): Promise<string> {
-  if (inputUri.startsWith("file://")) return inputUri;
-
-  // Some SDK typings might miss these fields; cast to any avoids TS error.
-  const anyFS = FileSystem as any;
-  const cacheDir: string | null =
-    anyFS.cacheDirectory ?? anyFS.documentDirectory ?? null;
-
-  if (!cacheDir) {
-    // Fallback: just return original, FFmpeg may fail without file://
-    return inputUri;
-  }
-  const outPath = `${cacheDir}pick_${Date.now()}.mp4`;
-  await anyFS.copyAsync({ from: inputUri, to: outPath });
-  return outPath;
-}
-
-async function trimVideoTo60Sec(
-  inputUri: string,
-  startSec: number = 0
-): Promise<string> {
-  const ff = getFFmpegKitSafely();
-  if (!ff) {
-    throw new Error("FFMPEG_UNAVAILABLE");
-  }
-  const { FFmpegKit } = ff;
-
-  const src = await ensureFilePath(inputUri);
-
-  const anyFS = FileSystem as any;
-  const baseDir: string = anyFS.cacheDirectory ?? anyFS.documentDirectory ?? "";
-
-  const outPath = `${baseDir}story_${Date.now()}_trimmed.mp4`;
-  const ss = Math.max(0, Math.floor(startSec));
-
-  // Faster stream copy first; if it fails on some codecs, you can switch to re-encode.
-  const cmd = `-y -ss ${ss} -i "${src}" -t 60 -c copy "${outPath}"`;
-  // const cmd = `-y -ss ${ss} -i "${src}" -t 60 -preset ultrafast -c:v libx264 -c:a aac "${outPath}"`;
-
-  const session = await FFmpegKit.run(cmd);
-  const returnCode = await session.getReturnCode?.();
-  if (returnCode?.isValueSuccess?.()) {
-    return outPath;
-  }
-  throw new Error("FFMPEG_TRIM_FAILED");
-}
+const MAX_VIDEO_SECONDS = 60;
 
 /* ---------- Story bubble (other users) ---------- */
 type StoryBubbleProps = {
   user: User;
   onOpen: (u: User) => void;
   onOpenProfile: (img?: string) => void;
+  isSeen?: boolean;
 };
 const StoryBubble = memo<StoryBubbleProps>(
-  ({ user, onOpen, onOpenProfile }) => {
+  ({ user, onOpen, onOpenProfile, isSeen }) => {
     const hasStory = (user.stories ?? []).length > 0;
 
     return (
@@ -114,19 +60,39 @@ const StoryBubble = memo<StoryBubbleProps>(
           accessibilityLabel={`${user.username} story or profile`}
           className="items-center">
           {hasStory ? (
-            <LinearGradient
-              colors={["#f58529", "#dd2a7b", "#8134af", "#515bd4"]}
-              start={[0, 0]}
-              end={[1, 1]}
-              className="rounded-full"
-              style={{ padding: 2, borderRadius: 999 }}>
-              <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
-                <Image
-                  source={{ uri: user.profile_picture ?? DEFAULT_AVATAR }}
-                  className="w-14 h-14 rounded-full"
-                />
+            isSeen ? (
+              // gray ring + dim avatar if seen
+              <View
+                style={{
+                  padding: 2,
+                  borderRadius: 999,
+                  backgroundColor: "#e5e7eb",
+                }}
+                className="rounded-full">
+                <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
+                  <Image
+                    source={{ uri: user.profile_picture ?? DEFAULT_AVATAR }}
+                    className="w-14 h-14 rounded-full"
+                    style={{ opacity: 0.6 }}
+                  />
+                </View>
               </View>
-            </LinearGradient>
+            ) : (
+              // colorful ring if unseen
+              <LinearGradient
+                colors={["#C0C0C0", "#000000", "#FFD700", "#FFA500"]}
+                start={[0, 0]}
+                end={[1, 1]}
+                className="rounded-full"
+                style={{ padding: 2, borderRadius: 999 }}>
+                <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
+                  <Image
+                    source={{ uri: user.profile_picture ?? DEFAULT_AVATAR }}
+                    className="w-14 h-14 rounded-full"
+                  />
+                </View>
+              </LinearGradient>
+            )
           ) : (
             <View className="w-16 h-16 rounded-full items-center justify-center">
               <Image
@@ -136,7 +102,9 @@ const StoryBubble = memo<StoryBubbleProps>(
             </View>
           )}
         </Pressable>
-        <Text className="text-xs text-gray-600 mt-1" numberOfLines={1}>
+        <Text
+          className={`text-xs mt-1 ${isSeen ? "text-gray-400" : "text-gray-600"}`}
+          numberOfLines={1}>
           {user.username.split(".")[0]}
         </Text>
       </View>
@@ -165,7 +133,7 @@ const YouBubble = memo<YouBubbleProps>(
           <View className="relative">
             {hasStory ? (
               <LinearGradient
-                colors={["#f58529", "#dd2a7b", "#8134af", "#515bd4"]}
+                colors={["#C0C0C0", "#000000", "#FFD700", "#FFA500"]}
                 start={[0, 0]}
                 end={[1, 1]}
                 className="rounded-full"
@@ -184,13 +152,13 @@ const YouBubble = memo<YouBubbleProps>(
               />
             )}
 
-            {/* blue + overlay — always visible */}
+            {/* + overlay */}
             <Pressable
               onPress={onAdd}
               hitSlop={10}
               className="absolute bottom-0 right-0 w-5 h-5 rounded-full items-center justify-center"
               style={{
-                backgroundColor: "#0095F6",
+                backgroundColor: "#000",
                 borderWidth: 2,
                 borderColor: "#fff",
               }}>
@@ -215,7 +183,7 @@ YouBubble.displayName = "YouBubble";
 
 /* ---------- Chat row ---------- */
 type ChatRowProps = {
-  item: ChatItem;
+  item: ChatItem & { unreadCount?: number };
   onOpenChat: (u: User) => void;
   onOpenProfile: (img?: string) => void;
 };
@@ -224,7 +192,10 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
     item.sender.id === LOGGED_USER.id ? item.receiver : item.sender;
   const displayName =
     otherUser.username.charAt(0).toUpperCase() + otherUser.username.slice(1);
-  const unreadCount = (item as any).unreadCount ?? (item.unread ? 1 : 0);
+
+  // 👇 read only the aggregated unreadCount from the conversation row
+  const unreadCount = (item as any).unreadCount ?? 0;
+
   const preview =
     item.content?.length && item.content.length > 30
       ? item.content.slice(0, 30) + "..."
@@ -245,11 +216,11 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
 
       <View className="flex-1 ml-3">
         <Text
-          className={`text-base ${item.unread ? "font-bold text-black" : "font-medium text-black"}`}>
+          className={`text-base ${unreadCount > 0 ? "font-bold text-black" : "font-medium text-black"}`}>
           {displayName}
         </Text>
         <Text
-          className={`text-sm ${item.unread ? "text-black" : "text-gray-500"}`}
+          className={`text-sm ${unreadCount > 0 ? "text-black" : "text-gray-500"}`}
           numberOfLines={1}>
           {preview}
         </Text>
@@ -275,12 +246,73 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
 });
 ChatRow.displayName = "ChatRow";
 
+/* ---------- Preview video with smart HUD detection ---------- */
+function PreviewVideo({
+  uri,
+  onHudVisibleChange,
+}: {
+  uri: string;
+  onHudVisibleChange: (visible: boolean) => void;
+}) {
+  const player = useVideoPlayer(uri);
+  const lastPing = useRef(Date.now());
+  const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pingVisible = () => {
+    onHudVisibleChange(true);
+    lastPing.current = Date.now();
+    if (hideTimeout.current) clearTimeout(hideTimeout.current);
+    hideTimeout.current = setTimeout(() => {
+      const now = Date.now();
+      if (now - lastPing.current >= 2500) {
+        onHudVisibleChange(false);
+      }
+    }, 2600);
+  };
+
+  useEventListener(player, "statusChange", pingVisible);
+  useEventListener(player, "timeUpdate", pingVisible);
+
+  useEffect(() => {
+    try {
+      player.play();
+    } catch {}
+    pingVisible();
+    return () => {
+      if (hideTimeout.current) clearTimeout(hideTimeout.current);
+      try {
+        // @ts-ignore older versions safety
+        player?.destroy?.();
+      } catch {}
+    };
+  }, []);
+
+  return (
+    <VideoView
+      player={player}
+      style={{ width: "100%", height: "100%" }}
+      nativeControls
+      allowsFullscreen
+      startsPictureInPictureAutomatically={false}
+      contentFit="contain"
+    />
+  );
+}
+
+/* ---------- ImagePicker compatibility helper ---------- */
+function getPickerMediaTypes(): any {
+  const ip: any = ImagePicker as any;
+  if (ip?.MediaType) return [ip.MediaType.image, ip.MediaType.video];
+  return ip?.MediaTypeOptions?.All ?? ip?.MediaTypeOptions?.All;
+}
+
 /* ---------- Screen ---------- */
 export default function Chats() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [chatList] = useState<ChatItem[]>(CHAT_LIST_DUMMY);
+  // now mutable so we can mark read
+  const [chatList, setChatList] = useState<ChatItem[]>(CHAT_LIST_DUMMY);
   const [searchQuery, setSearchQuery] = useState("");
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [profileModalImage, setProfileModalImage] = useState<string | null>(
@@ -302,98 +334,86 @@ export default function Chats() {
     ...USERS,
   ]);
 
+  // ✅ Seen tracking
+  const [seenStoryUserIds, setSeenStoryUserIds] = useState<Set<string>>(
+    new Set()
+  );
+  const openedUserIdRef = useRef<string | null>(null);
+
+  // ==== PREVIEW state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [previewIsVideo, setPreviewIsVideo] = useState(false);
+
+  // HUD visibility
+  const [hudVisible, setHudVisible] = useState(false);
+
+  // === Mixed gallery, SINGLE PICK, then show preview
   const addYourStoryFromGallery = useCallback(async () => {
-    // ⚠️ NOTE: The native gallery opened by ImagePicker is OS-controlled.
-    // You cannot dismiss it by tapping outside; only Cancel/back works.
-    // If you need tap-to-dismiss, implement a custom in-app gallery.
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsMultipleSelection: true,
+      mediaTypes: getPickerMediaTypes(),
+      allowsMultipleSelection: false,
+      selectionLimit: 1,
       quality: 1,
-      // videoMaxDuration only affects recordings; not library picks
-      // videoMaxDuration: 60,
     });
-    if (result.canceled) return;
+    if (result.canceled || !result.assets?.length) return;
 
-    const assets = result.assets ?? [];
-    if (!assets.length) return;
+    const a = result.assets[0];
+    const isVideo =
+      (a.type?.startsWith("video") ?? false) || a.type === "video";
 
-    setUploading(true);
-
-    try {
-      const acceptedUris: string[] = [];
-
-      for (const a of assets) {
-        const uri = a.uri;
-        const type = a.type;
-        const isVideo =
-          (type?.startsWith("video") ?? false) || type === "video";
-
-        if (!isVideo) {
-          // image -> accept directly
-          acceptedUris.push(uri);
-          continue;
-        }
-
-        // Duration in seconds (may be undefined on some devices)
-        const rawDuration = (a as any).duration;
-        const durationSec =
-          typeof rawDuration === "number" ? rawDuration : undefined;
-
-        if (typeof durationSec === "number" && durationSec <= 60) {
-          // video ≤ 60s -> accept directly
-          acceptedUris.push(uri);
-          continue;
-        }
-
-        // video >60s OR unknown duration -> attempt trim; if FFmpeg missing, reject
-        try {
-          const trimmedUri = await trimVideoTo60Sec(uri, 0);
-          acceptedUris.push(trimmedUri);
-        } catch (e: any) {
-          const msg =
-            e?.message === "FFMPEG_UNAVAILABLE"
-              ? "Trimming requires FFmpeg. Please install ffmpeg-kit-react-native or choose a video under 60 seconds."
-              : "This video is over 60 seconds and couldn't be trimmed automatically. Please trim it and try again.";
-          Alert.alert("Video too long", msg);
-          // skip this asset
-        }
-      }
-
-      if (acceptedUris.length === 0) {
-        setUploading(false);
+    // ✅ Enforce <= 60 seconds for videos (block longer)
+    if (isVideo) {
+      const durSec = normalizeAssetDuration((a as any).duration);
+      if (typeof durSec === "number" && durSec > MAX_VIDEO_SECONDS) {
+        Alert.alert(
+          "Video too long",
+          "Please pick a video of 60 seconds or less."
+        );
         return;
       }
+    }
+
+    setPreviewUri(a.uri);
+    setPreviewIsVideo(!!isVideo);
+    setPreviewOpen(true);
+  }, []);
+
+  // Confirm from preview → add to story
+  const confirmPreviewAdd = useCallback(async () => {
+    if (!previewUri) return;
+    setUploading(true);
+    try {
+      const finalUri = previewUri;
 
       setStoryUsers((prev) =>
         prev.map((u) =>
-          u.isYou
+          (u as any).isYou
             ? {
                 ...u,
                 hasStory: true,
-                stories: [...(u.stories ?? []), ...acceptedUris],
+                stories: [...(u.stories ?? []), finalUri],
               }
             : u
         )
       );
-
-      setUploading(false);
       setStoriesInitialIndex(0);
       setStoriesVisible(true);
-    } catch (err) {
+      setPreviewOpen(false);
+      setPreviewUri(null);
+    } finally {
       setUploading(false);
-      Alert.alert("Error", "Something went wrong while adding your story.");
     }
-  }, []);
+  }, [previewUri]);
 
   /* Stories viewer data (only users with stories) */
   const storiesViewerData: StoryUser[] = useMemo(() => {
-    const you = storyUsers.find((u) => u.isYou);
+    const you = storyUsers.find((u) => (u as any).isYou);
     const others = storyUsers.filter(
-      (u) => !u.isYou && (u.stories ?? []).length > 0
+      (u) => !(u as any).isYou && (u.stories ?? []).length > 0
     );
     const ordered = [
       ...(you && (you.stories ?? []).length > 0 ? [you] : []),
@@ -421,51 +441,166 @@ export default function Chats() {
     (user: User) => {
       const idx = viewerIndexByUserId.get(user.id);
       if (idx === undefined) return;
+      openedUserIdRef.current = String(user.id);
       setStoriesInitialIndex(idx);
       setStoriesVisible(true);
     },
     [viewerIndexByUserId]
   );
 
-  /* Stories row data:
-     - Always include YOU as the first item (so + is always available)
-     - Include only other users who have stories
-  */
-  const youUser = storyUsers.find((u) => u.isYou)!;
-  const storyRowData = useMemo(
-    () => [
-      youUser,
-      ...storyUsers.filter((u) => !u.isYou && (u.stories ?? []).length > 0),
-    ],
-    [youUser, storyUsers]
-  );
+  /* Stories row data (You, then Unseen, then Seen) */
+  const youUser = storyUsers.find((u) => (u as any).isYou)!;
+  const storyRowData = useMemo(() => {
+    const othersWithStories = storyUsers.filter(
+      (u) => !(u as any).isYou && (u.stories ?? []).length > 0
+    );
+    const unseen = othersWithStories.filter(
+      (u) => !seenStoryUserIds.has(String(u.id))
+    );
+    const seen = othersWithStories.filter((u) =>
+      seenStoryUserIds.has(String(u.id))
+    );
+    return [youUser, ...unseen, ...seen];
+  }, [youUser, storyUsers, seenStoryUserIds]);
 
-  // Chats filtering
+  /* ---------- Build IG-style conversation rows ---------- */
+  const conversations = useMemo(() => {
+    // Group messages by the "other user", keep the latest message for preview/time,
+    // and sum all unread incoming messages.
+    type Acc = {
+      [otherId: string]: ChatItem & { unreadCount: number };
+    };
+
+    const acc: Acc = {};
+
+    for (const msg of chatList) {
+      const other =
+        msg.sender.id === LOGGED_USER.id ? msg.receiver : msg.sender;
+      const key = String(other.id);
+
+      // Count unread only when the message is to the logged user and is flagged unread
+      const unreadInc =
+        msg.receiver.id === LOGGED_USER.id && (msg as any).unread === true
+          ? 1
+          : 0;
+
+      const msgTime = new Date(msg.created_at).getTime();
+
+      if (!acc[key]) {
+        acc[key] = {
+          ...msg,
+          id: `conv-${key}`, // ensure single row per conversation
+          unreadCount: unreadInc,
+        };
+      } else {
+        // accumulate unread properly
+        acc[key].unreadCount += unreadInc;
+
+        // always keep the latest message for preview/time
+        const prevTime = new Date(acc[key].created_at).getTime();
+        if (msgTime > prevTime) {
+          acc[key] = {
+            ...msg,
+            id: `conv-${key}`,
+            unreadCount: acc[key].unreadCount, // keep the summed unread
+          };
+        }
+      }
+    }
+
+    // Sort like IG: (1) unread first, (2) newest first
+    return Object.values(acc).sort((a, b) => {
+      const au = a.unreadCount || 0;
+      const bu = b.unreadCount || 0;
+      if (au > 0 && bu === 0) return -1;
+      if (bu > 0 && au === 0) return 1;
+      const at = new Date(a.created_at).getTime();
+      const bt = new Date(b.created_at).getTime();
+      return bt - at;
+    });
+  }, [chatList]);
+
+  // Search filters over conversations
   const filteredChats = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return chatList;
-    return chatList.filter((c) => {
+    if (!q) return conversations;
+    return conversations.filter((c) => {
       const otherUser = c.sender.id === LOGGED_USER.id ? c.receiver : c.sender;
       const username = otherUser.username?.toLowerCase() ?? "";
       const content = (c.content ?? "").toLowerCase();
       return username.includes(q) || content.includes(q);
     });
-  }, [chatList, searchQuery]);
+  }, [conversations, searchQuery]);
+
+  // Helper: mark a user as seen
+  const markUserSeen = useCallback((uid: string | number) => {
+    setSeenStoryUserIds((prev) => {
+      const next = new Set(prev);
+      next.add(String(uid));
+      return next;
+    });
+  }, []);
+
+  // Fallback: if viewer is closed without finishing the currently opened user
+  const markOpenedAsSeen = useCallback(() => {
+    if (!openedUserIdRef.current) return;
+    markUserSeen(openedUserIdRef.current);
+    openedUserIdRef.current = null;
+  }, [markUserSeen]);
+
+  /* ✅ Mark conversation read when opening it (IG style) */
+  const markConversationRead = useCallback((otherUserId: string | number) => {
+    setChatList((prev) =>
+      prev.map((c) => {
+        const betweenSamePair =
+          (c.sender.id === LOGGED_USER.id && c.receiver.id === otherUserId) ||
+          (c.receiver.id === LOGGED_USER.id && c.sender.id === otherUserId);
+
+        if (!betweenSamePair) return c;
+
+        // Clear unread on messages *to me*
+        if (c.receiver.id === LOGGED_USER.id) {
+          const next: any = { ...c, unread: false };
+          if (typeof (c as any).unreadCount !== "undefined") {
+            next.unreadCount = 0;
+          }
+          return next as ChatItem;
+        }
+        return c;
+      })
+    );
+  }, []);
+
+  // Single handler used by each row
+  const openChatAndMarkRead = useCallback(
+    (u: User) => {
+      // Mark as read immediately (like Instagram)
+      markConversationRead(u.id);
+
+      // Then navigate
+      router.push({
+        pathname: "/chat/UserChatScreen",
+        params: {
+          userId: u.id,
+          username: u.username,
+          profilePicture: u.profile_picture,
+          loggedUserId: LOGGED_USER.id,
+          loggedUsername: LOGGED_USER.username,
+          loggedAvatar: LOGGED_USER.profile_picture,
+        },
+      });
+    },
+    [markConversationRead, router]
+  );
+
+  // --- bottom padding so the last user is fully above the bottom tab bar
+  const bottomSpacer = (insets.bottom || 16) + 55; // ~tab height + safe area
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff", paddingTop: insets.top }}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Search Bar */}
-      <View className="px-3">
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search chats or users"
-        />
-      </View>
-
-      {/* Stories Row */}
+      {/* Stories FIRST */}
       <View className="mt-3">
         <FlatList
           horizontal
@@ -480,7 +615,7 @@ export default function Chats() {
           ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
           renderItem={({ item }) => {
             const u = item as User & { isYou?: boolean };
-            if (u.isYou) {
+            if ((u as any).isYou) {
               const hasStory = (u.stories ?? []).length > 0;
               return (
                 <YouBubble
@@ -493,48 +628,47 @@ export default function Chats() {
                 />
               );
             }
+            const isSeen = seenStoryUserIds.has(String(u.id));
             return (
               <StoryBubble
                 user={u}
+                isSeen={isSeen}
                 onOpen={openStoryModal}
-                onOpenProfile={(img) => {
-                  setProfileModalImage(img ?? DEFAULT_AVATAR);
-                  setProfileModalVisible(true);
-                }}
+                onOpenProfile={() => {}}
               />
             );
           }}
         />
       </View>
 
-      {/* Chats list */}
+      {/* Search bar SECOND */}
+      <View className="px-3 mt-2">
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search chats or users"
+        />
+      </View>
+
+      {/* Chats list (grouped + sorted like IG) */}
       <View className="flex-1 mt-2">
         <FlatList
           data={filteredChats}
           renderItem={({ item }) => (
             <ChatRow
               item={item}
-              onOpenChat={(u) =>
-                router.push({
-                  pathname: "/chat/UserChatScreen",
-                  params: {
-                    userId: u.id,
-                    username: u.username,
-                    profilePicture: u.profile_picture,
-                    loggedUserId: LOGGED_USER.id,
-                    loggedUsername: LOGGED_USER.username,
-                    loggedAvatar: LOGGED_USER.profile_picture,
-                  },
-                })
-              }
+              onOpenChat={openChatAndMarkRead} // mark read then open
               onOpenProfile={(img) => {
                 setProfileModalImage(img ?? DEFAULT_AVATAR);
                 setProfileModalVisible(true);
               }}
             />
           )}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id} // id is conv-<userId>
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: bottomSpacer }}
+          scrollIndicatorInsets={{ bottom: bottomSpacer }}
+          ListFooterComponent={<View style={{ height: 4 }} />}
         />
       </View>
 
@@ -551,7 +685,6 @@ export default function Chats() {
               onPress={() => setProfileModalVisible(false)}>
               <Text className="text-white text-2xl">✕</Text>
             </Pressable>
-
             {profileModalImage ? (
               <View className="flex-1 items-center justify-center">
                 <Image
@@ -575,14 +708,91 @@ export default function Chats() {
           visible={storiesVisible}
           transparent={false}
           animationType="fade"
-          onRequestClose={() => setStoriesVisible(false)}>
+          onRequestClose={() => {
+            setStoriesVisible(false);
+            markOpenedAsSeen();
+          }}>
           <View className="flex-1 bg-black">
             <Stories
               storiesData={storiesViewerData}
               initialUserIndex={storiesInitialIndex}
-              onRequestClose={() => setStoriesVisible(false)}
+              onRequestClose={() => {
+                setStoriesVisible(false);
+                markOpenedAsSeen();
+              }}
               showStrip={false}
             />
+          </View>
+        </Modal>
+      )}
+
+      {/* Preview */}
+      {previewOpen && (
+        <Modal
+          visible={previewOpen}
+          transparent={false}
+          animationType="slide"
+          onRequestClose={() => setPreviewOpen(false)}>
+          <View
+            className="flex-1 bg-black"
+            style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
+            {/* Top-right CLOSE (X) — transparent overlay */}
+            <Pressable
+              onPress={() => setPreviewOpen(false)}
+              accessibilityLabel="Close preview"
+              style={{
+                position: "absolute",
+                top: insets.top ? insets.top + 6 : 12,
+                right: 10,
+                zIndex: 10,
+                backgroundColor: "transparent",
+              }}>
+              <Ionicons name="close" size={28} color="#ffffff" />
+            </Pressable>
+
+            {/* Body */}
+            <View className="flex-1 items-center justify-center">
+              {previewUri ? (
+                previewIsVideo ? (
+                  <PreviewVideo
+                    uri={previewUri}
+                    onHudVisibleChange={(visible) => setHudVisible(visible)}
+                  />
+                ) : (
+                  <Image
+                    source={{ uri: previewUri }}
+                    style={{ width: "100%", height: "100%" }}
+                    resizeMode="contain"
+                  />
+                )
+              ) : (
+                <Text className="text-white">No media</Text>
+              )}
+            </View>
+
+            {/* Bottom-center Send — transparent outline so media stays visible */}
+            {!hudVisible && (
+              <Pressable
+                onPress={confirmPreviewAdd}
+                disabled={uploading}
+                accessibilityLabel="Add to story"
+                style={{
+                  position: "absolute",
+                  bottom: (insets.bottom || 16) + 12,
+                  alignSelf: "center",
+                  width: 50,
+                  height: 50,
+                  borderRadius: 32,
+                  backgroundColor: "transparent",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: uploading ? 0.7 : 1,
+                  borderWidth: 2,
+                  borderColor: "rgba(255,255,255,0.9)",
+                }}>
+                <Ionicons name="arrow-forward" size={30} color="#ffffff" />
+              </Pressable>
+            )}
           </View>
         </Modal>
       )}

@@ -1,7 +1,6 @@
 import { FacebookStyleImage } from "@/components/FacebookStyleImage";
 import { MultiImageCollage } from "@/components/MultiImageCollage";
 import { MultiImageViewer } from "@/components/MultiImageViewer";
-import { sendPostToChat, sharePostToUsers } from "@/constants/chat";
 import { MaterialIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
@@ -24,9 +23,10 @@ import {
 } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import ShareSectionBottomSheet from "./ShareSectionBottomSheet";
-// 👇 NEW: import your UI-only bottom sheet (adjust path if needed)
 
-// ----- PostMedia Component -----
+/* ===========================
+   PostMedia
+   =========================== */
 const PostMedia = ({
   media,
   isVisible,
@@ -45,8 +45,6 @@ const PostMedia = ({
   const [showMultiViewer, setShowMultiViewer] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  // console.log("PostMedia rendered with:", media, "isVisible:", isVisible);
-
   const handlePressImage = useCallback(
     (index: number) => {
       if (isGestureActive) return;
@@ -56,14 +54,8 @@ const PostMedia = ({
     [isGestureActive]
   );
 
-  console.log("postImage :", media);
+  if (!media) return null;
 
-  // If no media, return null
-  if (!media) {
-    return null;
-  }
-
-  // Handle string URL (legacy/simple format)
   if (typeof media === "string") {
     return (
       <View>
@@ -100,7 +92,6 @@ const PostMedia = ({
           onPressImage={handlePressImage}
           onLongPress={onLongPress}
         />
-
         <MultiImageViewer
           images={media.uris}
           visible={showMultiViewer}
@@ -120,7 +111,9 @@ const PostMedia = ({
   );
 };
 
-// ----- PostCard Types -----
+/* ===========================
+   Types
+   =========================== */
 export interface PostCardProps {
   item: any;
   isVisible: boolean;
@@ -130,7 +123,9 @@ export interface PostCardProps {
   onPressComments?: (post: any) => void;
 }
 
-// ----- PostCard Component -----
+/* ===========================
+   PostCard
+   =========================== */
 export const PostCard: React.FC<PostCardProps> = ({
   item,
   isVisible,
@@ -142,7 +137,6 @@ export const PostCard: React.FC<PostCardProps> = ({
   const router = useRouter();
   const navigating = useRef(false);
   const [showFullCaption, setShowFullCaption] = useState(false);
-  // 👇 NEW: share modal state
   const [shareOpen, setShareOpen] = useState(false);
 
   const openPostOptions = React.useCallback(() => {
@@ -151,15 +145,11 @@ export const PostCard: React.FC<PostCardProps> = ({
   }, [item, onLongPress]);
 
   useEffect(() => {
-    console.log(
-      `PostCard ${item.id} - isGestureActive changed to:`,
-      isGestureActive
-    );
+    // console.log(`PostCard ${item.id} isGestureActive:`, isGestureActive);
   }, [isGestureActive, item.id]);
 
   const handleUserPressSafe = () => {
     if (isGestureActive) return;
-
     router.push({
       pathname: "/(profiles)" as any,
       params: {
@@ -177,7 +167,6 @@ export const PostCard: React.FC<PostCardProps> = ({
       return totalLength <= limit;
     });
   };
-
   const neededHashtags = getHashtagsWithinLimit(item.post_hashtags || []);
 
   const goToProductSafe = () => {
@@ -206,12 +195,29 @@ export const PostCard: React.FC<PostCardProps> = ({
   const openProductTap = makeTapThatYieldsToPan(goToProductSafe);
   const openProfileTap = makeTapThatYieldsToPan(handleUserPressSafe);
 
+  /* ---------- Build a SAFE post preview to send to chat ---------- */
+  const previewImage =
+    typeof item.postImage === "string"
+      ? item.postImage
+      : item?.postImage?.type === "images"
+        ? item?.postImage?.uris?.[0] || ""
+        : "";
+
+  const postPreview = {
+    id: String(item.id),
+    image: previewImage || "",
+    author: item.username || "user",
+    caption: item.caption || "",
+    author_avatar: item.userProfilePic || "",
+    likes: typeof item.likes_count === "number" ? item.likes_count : 0,
+    comments: typeof item.comments_count === "number" ? item.comments_count : 0,
+  };
+
   return (
     <TouchableOpacity
       activeOpacity={1}
       onLongPress={() => onLongPress?.(item)}
-      delayLongPress={500}
-    >
+      delayLongPress={500}>
       <View className="px-3 mt-2 bg-gray-100">
         <View
           style={{
@@ -221,23 +227,17 @@ export const PostCard: React.FC<PostCardProps> = ({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.12,
             shadowRadius: 8,
-          }}
-        >
+          }}>
           <View
             className="bg-white py-3 gap-2.5"
-            style={{
-              borderRadius: 16,
-              overflow: "hidden",
-            }}
-          >
+            style={{ borderRadius: 16, overflow: "hidden" }}>
             {/* Header */}
             <View className="flex-row px-3 items-center h-10">
               <GestureDetector gesture={openProfileTap}>
                 <TouchableOpacity
                   className="flex-row items-center flex-1 mr-2"
                   activeOpacity={0.7}
-                  disabled={isGestureActive}
-                >
+                  disabled={isGestureActive}>
                   <Image
                     source={{ uri: item.userProfilePic }}
                     className="w-10 h-10 rounded-full mr-2"
@@ -278,7 +278,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               {item.affiliated && item.affiliation && <View />}
             </View>
 
-            {/* Media Display */}
+            {/* Media */}
             <PostMedia
               media={item.postImage}
               isVisible={isVisible}
@@ -308,7 +308,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                           if (part && part.startsWith("@")) {
                             return (
                               <Text
-                                key={index}
+                                key={`cap-mention-${index}`}
                                 className="text-blue-600"
                                 suppressHighlighting
                                 onPress={
@@ -323,15 +323,15 @@ export const PostCard: React.FC<PostCardProps> = ({
                                           },
                                         })
                                 }
-                                onLongPress={openPostOptions}
-                              >
+                                onLongPress={openPostOptions}>
                                 {part}
                               </Text>
                             );
-                          } else if (part && part.startsWith("#")) {
+                          }
+                          if (part && part.startsWith("#")) {
                             return (
                               <Text
-                                key={index}
+                                key={`cap-hash-${index}`}
                                 className="text-blue-600"
                                 suppressHighlighting
                                 onPress={
@@ -341,26 +341,21 @@ export const PostCard: React.FC<PostCardProps> = ({
                                         router.push({
                                           pathname:
                                             "/(search)/searchPostsWithTags" as any,
-                                          params: {
-                                            tag: part,
-                                          },
+                                          params: { tag: part },
                                         })
                                 }
-                                onLongPress={openPostOptions}
-                              >
+                                onLongPress={openPostOptions}>
                                 {part}
                               </Text>
                             );
-                          } else if (
-                            part &&
-                            /^(https?:\/\/|www\.)/i.test(part)
-                          ) {
+                          }
+                          if (part && /^(https?:\/\/|www\.)/i.test(part)) {
                             const url = part.startsWith("www.")
                               ? `https://${part}`
                               : part;
                             return (
                               <Text
-                                key={index}
+                                key={`cap-link-${index}`}
                                 className="text-blue-600 underline"
                                 suppressHighlighting
                                 onPress={
@@ -368,15 +363,22 @@ export const PostCard: React.FC<PostCardProps> = ({
                                     ? undefined
                                     : () => Linking.openURL(url)
                                 }
-                                onLongPress={openPostOptions}
-                              >
+                                onLongPress={openPostOptions}>
                                 {part}
                               </Text>
                             );
                           }
-                          return part;
+                          // IMPORTANT: wrap plain parts in <Text>
+                          return (
+                            <Text
+                              key={`cap-plain-${index}`}
+                              className="text-gray-900">
+                              {part}
+                            </Text>
+                          );
                         })}
                     </Text>
+
                     {shouldTruncate && !showFullCaption && (
                       <Pressable
                         onPress={
@@ -387,8 +389,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}
-                      >
+                        delayLongPress={500}>
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show more
                         </Text>
@@ -405,8 +406,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}
-                      >
+                        delayLongPress={500}>
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show less
                         </Text>
@@ -419,7 +419,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                 <Text className="text-blue-600 mt-1 px-3">
                   {neededHashtags.map((tag: string, i: number) => (
                     <Text
-                      key={tag}
+                      key={`hash-${tag}`}
                       onPress={
                         isGestureActive
                           ? undefined
@@ -427,29 +427,25 @@ export const PostCard: React.FC<PostCardProps> = ({
                               router.push({
                                 pathname:
                                   "/(search)/searchPostsWithTags" as any,
-                                params: {
-                                  tag: "#" + tag,
-                                },
+                                params: { tag: "#" + tag },
                               })
-                      }
-                    >
+                      }>
                       #{tag}
-                      {i < neededHashtags.length - 1 ? " " : ""}
+                      {i < neededHashtags.length - 1 ? <Text> </Text> : null}
                     </Text>
                   ))}
                 </Text>
               ) : null}
             </View>
 
-            {/* Affiliation */}
+            {/* Affiliation card */}
             {item.affiliated && item.affiliation && (
               <GestureDetector gesture={openProductTap}>
                 <TouchableOpacity
                   className="px-3"
                   onLongPress={() => onLongPress?.(item)}
                   delayLongPress={500}
-                  disabled={isGestureActive}
-                >
+                  disabled={isGestureActive}>
                   <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
                     <View
                       className="basis-1/4 self-stretch relative"
@@ -457,8 +453,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         borderTopLeftRadius: 6,
                         borderBottomLeftRadius: 6,
                         overflow: "hidden",
-                      }}
-                    >
+                      }}>
                       <Image
                         source={{ uri: item.affiliation.productImage }}
                         style={{
@@ -489,10 +484,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                           </View>
                         </View>
                         <TouchableOpacity
-                          onPress={isGestureActive ? undefined : () => {}}
                           className="self-start"
-                          disabled={isGestureActive}
-                        >
+                          disabled={isGestureActive}>
                           <MaterialIcons
                             name="add-shopping-cart"
                             size={24}
@@ -522,9 +515,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               <View className="flex-row items-center gap-x-4">
                 <TouchableOpacity
                   className="flex-row items-center"
-                  disabled={isGestureActive}
-                  onPress={isGestureActive ? undefined : undefined}
-                >
+                  disabled={isGestureActive}>
                   <Ionicons name="heart-outline" size={20} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.likes_count}
@@ -539,8 +530,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                       : () => {
                           onPressComments?.(item);
                         }
-                  }
-                >
+                  }>
                   <Ionicons name="chatbubble-outline" size={18} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.comments_count}
@@ -550,8 +540,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   disabled={isGestureActive}
                   onPress={
                     isGestureActive ? undefined : () => setShareOpen(true)
-                  }
-                >
+                  }>
                   <Ionicons name="arrow-redo-outline" size={20} color="#000" />
                 </TouchableOpacity>
               </View>
@@ -559,34 +548,17 @@ export const PostCard: React.FC<PostCardProps> = ({
           </View>
         </View>
       </View>
+
+      {/* Share sheet with preview so chat renders real card */}
       <ShareSectionBottomSheet
         show={shareOpen}
         setShow={setShareOpen}
-        users={item?.shareUsers || []} // must match { id, username, profile_picture }
+        users={item?.shareUsers || []}
         postId={item.id}
+        postPreview={postPreview}
         initialHeightPct={0.4}
         maxHeightPct={0.9}
         maxSelect={5}
-        onSendToUsers={(selected, pid) => {
-          const postId = String(pid);
-
-          // A) Update inbox list previews (optional, but nice)
-          sharePostToUsers(
-            postId,
-            selected.map((u) => String(u.id))
-          );
-
-          // B) ✅ Important: write into each DM so Chat screen shows it
-          selected.forEach((u) => {
-            sendPostToChat(String(u.id), postId);
-          });
-
-          // C) OPTIONAL: navigate to one chat
-          // const last = selected[selected.length - 1];
-          // if (last) {
-          //   router.push({ pathname: "/chat/[id]", params: { id: String(last.id) } });
-          // }
-        }}
       />
     </TouchableOpacity>
   );

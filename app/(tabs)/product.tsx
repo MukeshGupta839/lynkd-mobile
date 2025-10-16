@@ -6,7 +6,13 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 import Banner from "@/components/Product/BannerCarousel";
 import BestDealsGrid from "@/components/Product/BestDealsGrid";
@@ -16,20 +22,21 @@ import HomeHeader from "@/components/Product/HomeHeader";
 import QuickActions from "@/components/Product/QuickActions";
 import DealsStrip from "@/components/Product/TopDealsSection";
 import SearchBar from "@/components/Searchbar";
+
+// local fallbacks
 import { homeBannerData } from "@/constants/Banner";
-import { bestDeals } from "@/constants/BestDeals";
-import { topDeals } from "@/constants/Deal";
-import { products } from "@/constants/Product";
+import { bestDeals as fallbackBestDeals } from "@/constants/BestDeals";
+import { topDeals as fallbackTopDeals } from "@/constants/Deal";
+import { products as fallbackProducts } from "@/constants/Product";
+
 import { useCategoryTheme } from "@/stores/useThemeStore";
+
+// ✅ updated import
+import { useProductDetail } from "@/hooks/useCatalog";
 
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
-// ---------- Type the bottom tab navigator routes here ----------
-type TabParamList = {
-  Home: undefined;
-  Services: undefined;
-  // add other tabs if you have them
-};
+type TabParamList = { Home: undefined; Services: undefined };
 type ProductNavProp = BottomTabNavigationProp<TabParamList, "Home">;
 
 function GradientWrapper({
@@ -56,62 +63,54 @@ function GradientWrapper({
   );
 }
 
-const ProductHome = () => {
+export default function ProductHome() {
   const router = useRouter();
   const navigation = useNavigation<ProductNavProp>();
   const isFocused = useIsFocused();
   const setPreset = useCategoryTheme((s) => s.setThemePreset);
 
-  // ✅ Dynamic notification count
   const [notificationCount, setNotificationCount] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       setPreset("green");
-
-      // Simulate fetching notifications (replace with API later)
-      setTimeout(() => {
-        setNotificationCount(8); // dynamic example value
-      }, 1000);
-
-      return () => {};
+      const t = setTimeout(() => setNotificationCount(8), 300);
+      return () => clearTimeout(t);
     }, [setPreset])
   );
 
-  // FlatList ref and refresh key for lightweight refresh
+  // 🟩 Call single product API here
+  const productId = 1; // <-- replace with any valid product ID from your backend
+  const { data, loading, error, refresh } = useProductDetail(productId);
+
+  const bestProductsData = data ? [data] : fallbackProducts;
+
   const listRef = useRef<FlatList<any> | null>(null);
   const [refreshKey, setRefreshKey] = useState(() => Date.now());
 
-  // scroll-to-top + refresh when home tab pressed again
   useEffect(() => {
-    const unsubscribe = navigation.addListener("tabPress", (e: any) => {
+    const unsub = navigation.addListener("tabPress", () => {
       if (isFocused) {
-        try {
-          listRef.current?.scrollToOffset({ offset: 0, animated: true });
-        } catch {
-          // ignore
-        }
+        listRef.current?.scrollToOffset({ offset: 0, animated: true });
+        refresh();
         setRefreshKey(Date.now());
       }
     });
-    return unsubscribe;
-  }, [navigation, isFocused]);
+    return unsub;
+  }, [navigation, isFocused, refresh]);
 
-  // -----------------------
-  // FlatList content
-  // -----------------------
   const contentSections = [
-    { id: "categories", type: "categories" },
-    { id: "banner", type: "banner" },
-    { id: "bestProducts", type: "bestProducts" },
-    { id: "bestDeals", type: "bestDeals" },
-    { id: "topDeals", type: "topDeals" },
+    { id: "categories", type: "categories" as const },
+    { id: "banner", type: "banner" as const },
+    { id: "bestProducts", type: "bestProducts" as const },
+    { id: "bestDeals", type: "bestDeals" as const },
+    { id: "topDeals", type: "topDeals" as const },
   ];
 
   const renderContentSection = ({
     item,
   }: {
-    item: (typeof contentSections)[0];
+    item: (typeof contentSections)[number];
   }) => {
     switch (item.type) {
       case "categories":
@@ -129,15 +128,37 @@ const ProductHome = () => {
         );
 
       case "bestProducts":
+        if (loading) {
+          return (
+            <View className="px-3 py-4">
+              <ActivityIndicator />
+            </View>
+          );
+        }
         return (
-          <BestProductsCarousel data={products} title="Best Products for you" />
+          <>
+            {error && (
+              <Text className="px-3 text-red-600 mb-1">
+                {error} (showing fallback)
+              </Text>
+            )}
+            <BestProductsCarousel
+              data={bestProductsData as any}
+              title="Best Product for you"
+            />
+          </>
         );
 
       case "bestDeals":
-        return <BestDealsGrid title="Best Deals for you" data={bestDeals} />;
+        return (
+          <BestDealsGrid
+            title="Best Deals for you"
+            data={fallbackBestDeals as any}
+          />
+        );
 
       case "topDeals":
-        return <DealsStrip title="Top Deals" data={topDeals} />;
+        return <DealsStrip title="Top Deals" data={fallbackTopDeals as any} />;
 
       default:
         return null;
@@ -146,17 +167,13 @@ const ProductHome = () => {
 
   return (
     <View className="flex-1 bg-gray-50">
-      {/* Header */}
       <View className="w-full rounded-b-2xl overflow-hidden">
         <GradientWrapper
           colors={["#C5F8CE", "#f9fafb"] as const}
           start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          className="rounded-b-2xl overflow-hidden">
+          end={{ x: 0, y: 1 }}>
           <View className="px-3 py-1">
-            {/* ✅ pass dynamic count to HomeHeader */}
             <HomeHeader count={notificationCount} />
-
             <QuickActions />
             <TouchableOpacity
               onPress={() => router.push("/Searchscreen?tab=product")}
@@ -168,10 +185,9 @@ const ProductHome = () => {
         </GradientWrapper>
       </View>
 
-      {/* Content */}
       <View className="flex-1 bg-gray-50">
         <FlatList
-          key={String(refreshKey)} // remounts on refresh
+          key={String(refreshKey)}
           ref={listRef}
           data={contentSections}
           renderItem={renderContentSection}
@@ -179,9 +195,8 @@ const ProductHome = () => {
           className="flex-1"
           contentInsetAdjustmentBehavior="never"
           showsVerticalScrollIndicator={false}
-          scrollIndicatorInsets={{ bottom: 0 }}
           contentContainerStyle={{ paddingBottom: 70 }}
-          removeClippedSubviews={true}
+          removeClippedSubviews
           maxToRenderPerBatch={3}
           updateCellsBatchingPeriod={50}
           initialNumToRender={3}
@@ -190,6 +205,4 @@ const ProductHome = () => {
       </View>
     </View>
   );
-};
-
-export default ProductHome;
+}

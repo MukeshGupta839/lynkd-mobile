@@ -61,8 +61,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <PaperProvider theme={MD3LightTheme}>
           <ThemeProvider
-            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-          >
+            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
             <BottomSheetModalProvider>
               <KeyboardProvider>
                 <AuthProvider>
@@ -71,8 +70,7 @@ export default function RootLayout() {
                       screenOptions={{
                         animation: "slide_from_right",
                         contentStyle: { backgroundColor: "#fff" },
-                      }}
-                    >
+                      }}>
                       <Stack.Screen
                         name="index"
                         options={{ headerShown: false }}
@@ -90,6 +88,14 @@ export default function RootLayout() {
                         options={{ headerShown: false }}
                       />
                       <Stack.Screen
+                        name="Store/storeProfile"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="Store/viewShop"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
                         name="(compose)"
                         options={{
                           animation: "slide_from_bottom",
@@ -101,6 +107,7 @@ export default function RootLayout() {
                         name="(comment)"
                         options={{ headerShown: false }}
                       />
+
                       <Stack.Screen
                         name="Address/selectAddress"
                         options={{ headerShown: false }}

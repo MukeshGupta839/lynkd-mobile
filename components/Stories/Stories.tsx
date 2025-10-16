@@ -1,14 +1,16 @@
+// app/components/Stories/Stories.tsx
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
-import ShareSectionBottomSheet from "@/components/ShareSectionBottomSheet";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import { useEventListener } from "expo";
+import { useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   BackHandler,
   Dimensions,
+  Easing,
   FlatList,
   Image,
   Text,
@@ -25,7 +27,7 @@ import {
 /* IMPORTANT:
    - Ensure the very first import in your app entry is:
        import 'react-native-gesture-handler';
-   - Ensure your root is wrapped in <GestureHandlerRootView style={{flex:1}}> 
+   - Ensure your root is wrapped in <GestureHandlerRootView style={{flex:1}}>
    - Ensure babel.config.js includes 'react-native-reanimated' plugin LAST.
 */
 
@@ -56,7 +58,8 @@ export type StoriesProps = {
   initialUserIndex?: number;
   onRequestClose?: () => void;
   showStrip?: boolean;
-  shareUsers?: any[];
+  onUserFinished?: (userId: string | number) => void; // when a user's last story finishes
+  onAllFinished?: () => void; // when all users finish
 };
 
 const isVideoUrl = (uri?: string) => {
@@ -75,6 +78,38 @@ const safeSeek = async (player: any, seconds: number) => {
     if (player?.seekTo) await player.seekTo(seconds);
   } catch {}
 };
+
+/** --------- SECURE progress persistence helpers ---------- */
+const PROGRESS_KEY = "stories_progress_v1";
+
+// Map<userId, { watched: Record<storyKey, true>, lastIndex: number }>
+// storyKey is `${userId}:${storyIndex}` to avoid duplicate/missing story_id bugs
+type ProgressMap = Record<
+  string,
+  {
+    watched: Record<string, true>;
+    lastIndex: number; // last COMPLETED story index
+  }
+>;
+
+const toUserKey = (id: string | number) => String(id);
+const storyKeyByIndex = (userId: string | number, storyIndex: number) =>
+  `${toUserKey(userId)}:${storyIndex}`;
+
+async function loadProgress(): Promise<ProgressMap> {
+  try {
+    const raw = await SecureStore.getItemAsync(PROGRESS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveProgress(map: ProgressMap) {
+  try {
+    await SecureStore.setItemAsync(PROGRESS_KEY, JSON.stringify(map));
+  } catch {}
+}
 
 /** Video player view */
 const StoryVideoView: React.FC<{
@@ -112,14 +147,12 @@ const StoryVideoView: React.FC<{
     const duration = (player as any)?.duration ?? 0;
     if (!duration) return;
 
-    // Use the capped segment length (≤ 60) if provided, else the full duration
     const segLen = segmentDuration ?? duration;
     const segStart = startAtSeconds ?? 0;
 
     const ratio = Math.max(0, Math.min(1, (currentTime - segStart) / segLen));
     onProgressRatio(ratio);
 
-    // When we reach the segment end (capped), advance to next story
     if (currentTime >= segStart + segLen - 0.05) onSegmentEnd();
   });
 
@@ -135,48 +168,113 @@ const StoryVideoView: React.FC<{
   );
 };
 
-const Stories: React.FC<StoriesProps> = ({
+const Stories = ({
   storiesData,
   initialUserIndex = 0,
   onRequestClose,
   showStrip = false,
-  shareUsers = [],
-}) => {
+  onUserFinished,
+  onAllFinished,
+}: StoriesProps): React.ReactElement | null => {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const router = useRouter();
 
   const TOP_UI_HEIGHT = 60;
   const BOTTOM_UI_HEIGHT = 50;
 
-  // TODO: replace with your actual logged-in user id from auth/session
-  const LOGGED_IN_USER_ID = "you";
+  const LOGGED_IN_USER_ID = "you"; // replace with auth user id
 
-  // Keep a local copy we can modify (delete etc.)
+  // Editable copy of incoming data
   const [localStories, setLocalStories] = useState<StoryUser[]>(storiesData);
 
+  // selection state
   const [currentUserIndex, setCurrentUserIndex] = useState<number | null>(
     storiesData.length ? initialUserIndex : null
   );
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
+
+  // UI state
   const [liked, setLiked] = useState(false);
   const [message, setMessage] = useState("");
-  const [shareOpen, setShareOpen] = useState(false);
-
-  // Post options sheet state
   const [postOptionsVisible, setPostOptionsVisible] = useState(false);
   const [focusedPost, setFocusedPost] = useState<any | null>(null);
 
+  // playback/progress anim
   const progress = useRef(new Animated.Value(0)).current;
-
-  // ✅ NEW: track which items we've already capped so we don't reapply
   const cappedOnce = useRef<Set<string | number>>(new Set());
+  const [mediaKey, setMediaKey] = useState(0);
 
-  const [mediaKey, setMediaKey] = useState(0); // force-remount media
+  // heart animation
+  const heartScale = useRef(new Animated.Value(0)).current;
+  const heartOpacity = useRef(new Animated.Value(0)).current;
+
+  /** persisted story progress state */
+  const [progressMap, setProgressMap] = useState<ProgressMap>({});
+
+  // Load persisted progress on mount
+  useEffect(() => {
+    (async () => {
+      const loaded = await loadProgress();
+      setProgressMap(loaded);
+    })();
+  }, []);
+
+  // Is a whole user fully watched?
+  const isUserFullyWatched = (u: StoryUser) => {
+    const key = toUserKey(u.user_id);
+    const entry = progressMap[key];
+    if (!entry) return false;
+    const watchedCount = Object.keys(entry.watched || {}).length;
+    return watchedCount >= (u.stories?.length ?? 0);
+  };
+
+  /** ---------- First unread / Entry index (IG style) keyed by index ---------- */
+
+  // Get first unread index; if everything is watched, return -1
+  const getFirstUnreadIndex = (u: StoryUser) => {
+    const userKey = toUserKey(u.user_id);
+    const watched = progressMap[userKey]?.watched || {};
+    return u.stories.findIndex(
+      (_s, idx) => !watched[storyKeyByIndex(userKey, idx)]
+    );
+  };
+
+  // Entry index logic:
+  // - If there’s an unread story -> start from that (resume)
+  // - If all are watched -> start from 0 (replay from beginning, stays gray/end)
+  const getEntryIndexForUser = (u: StoryUser) => {
+    const idx = getFirstUnreadIndex(u);
+    return idx === -1 ? 0 : idx;
+  };
+
+  // When we enter a user, position to entry index (first unread or 0 if all watched)
+  useEffect(() => {
+    if (currentUserIndex === null) return;
+    const u = localStories[currentUserIndex];
+    if (!u) return;
+
+    const entryIndex = getEntryIndexForUser(u);
+    setCurrentStoryIndex(entryIndex);
+
+    setMediaKey((k) => k + 1);
+    progress.stopAnimation();
+    progress.setValue(0);
+  }, [currentUserIndex]); // eslint-disable-line
+
+  // Align initial load when progress changes
+  useEffect(() => {
+    if (currentUserIndex === null) return;
+    const u = localStories[currentUserIndex];
+    if (!u) return;
+
+    const entryIndex = getEntryIndexForUser(u);
+    setCurrentStoryIndex(entryIndex);
+  }, [progressMap]); // eslint-disable-line
 
   useEffect(() => {
     if (currentUserIndex !== null && !postOptionsVisible) startProgress();
     return () => progress.stopAnimation();
-  }, [currentStoryIndex, currentUserIndex, postOptionsVisible]);
+  }, [currentStoryIndex, currentUserIndex, postOptionsVisible]); // eslint-disable-line
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -199,31 +297,32 @@ const Stories: React.FC<StoriesProps> = ({
         : undefined;
     if (!story || postOptionsVisible) return;
 
+    // images auto-advance using an Animated timer
     if (!isVideoUrl(story.story_image)) {
       Animated.timing(progress, {
         toValue: 1,
         duration: 5000,
         useNativeDriver: false,
       }).start(({ finished }) => {
-        if (finished) handleNextStory();
+        if (finished) handleMarkCurrentAsWatchedThenNext();
       });
     }
   };
 
-  /** ✅ Cap a single story's video to max 60s (no splitting) */
+  /** Cap a single story's video to max 60s (no splitting) */
   const capVideoToSixty = (
     userIdx: number,
     storyIdx: number,
     videoDuration: number
   ) => {
     const user = localStories[userIdx];
-    const story = user?.stories?.[storyIdx];
-    if (!user || !story) return;
+    if (!user) return;
+    const story = user.stories?.[storyIdx];
+    if (!story) return;
 
     const key = story.story_id ?? `${user.user_id}-${storyIdx}`;
     if (cappedOnce.current.has(key)) return;
 
-    // If longer than 60s: keep only first 60s via segmentDuration, no new items
     if (videoDuration > 60) {
       setLocalStories((prev) => {
         const copy = [...prev];
@@ -241,7 +340,6 @@ const Stories: React.FC<StoriesProps> = ({
       });
       cappedOnce.current.add(key);
     } else {
-      // ≤ 60s: ensure there's no stale segmentDuration
       if (story.segmentDuration || story.startAtSeconds) {
         setLocalStories((prev) => {
           const copy = [...prev];
@@ -262,15 +360,55 @@ const Stories: React.FC<StoriesProps> = ({
     }
   };
 
-  const handleNextStory = () => {
+  /** Mark & persist current story as watched (keyed by index) */
+  const markCurrentWatched = async () => {
+    if (currentUserIndex === null) return { finishedUser: false };
+
+    const u = localStories[currentUserIndex];
+    if (!u) return { finishedUser: false };
+
+    const userKey = toUserKey(u.user_id);
+    const idx = currentStoryIndex;
+    const s = u.stories[idx];
+    if (!s) return { finishedUser: false };
+
+    const sKey = storyKeyByIndex(userKey, idx);
+
+    const nextMap: ProgressMap = JSON.parse(JSON.stringify(progressMap || {}));
+    if (!nextMap[userKey]) nextMap[userKey] = { watched: {}, lastIndex: -1 };
+    nextMap[userKey].watched[sKey] = true;
+    if (idx > nextMap[userKey].lastIndex) {
+      nextMap[userKey].lastIndex = idx;
+    }
+
+    setProgressMap(nextMap);
+    await saveProgress(nextMap);
+
+    const finished =
+      Object.keys(nextMap[userKey].watched).length >= u.stories.length;
+
+    return { finishedUser: finished };
+  };
+
+  /** mark watched, then decide next story/user */
+  const handleMarkCurrentAsWatchedThenNext = async () => {
+    const { finishedUser } = await markCurrentWatched();
+
     if (currentUserIndex === null) return;
     const userStories = localStories[currentUserIndex].stories;
+
     if (currentStoryIndex < userStories.length - 1) {
+      // More stories → next story
       setCurrentStoryIndex((i) => i + 1);
       setMediaKey((k) => k + 1);
     } else {
-      handleNextUser();
+      // Last story just finished → only now move user to end/gray
+      handleNextUser(finishedUser);
     }
+  };
+
+  const handleNextStory = () => {
+    handleMarkCurrentAsWatchedThenNext();
   };
 
   const handlePreviousStory = () => {
@@ -283,18 +421,44 @@ const Stories: React.FC<StoriesProps> = ({
     }
   };
 
-  const handleNextUser = () => {
+  /** Move to next user. If finishedUser === true, push to end & gray and notify. */
+  const handleNextUser = (finishedUser?: boolean) => {
     if (currentUserIndex === null) return;
-    if (currentUserIndex < localStories.length - 1) {
-      setCurrentUserIndex((u) => (u === null ? 0 : u + 1));
-      setCurrentStoryIndex(0);
-      setMediaKey((k) => k + 1);
-      progress.stopAnimation();
-      progress.setValue(0);
-    } else {
-      onRequestClose?.();
-      setCurrentUserIndex(null);
+
+    const finishedUserId = localStories[currentUserIndex]?.user_id;
+    if (finishedUser && finishedUserId !== undefined) {
+      onUserFinished?.(finishedUserId);
     }
+
+    setLocalStories((prev) => {
+      if (finishedUser) {
+        const copy = [...prev];
+        const [doneUser] = copy.splice(currentUserIndex, 1);
+        copy.push(doneUser);
+        return copy;
+      }
+      return prev;
+    });
+
+    // after reorder (if any), jump to next user
+    setTimeout(() => {
+      if (currentUserIndex === null) return;
+      const nextUserIdx =
+        currentUserIndex < localStories.length - 1
+          ? currentUserIndex + 1
+          : localStories.length - 1;
+
+      if (nextUserIdx > currentUserIndex) {
+        setCurrentUserIndex(nextUserIdx);
+        setMediaKey((k) => k + 1);
+        progress.stopAnimation();
+        progress.setValue(0);
+      } else {
+        onAllFinished?.();
+        onRequestClose?.();
+        setCurrentUserIndex(null);
+      }
+    }, 0);
   };
 
   const handlePreviousUser = () => {
@@ -302,7 +466,6 @@ const Stories: React.FC<StoriesProps> = ({
     if (currentUserIndex > 0) {
       const prev = currentUserIndex - 1;
       setCurrentUserIndex(prev);
-      setCurrentStoryIndex(localStories[prev].stories.length - 1);
       setMediaKey((k) => k + 1);
       progress.stopAnimation();
       progress.setValue(0);
@@ -316,7 +479,7 @@ const Stories: React.FC<StoriesProps> = ({
   const handleDeleteCurrent = () => {
     if (currentUserIndex === null) return;
 
-    setPostOptionsVisible(false); // close sheet
+    setPostOptionsVisible(false);
     setLocalStories((prev) => {
       const users = [...prev];
       const u = { ...users[currentUserIndex] };
@@ -327,7 +490,25 @@ const Stories: React.FC<StoriesProps> = ({
         return users;
       }
 
-      const nextStories = u.stories.filter((_s, i) => i !== currentStoryIndex);
+      const deletingIndex = currentStoryIndex;
+      const nextStories = u.stories.filter((_s, i) => i !== deletingIndex);
+
+      // also clean progress for this story index
+      (async () => {
+        const userKey = toUserKey(u.user_id);
+        const sKey = storyKeyByIndex(userKey, deletingIndex);
+        const next = JSON.parse(
+          JSON.stringify(progressMap || {})
+        ) as ProgressMap;
+        if (next[userKey]?.watched?.[sKey]) {
+          delete next[userKey].watched[sKey];
+          if (next[userKey].lastIndex >= deletingIndex) {
+            next[userKey].lastIndex = Math.max(0, deletingIndex - 1);
+          }
+          setProgressMap(next);
+          await saveProgress(next);
+        }
+      })();
 
       progress.stopAnimation();
       progress.setValue(0);
@@ -335,10 +516,9 @@ const Stories: React.FC<StoriesProps> = ({
       if (nextStories.length > 0) {
         u.stories = nextStories;
         users[currentUserIndex] = u;
-        const nextIndex =
-          currentStoryIndex >= nextStories.length
-            ? nextStories.length - 1
-            : currentStoryIndex;
+
+        // snap to entry index (first unread, else 0) after deletion
+        const nextIndex = getEntryIndexForUser(u);
         setCurrentStoryIndex(nextIndex);
         setMediaKey((k) => k + 1);
         return users;
@@ -348,6 +528,7 @@ const Stories: React.FC<StoriesProps> = ({
       users.splice(currentUserIndex, 1);
       if (users.length === 0) {
         setCurrentStoryIndex(0);
+        onAllFinished?.();
         onRequestClose?.();
         setCurrentUserIndex(null);
         return users;
@@ -364,7 +545,7 @@ const Stories: React.FC<StoriesProps> = ({
   };
 
   /* =========================
-     GESTURES (fixed conflicts)
+     GESTURES
      ========================= */
   const tapGesture = Gesture.Tap()
     .enabled(!postOptionsVisible)
@@ -373,16 +554,10 @@ const Stories: React.FC<StoriesProps> = ({
     .maxDeltaY(12)
     .onEnd((event, success) => {
       if (!success) return;
-      const ax =
-        // @ts-ignore
-        event.absoluteX ??
-        // @ts-ignore
-        event.x;
-      const ay =
-        // @ts-ignore
-        event.absoluteY ??
-        // @ts-ignore
-        event.y;
+      // @ts-ignore
+      const ax = event.absoluteX ?? event.x;
+      // @ts-ignore
+      const ay = event.absoluteY ?? event.y;
 
       const topGuard = insets.top + TOP_UI_HEIGHT;
       const bottomGuard = height - (insets.bottom + BOTTOM_UI_HEIGHT);
@@ -408,18 +583,63 @@ const Stories: React.FC<StoriesProps> = ({
         onRequestClose?.();
         setCurrentUserIndex(null);
       } else if (translationX < -50) {
-        // swipe left → next user
-        handleNextUser();
+        // swipe left → next user (only gray/move if fully watched)
+        handleNextUser(isUserFullyWatched(localStories[currentUserIndex!]));
       } else if (translationX > 50) {
         // swipe right → previous user
         handlePreviousUser();
       } else {
-        startProgress(); // resume if no navigation happened
+        startProgress();
       }
     });
 
-  // Race: whichever recognizes first wins (fixes tap-vs-pan conflicts)
+  // Race: whichever recognizes first wins
   const combinedGesture = Gesture.Race(panGesture, tapGesture);
+
+  // heart animation
+  const triggerHeartAnimation = () => {
+    heartScale.setValue(0.4);
+    heartOpacity.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(heartOpacity, {
+        toValue: 1,
+        duration: 120,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.timing(heartScale, {
+          toValue: 1.2,
+          duration: 180,
+          easing: Easing.out(Easing.back(2)),
+          useNativeDriver: true,
+        }),
+        Animated.timing(heartScale, {
+          toValue: 1,
+          duration: 120,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start(() => {
+      Animated.timing(heartOpacity, {
+        toValue: 0,
+        delay: 250,
+        duration: 220,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  const handleLikePress = () => {
+    setLiked((prev) => {
+      const next = !prev;
+      if (next) triggerHeartAnimation();
+      return next;
+    });
+  };
 
   /** Render one user's stories */
   const renderStories = () => {
@@ -430,7 +650,7 @@ const Stories: React.FC<StoriesProps> = ({
     if (!user || !story) return null;
 
     const video = isVideoUrl(story.story_image);
-    const viewKey = `${user.user_id}-${story.story_id}-${mediaKey}`;
+    const viewKey = `${user.user_id}-${currentStoryIndex}-${mediaKey}`;
 
     return (
       <GestureDetector gesture={combinedGesture}>
@@ -447,21 +667,45 @@ const Stories: React.FC<StoriesProps> = ({
                   startAtSeconds={story.startAtSeconds ?? 0}
                   segmentDuration={story.segmentDuration}
                   onDurationKnown={(dur) => {
-                    // ✅ If >60s, cap this single story to 60s (no splitting)
                     capVideoToSixty(currentUserIndex!, currentStoryIndex, dur);
                   }}
                   onProgressRatio={(r) => progress.setValue(r)}
-                  onSegmentEnd={handleNextStory}
+                  onSegmentEnd={handleNextStory} // marks watched then next
                 />
               ) : (
                 <Image
                   key={`img-${viewKey}`}
                   source={{ uri: story.story_image }}
-                  style={{ width: "100%", height: "100%", resizeMode: "cover" }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    resizeMode: "contain",
+                  }}
                   onLoadEnd={startProgress}
                 />
               )}
             </View>
+          </View>
+
+          {/* Center big heart animation */}
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
+              alignItems: "center",
+              justifyContent: "center",
+            }}>
+            <Animated.View
+              style={{
+                opacity: heartOpacity,
+                transform: [{ scale: heartScale }],
+              }}>
+              <Ionicons name="heart" size={140} color="#FF2D55" />
+            </Animated.View>
           </View>
 
           {/* Top UI (below notch) */}
@@ -500,11 +744,17 @@ const Stories: React.FC<StoriesProps> = ({
 
             {/* User row + three-dots */}
             <View className="flex-row items-center justify-between">
+              {/* Avatar + name */}
               <TouchableOpacity
                 className="flex-row items-center"
                 onPress={() =>
-                  // @ts-ignore adjust to your route
-                  navigation.navigate("NonTabProfile", { user: user.user_id })
+                  router.push({
+                    pathname: "/(profiles)" as any,
+                    params: {
+                      user: String(user.user_id),
+                      username: user.user_name,
+                    },
+                  })
                 }>
                 <Image
                   source={{ uri: user.user_image }}
@@ -521,11 +771,10 @@ const Stories: React.FC<StoriesProps> = ({
                   const u = localStories[currentUserIndex!];
                   const s = u.stories[currentStoryIndex];
 
-                  // Ensure IDs for ownership + delete
                   setFocusedPost({
                     ...s,
-                    user_id: u.user_id, // owner id
-                    story_id: s.story_id, // delete id
+                    user_id: u.user_id,
+                    story_id: s.story_id,
                     story_owner_name: u.user_name,
                   });
 
@@ -564,32 +813,28 @@ const Stories: React.FC<StoriesProps> = ({
               left: 0,
               right: 0,
               bottom: insets.bottom,
-              paddingHorizontal: 10,
+              paddingHorizontal: 12,
             }}>
-            <View className="flex-row items-center gap-2 py-2 rounded-full">
-              <TouchableOpacity>
-                <Ionicons name="chatbubble-outline" size={28} color="#fff" />
-              </TouchableOpacity>
-
-              <TextInput
-                value={message}
-                onChangeText={setMessage}
-                onSubmitEditing={() => setMessage("")}
-                placeholder="Send message"
-                placeholderTextColor="#d1d5db"
-                className="flex-1 px-3 py-2 border border-white rounded-full text-white"
-              />
-
-              <TouchableOpacity onPress={() => setLiked((l) => !l)}>
-                <MaterialIcons
-                  name={liked ? "favorite" : "favorite-border"}
-                  size={28}
-                  color={liked ? "#ff0000" : "#fff"}
+            <View className="flex-row items-center justify-between bg-transparent py-2">
+              <View className="flex-1 flex-row items-center bg-transparent border border-white rounded-full px-3">
+                <TextInput
+                  value={message}
+                  onChangeText={setMessage}
+                  onSubmitEditing={() => setMessage("")}
+                  placeholder="Send message"
+                  placeholderTextColor="#d1d5db"
+                  className="flex-1 py-2 text-white"
                 />
-              </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity onPress={() => setShareOpen(true)}>
-                <Ionicons name="arrow-redo-outline" size={28} color="#fff" />
+              <TouchableOpacity
+                onPress={triggerHeartAnimation}
+                className="ml-4">
+                <Ionicons
+                  name={liked ? "heart" : "heart-outline"}
+                  size={32}
+                  color={liked ? "#FF2D55" : "#ffffff"}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -598,11 +843,12 @@ const Stories: React.FC<StoriesProps> = ({
     );
   };
 
+  // ✅ ALWAYS return a value from this component
   return (
     <View className="flex-1 bg-black">
       {renderStories()}
 
-      {/* Optional bottom strip */}
+      {/* Bottom strip: gray only when fully watched */}
       {showStrip ? (
         <FlatList
           data={localStories}
@@ -614,61 +860,55 @@ const Stories: React.FC<StoriesProps> = ({
             paddingHorizontal: 10,
             paddingBottom: insets.bottom,
           }}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity
-              onPress={() => {
-                setCurrentUserIndex(index);
-                setCurrentStoryIndex(0);
-                progress.stopAnimation();
-                progress.setValue(0);
-                setMediaKey((k) => k + 1);
-                startProgress();
-              }}
-              className="items-center">
-              <Image
-                source={{
-                  uri: item.stories[0]?.story_image ?? item.user_image,
+          renderItem={({ item, index }: { item: StoryUser; index: number }) => {
+            const fullyWatched = isUserFullyWatched(item);
+            return (
+              <TouchableOpacity
+                onPress={() => {
+                  setCurrentUserIndex(index);
+                  // entry index will be computed in the effect
+                  progress.stopAnimation();
+                  progress.setValue(0);
+                  setMediaKey((k) => k + 1);
+                  startProgress();
                 }}
-                className="w-16 h-16 rounded-full border-2 border-pink-400"
-              />
-              <Text
-                className="text-white text-xs text-center w-20 mt-1"
-                numberOfLines={1}>
-                {item.user_name}
-              </Text>
-            </TouchableOpacity>
-          )}
+                className="items-center">
+                <Image
+                  source={{
+                    uri: item.stories[0]?.story_image ?? item.user_image,
+                  }}
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 999,
+                    borderWidth: 2,
+                    borderColor: fullyWatched ? "#9CA3AF" : "#F472B6",
+                  }}
+                />
+                <Text
+                  className="text-white text-xs text-center w-20 mt-1"
+                  numberOfLines={1}>
+                  {item.user_name}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
         />
       ) : null}
 
-      <ShareSectionBottomSheet
-        show={shareOpen}
-        setShow={setShareOpen}
-        users={shareUsers}
-        postId={
-          currentUserIndex !== null
-            ? String(localStories[currentUserIndex]?.user_id ?? "")
-            : ""
-        }
-        initialHeightPct={0.4}
-        maxHeightPct={0.9}
-      />
-
-      {/* Post Options bottom sheet (opens on three-dots) */}
       <PostOptionsBottomSheet
         show={postOptionsVisible}
         setShow={(show: boolean) => {
           setPostOptionsVisible(show);
-          if (!show) startProgress(); // resume when closed
+          if (!show) startProgress();
         }}
-        setBlockUser={(show: boolean) => {}}
-        setReportVisible={(show: boolean) => {}}
+        setBlockUser={() => {}}
+        setReportVisible={() => {}}
         setFocusedPost={(post: any) => setFocusedPost(post)}
         toggleFollow={() => {}}
         isFollowing={false}
         focusedPost={focusedPost}
-        deleteAction={(postId?: string | number) => {
-          // Delete current item
+        deleteAction={() => {
           handleDeleteCurrent();
         }}
         user={{ user_id: LOGGED_IN_USER_ID, id: LOGGED_IN_USER_ID }}

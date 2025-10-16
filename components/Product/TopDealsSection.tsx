@@ -30,8 +30,7 @@ const CategoryPhoneCard = React.memo(
             shadowOffset: { width: 0, height: 5 }, // push shadow down
             shadowOpacity: 0.1,
             shadowRadius: 3,
-          }}
-        >
+          }}>
           <LinearGradient
             colors={colors}
             start={{ x: 0, y: 0 }}
@@ -44,16 +43,14 @@ const CategoryPhoneCard = React.memo(
               alignItems: "center",
               justifyContent: "center",
               position: "relative",
-            }}
-          >
+            }}>
             <View
               className={`rounded-lg items-center justify-center ${imageBgClass}`}
               style={{
                 width: "88%",
                 height: "88%",
                 overflow: "hidden",
-              }}
-            >
+              }}>
               <Image
                 source={image}
                 style={{
@@ -71,8 +68,7 @@ const CategoryPhoneCard = React.memo(
                 position: "absolute",
                 bottom: 6,
                 left: 6,
-              }}
-            >
+              }}>
               <View className="w-1.5 h-1.5 rounded-full bg-yellow-400 mr-1" />
               <Text className="text-[10px] font-semibold">4.4</Text>
               <Text className="text-[10px] text-gray-500 ml-0.5">(1.1k)</Text>
@@ -86,13 +82,11 @@ const CategoryPhoneCard = React.memo(
               flex: 1,
               paddingTop: 4,
               paddingBottom: 12,
-            }}
-          >
+            }}>
             <Text
               className="text-xs font-medium text-black text-center"
               numberOfLines={1}
-              style={{ lineHeight: 16 }}
-            >
+              style={{ lineHeight: 16 }}>
               {name}
             </Text>
           </View>
@@ -103,8 +97,7 @@ const CategoryPhoneCard = React.memo(
           className="bg-[#26FF91] px-2.5 py-1 rounded-full shadow-md absolute -bottom-3 self-center z-10"
           style={{
             elevation: 10,
-          }}
-        >
+          }}>
           <Text className="text-black font-bold italic text-xs">
             {des} {price}
           </Text>
@@ -136,8 +129,7 @@ export default function CategoryPopularPhones({
           marginRight: index !== items.length - 1 ? 14 : 0,
           marginBottom: 20,
           marginLeft: index === 0 ? 12 : 0, // First item spacing
-        }}
-      >
+        }}>
         <CategoryPhoneCard {...item} />
       </View>
     ),

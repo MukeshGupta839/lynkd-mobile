@@ -1,11 +1,11 @@
 // app/(tabs)/posts.tsx
 /// <reference types="react" />
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
-import { USERS } from "@/constants/PostCreation";
+import { USERS as CREATION_USERS } from "@/constants/PostCreation";
 import { Ionicons } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -17,7 +17,6 @@ import {
   ListRenderItemInfo,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Share,
   Text,
   TouchableOpacity,
   View,
@@ -33,11 +32,12 @@ import Send from "../../assets/posts/send.svg";
 
 // ✅ Added: import the comments sheet component + handle
 import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
+// ✅ Added: Share bottom sheet (for Send button)
+import ShareSectionBottomSheet from "@/components/ShareSectionBottomSheet";
 
 const { width, height } = Dimensions.get("window");
 const BOTTOM_NAV_HEIGHT = 80;
 const TRUNCATE_LEN = 25;
-const router = useRouter();
 
 type Post = {
   id: number;
@@ -103,7 +103,7 @@ const SAMPLE_REMOTE_VIDEOS = [
 
 const DUMMY_POSTS: Post[] = Array.from({ length: 8 }).map((_, i) => {
   const videoData = SAMPLE_REMOTE_VIDEOS[i % SAMPLE_REMOTE_VIDEOS.length];
-  const user = USERS[i % USERS.length];
+  const user = CREATION_USERS[i % CREATION_USERS.length];
   const id = i + 1;
   return {
     id,
@@ -171,15 +171,19 @@ const PostItem: React.FC<{
     onCenterToggle,
     onOpenComments, // ✅ Added
   }: any) => {
+    const router = useRouter(); // ✅ router must be inside a component
     const [imgLoading, setImgLoading] = useState(false);
     const [imgError, setImgError] = useState(false);
     const [localFollowing, setLocalFollowing] = useState<boolean>(
       !!item.following
     );
 
+    // ✅ Added: local state to open ShareSectionBottomSheet
+    const [shareOpen, setShareOpen] = useState(false);
+
     useEffect(() => setLocalFollowing(!!item.following), [item.following]);
 
-    const userFromList = USERS.find(
+    const userFromList = CREATION_USERS.find(
       (u: any) => String(u.id) === String(item.user_id)
     );
     const avatarUri: string | undefined =
@@ -204,19 +208,43 @@ const PostItem: React.FC<{
       }),
     }));
 
-    const onShare = async () => {
-      try {
-        const url =
-          item.shareUrl ??
-          (typeof item.media_url === "string"
-            ? item.media_url
-            : `https://example.com/reel/${item.id}`);
-        await Share.share({ message: url, url });
-      } catch (e) {
-        console.error("share error", e);
-      }
-    };
+    // ❌ OLD: native share
+    // const onShare = async () => {
+    //   try {
+    //     const url =
+    //       item.shareUrl ??
+    //       (typeof item.media_url === "string"
+    //         ? item.media_url
+    //         : `https://example.com/reel/${item.id}`);
+    //     await Share.share({ message: url, url });
+    //   } catch (e) {
+    //     console.error("share error", e);
+    //   }
+    // };
 
+    // ✅ NEW: open our ShareSectionBottomSheet (same behavior as your PostCard)
+    const onShare = () => setShareOpen(true);
+
+    // ✅ Build the same postPreview payload the Share sheet expects
+    const previewImage =
+      typeof item.thumbnail_url === "string" && item.thumbnail_url
+        ? item.thumbnail_url
+        : typeof item.media_url === "string"
+          ? item.media_url
+          : "";
+
+    const postPreview = {
+      id: String(item.id),
+      image: previewImage || "",
+      author: item.username || "user",
+      caption: item.caption || "",
+      author_avatar: avatarUri || "",
+      // ✅ NEW: pass both fields so the chat bubble can render a thumbnail instantly
+      videoUrl: typeof item.media_url === "string" ? item.media_url : undefined,
+      thumb:
+        typeof item.thumbnail_url === "string" ? item.thumbnail_url : undefined,
+      verified: !!item.verified,
+    };
     // ✅ UPDATED: Linkify caption parts (hashtags -> search screen, mentions -> profile, URLs -> open)
     const renderCaptionParts = (text: string) => {
       return text
@@ -240,8 +268,7 @@ const PostItem: React.FC<{
                       user: 999999,
                     },
                   })
-                }
-                onLongPress={onOpenPostOptions}>
+                }>
                 {part}
               </Text>
             );
@@ -260,8 +287,7 @@ const PostItem: React.FC<{
                     pathname: "/(search)/searchPostsWithTags" as any,
                     params: { tag },
                   })
-                }
-                onLongPress={onOpenPostOptions}>
+                }>
                 {part}
               </Text>
             );
@@ -276,8 +302,7 @@ const PostItem: React.FC<{
                 className="text-blue-400"
                 style={{ textDecorationLine: "underline" }}
                 suppressHighlighting
-                onPress={() => Linking.openURL(url)}
-                onLongPress={onOpenPostOptions}>
+                onPress={() => Linking.openURL(url)}>
                 {part}
               </Text>
             );
@@ -500,6 +525,17 @@ const PostItem: React.FC<{
             </Text>
           </Reanimated.View>
         </View>
+
+        {/* ✅ Share sheet with the same API as your PostCard */}
+        <ShareSectionBottomSheet
+          show={shareOpen}
+          setShow={setShareOpen}
+          postId={String(item.id)}
+          postPreview={postPreview}
+          initialHeightPct={0.4}
+          maxHeightPct={0.9}
+          maxSelect={5}
+        />
       </View>
     );
   }
@@ -509,6 +545,8 @@ PostItem.displayName = "PostItem";
 
 /* ----------------- MAIN: single shared player overlay + AnimatedFlatList ----------------- */
 const VideoFeed: React.FC = () => {
+  const router = useRouter(); // ✅ router must live inside component
+  const { openPostId } = useLocalSearchParams<{ openPostId?: string }>();
   const navigation = useNavigation<any>();
   const flatListRef = useRef<FlatList<Post> | null>(null);
   const [posts, setPosts] = useState<Post[]>(DUMMY_POSTS);
@@ -722,7 +760,7 @@ const VideoFeed: React.FC = () => {
         for (const p of posts) {
           if (p.thumbnail_url && typeof p.thumbnail_url === "string")
             urls.push(p.thumbnail_url);
-          const userFromList = USERS.find(
+          const userFromList = CREATION_USERS.find(
             (u: any) => String(u.id) === String(p.user_id)
           );
           const avatarUri = userFromList?.avatar ?? p?.photoURL;
@@ -1172,6 +1210,23 @@ const VideoFeed: React.FC = () => {
       clearTimeout(startDelay);
     };
   }, [currentMedia, safePlay, safePause, currentIndex, player]);
+
+  useEffect(() => {
+    if (!openPostId) return;
+    const idx = posts.findIndex((p) => String(p.id) === String(openPostId));
+    if (idx >= 0) {
+      setCurrentIndex(idx);
+      setTimeout(() => {
+        try {
+          flatListRef.current?.scrollToIndex({ index: idx, animated: false });
+        } catch {
+          const y = idx * height;
+          flatListRef.current?.scrollToOffset({ offset: y, animated: false });
+        }
+      }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPostId]);
 
   // pause/resume on screen focus
   useEffect(() => {

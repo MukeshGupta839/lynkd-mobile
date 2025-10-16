@@ -5,6 +5,7 @@ import FeaturesCard from "@/components/Productview/FeaturesCard";
 import OffersCard from "@/components/Productview/OffersCard";
 import ProductHighlights from "@/components/Productview/ProductHighlights";
 import ReviewsCard from "@/components/Productview/ReviewsCard";
+import StoreIconButton from "@/components/StoreIconButton";
 import { products } from "@/constants/Product";
 import { product as productConst } from "@/constants/Productview";
 import { highlightsData } from "@/constants/highlights";
@@ -33,6 +34,7 @@ const MemoFeaturesCard = React.memo(FeaturesCard);
 const MemoProductHighlights = React.memo(ProductHighlights);
 const MemoReviewsCard = React.memo(ReviewsCard);
 const MemoBestProductsCarousel = React.memo(BestProductsCarousel);
+const store = { id: 1, slug: "apple" };
 
 /* ----------------- Main component ----------------- */
 export default function ProductView() {
@@ -243,16 +245,8 @@ export default function ProductView() {
               <Text className="text-base font-semibold uppercase">
                 {product.name}
               </Text>
-
-              <TouchableOpacity
-                onPress={() => router.push("/Searchscreen?tab=product")}
-                activeOpacity={0.8}>
-                <View
-                  className="p-2 bg-white rounded-full"
-                  accessibilityLabel="Search"
-                  accessibilityRole="button">
-                  <Ionicons name="search" size={18} color="black" />
-                </View>
+              <TouchableOpacity activeOpacity={0.8}>
+                <StoreIconButton store={store} />
               </TouchableOpacity>
             </View>
           </View>
