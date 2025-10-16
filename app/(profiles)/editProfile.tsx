@@ -1,8 +1,11 @@
+import { AuthContext } from "@/context/AuthContext";
 import { useGradualAnimation } from "@/hooks/useGradualAnimation";
+import { apiCall } from "@/lib/api/apiService";
 import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -27,25 +30,13 @@ export default function EditProfile() {
   const router = useRouter();
   const kbHeight = useGradualAnimation();
 
-  // TODO: Replace with actual AuthContext
-  // const { firebaseUser, user, setUser, isCreator, setIsCreator } = useContext(AuthContext);
+  const context = useContext(AuthContext);
 
-  // Mock user data - replace with actual context
-  const mockUser = {
-    id: 1,
-    first_name: "John",
-    last_name: "Doe",
-    username: "john_doe",
-    email: "john@example.com",
-    bio: "Your bio here",
-    profile_picture: "https://randomuser.me/api/portraits/men/1.jpg",
-    banner_image:
-      "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg",
-    phone_number: "",
-    is_creator: true,
-  };
+  if (!context) {
+    throw new Error("EditProfile must be used within an AuthProvider");
+  }
 
-  const user = mockUser;
+  const { firebaseUser, user, setUser, isCreator, setIsCreator } = context;
 
   const [name, setName] = useState(
     user ? `${user.first_name} ${user.last_name}` : ""
@@ -69,7 +60,9 @@ export default function EditProfile() {
   const [phoneNumber, setPhoneNumber] = useState(user?.phone_number || "");
   const [phoneModalVisible, setPhoneModalVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const [fetchedUser, setFetchedUser] = useState(mockUser);
+  const [fetchedUser, setFetchedUser] = useState<any>(null);
+  const initialImage = user?.profile_picture || "";
+  const initialBannerImage = user?.banner_image || "";
 
   const keyboardPadding = useAnimatedStyle(() => {
     return {
@@ -79,33 +72,46 @@ export default function EditProfile() {
 
   const fetchUserProfile = useCallback(async () => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await apiCall(`/api/users/${firebaseUser.uid}`, 'GET');
+      if (!firebaseUser) throw new Error("No authenticated user found.");
 
-      // Mock data for now
-      const userData = mockUser;
-      setFetchedUser(userData);
-      setName(
-        `${userData.first_name || ""} ${userData.last_name || ""}`.trim()
-      );
-      setUsername(userData.username || "");
-      setBio(userData.bio || "");
-      setImage(
-        userData.profile_picture ||
-          "https://media.istockphoto.com/id/1223671392/vector/default-profile-picture-avatar-photo-placeholder-vector-illustration.jpg?s=612x612&w=0&k=20&c=s0aTdmT5aU6b8ot7VKm11DeID6NctRCpB755rA1BIP0="
-      );
-      setBannerImage(
-        userData.banner_image ||
-          "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg?semt=ais_hybrid"
-      );
+      const uid = firebaseUser.uid;
+
+      const response = await apiCall(`/api/users/${uid}`, "GET");
+      console.log(response.user.social_media_accounts[0]);
+
+      if (response.user) {
+        const userData = response.user;
+        setFetchedUser(userData);
+        setName(
+          `${userData.first_name || ""} ${userData.last_name || ""}`.trim()
+        );
+        setUsername(userData.username || "");
+        setBio(userData.bio || "");
+        setImage(
+          userData.profile_picture ||
+            "https://media.istockphoto.com/id/1223671392/vector/default-profile-picture-avatar-photo-placeholder-vector-illustration.jpg?s=612x612&w=0&k=20&c=s0aTdmT5aU6b8ot7VKm11DeID6NctRCpB755rA1BIP0="
+        );
+        setBannerImage(
+          userData.banner_image ||
+            "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg?semt=ais_hybrid"
+        );
+        setTwitterHandle(
+          userData?.social_media_accounts?.[0]?.twitter_username || ""
+        );
+        setInstagramHandle(
+          userData?.social_media_accounts?.[0]?.instagram_username || ""
+        );
+        setYoutubeChannel(
+          userData?.social_media_accounts?.[0]?.youtube_username || ""
+        );
+      }
 
       setIsLoading(false);
     } catch (error) {
       console.error("Failed to fetch user profile:", error);
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [firebaseUser]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -206,8 +212,16 @@ export default function EditProfile() {
         }
 
         if (!result.canceled) {
-          // Use the image directly - ImagePicker already applies quality and editing
-          setImage(result.assets[0].uri);
+          const manipulatorContext = ImageManipulator.manipulate(
+            result.assets[0].uri
+          );
+          manipulatorContext.resize({ width: 500, height: 500 });
+          const compressed = await manipulatorContext.renderAsync();
+          const savedImage = await compressed.saveAsync({
+            compress: 0.7,
+            format: SaveFormat.JPEG,
+          });
+          setImage(savedImage.uri);
         }
       } else {
         // Banner image - use 16:9 aspect ratio to match banner dimensions (h-52 height)
@@ -215,22 +229,52 @@ export default function EditProfile() {
         if (source === "launchCameraAsync") {
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
-            allowsEditing: true,
-            aspect: [16, 9],
-            quality: 0.8,
+            allowsEditing: Platform.OS !== "ios",
+            aspect: Platform.OS !== "ios" ? [206, 75] : [1, 1],
+            quality: 0.75,
           });
         } else {
           result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
-            allowsEditing: true,
-            aspect: [16, 9],
-            quality: 0.8,
+            allowsEditing: Platform.OS !== "ios",
+            aspect: Platform.OS !== "ios" ? [206, 75] : [1, 1],
+            quality: 0.75,
           });
         }
 
         if (!result.canceled) {
-          // Use the image directly - ImagePicker already applies quality and editing
-          setBannerImage(result.assets[0].uri);
+          let savedImage;
+          if (Platform.OS === "ios") {
+            const { width, height } = result.assets[0];
+            const cropWidth = width;
+            const cropHeight = (width * 75) / 206;
+            const originY = (height - cropHeight) / 2;
+            const manipulatorContext = ImageManipulator.manipulate(
+              result.assets[0].uri
+            );
+            manipulatorContext.crop({
+              originX: 0,
+              originY,
+              width: cropWidth,
+              height: cropHeight,
+            });
+            const compressed = await manipulatorContext.renderAsync();
+            savedImage = await compressed.saveAsync({
+              compress: 0.7,
+              format: SaveFormat.JPEG,
+            });
+          } else {
+            const manipulatorContext = ImageManipulator.manipulate(
+              result.assets[0].uri
+            );
+            manipulatorContext.resize({ width: 412, height: 150 });
+            const compressed = await manipulatorContext.renderAsync();
+            savedImage = await compressed.saveAsync({
+              compress: 0.7,
+              format: SaveFormat.JPEG,
+            });
+          }
+          setBannerImage(savedImage.uri);
         }
       }
     } catch (error) {
@@ -241,30 +285,86 @@ export default function EditProfile() {
 
   const handleSaveProfile = async () => {
     try {
-      // TODO: Implement actual API call with formData
-      setUploading(true);
+      if (!firebaseUser) throw new Error("No authenticated user found.");
 
-      console.log("Saving profile...", {
-        name,
-        username,
-        bio,
-        image,
-        bannerImage,
-        twitterHandle,
-        instagramHandle,
-        youtubeChannel,
-        phoneNumber,
+      const uid = firebaseUser.uid;
+      const formData = new FormData();
+
+      formData.append("uid", uid);
+      formData.append("firstName", name.split(" ")[0].trim());
+      formData.append("lastName", name.split(" ").slice(1).join(" ").trim());
+      formData.append("username", username.trim());
+      formData.append("bio", bio.trim());
+      formData.append("isCreator", String(isCreator));
+      formData.append(
+        "phone_number",
+        selectedCountry
+          ? selectedCountry?.callingCode + " " + phoneNumber
+          : fetchedUser?.phone_number || ""
+      );
+
+      if (initialImage !== image && image && !image.startsWith("http")) {
+        formData.append("profile_picture", {
+          uri: image,
+          type: "image/jpeg",
+          name: "profile.jpg",
+        } as any);
+      }
+
+      if (
+        initialBannerImage !== bannerImage &&
+        bannerImage &&
+        !bannerImage.startsWith("http")
+      ) {
+        formData.append("banner_image", {
+          uri: bannerImage,
+          type: "image/jpeg",
+          name: "banner.jpg",
+        } as any);
+      }
+
+      formData.append("user_id", String(user?.id || ""));
+      formData.append("twitter_handle", twitterHandle || "");
+      formData.append("instagram_handle", instagramHandle || "");
+      formData.append("youtube_channel", youtubeChannel || "");
+
+      setUploading(true);
+      const url = `/api/users/editing/${uid}`;
+      console.log("URL:", url);
+
+      // Use 'apiCall' for the API call
+      const response = await apiCall(url, "POST", formData, {
+        "Content-Type": "multipart/form-data",
       });
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (response.user) {
+        const updatedUser = {
+          ...user,
+          first_name: response.user.first_name,
+          last_name: response.user.last_name,
+          username: response.user.username,
+          bio: response.user.bio,
+          profile_picture: response.user.profile_picture,
+          is_verified: response.user.is_verified,
+          is_creator: response.user.is_creator,
+          phone_number: response.user?.phone_number,
+        };
 
-      Alert.alert("Success", "Profile updated successfully!");
+        setUser(updatedUser);
+        setIsCreator(response.user.is_creator);
 
-      setUploading(false);
+        Alert.alert("Success", "Profile updated successfully!");
+        router.back();
+      } else {
+        throw new Error("Failed to update profile.");
+      }
     } catch (error) {
       console.error("Profile update failed:", error);
-      Alert.alert("Profile Update Failed", "Issue updating your profile.");
+      Alert.alert(
+        "Profile Update Failed",
+        error instanceof Error ? error.message : "Issue updating your profile."
+      );
+    } finally {
       setUploading(false);
     }
   };
@@ -437,19 +537,22 @@ export default function EditProfile() {
           {renderSection("Phone Number", phoneNumber, () => {})}
           {renderSection("Bio", bio, setBio, true)}
 
-          <View className="pt-4">
+          <View className="pt-4 px-4">
             <Text className="text-base mb-4">Socials</Text>
 
-            <View className="flex-row mb-4 justify-between">
-              <Image
-                source={{
-                  uri: "https://cdn-icons-png.flaticon.com/512/81/81609.png",
-                }}
-                className="w-5 h-5 left-[5px] top-[2px]"
-                style={{ resizeMode: "contain" }}
-              />
+            <View className="flex-row items-center gap-2.5 mb-4 border-t border-gray-200">
+              <View className="w-[120px] flex-row items-center gap-2">
+                <Image
+                  source={{
+                    uri: "https://cdn-icons-png.flaticon.com/512/81/81609.png",
+                  }}
+                  className="w-5 h-5"
+                  style={{ resizeMode: "contain" }}
+                />
+                <Text className="text-sm text-gray-700">Twitter</Text>
+              </View>
               <TextInput
-                className="text-base text-gray-600 w-[225px]"
+                className="text-base text-gray-600 w-[225px] h-[40px]"
                 value={twitterHandle}
                 placeholder="Twitter handle"
                 placeholderTextColor="#999"
@@ -457,16 +560,19 @@ export default function EditProfile() {
               />
             </View>
 
-            <View className="flex-row mb-4 justify-between">
-              <Image
-                source={{
-                  uri: "https://cdn-icons-png.flaticon.com/512/87/87390.png",
-                }}
-                className="w-5 h-5 left-[5px] top-[2px]"
-                style={{ resizeMode: "contain" }}
-              />
+            <View className="flex-row items-center gap-2.5 mb-4 border-t border-gray-200">
+              <View className="w-[120px] flex-row items-center gap-2">
+                <Image
+                  source={{
+                    uri: "https://cdn-icons-png.flaticon.com/512/87/87390.png",
+                  }}
+                  className="w-5 h-5"
+                  style={{ resizeMode: "contain" }}
+                />
+                <Text className="text-sm text-gray-700">Instagram</Text>
+              </View>
               <TextInput
-                className="text-base text-gray-600 w-[225px]"
+                className="text-base text-gray-600 w-[225px] h-[40px]"
                 value={instagramHandle}
                 placeholder="Instagram handle"
                 placeholderTextColor="#999"
@@ -474,16 +580,19 @@ export default function EditProfile() {
               />
             </View>
 
-            <View className="flex-row mb-4 justify-between">
-              <Image
-                source={{
-                  uri: "https://e7.pngegg.com/pngimages/901/503/png-clipart-black-play-button-icon-youtube-computer-icons-social-media-play-button-angle-rectangle-thumbnail.png",
-                }}
-                className="w-5 h-5 left-[5px] top-[2px]"
-                style={{ resizeMode: "contain" }}
-              />
+            <View className="flex-row items-center gap-2.5 mb-4 border-t border-gray-200">
+              <View className="w-[120px] flex-row items-center gap-2">
+                <Image
+                  source={{
+                    uri: "https://www.iconpacks.net/icons/1/free-youtube-icon-123-thumb.png",
+                  }}
+                  className="w-5 h-5"
+                  style={{ resizeMode: "contain" }}
+                />
+                <Text className="text-sm text-gray-700">YouTube</Text>
+              </View>
               <TextInput
-                className="text-base text-gray-600 w-[225px]"
+                className="text-base text-gray-600 w-[225px] h-[40px]"
                 value={youtubeChannel}
                 placeholder="YouTube channel"
                 placeholderTextColor="#999"

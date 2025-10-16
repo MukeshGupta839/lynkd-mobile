@@ -9,13 +9,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "icon": "./assets/images/adaptive-icon.png",
       "bundleIdentifier": "com.lynkd.socialcommerce",
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": [
-          "remote-notification"
-        ],
+        "UIBackgroundModes": ["remote-notification"],
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
@@ -30,9 +29,7 @@
         "ios.useModularHeaders": "true"
       },
       "entitlements": {
-        "com.apple.developer.applesignin": [
-          "Default"
-        ],
+        "com.apple.developer.applesignin": ["Default"],
         "aps-environment": "production"
       },
       "usesAppleSignIn": true,
@@ -41,7 +38,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "pan",
@@ -71,10 +68,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/splash.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#1a1a1a",
+          "imageWidth": 200
         }
       ],
       [
@@ -98,10 +95,7 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
           "isAccessMediaLocationEnabled": true,
-          "granularPermissions": [
-            "audio",
-            "photo"
-          ]
+          "granularPermissions": ["audio", "photo"]
         }
       ],
       [

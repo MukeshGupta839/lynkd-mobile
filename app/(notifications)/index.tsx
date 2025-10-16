@@ -302,7 +302,7 @@ const Notifications = () => {
             <TouchableOpacity
               key={type.key}
               onPress={() => handleFilterChange(type.key)}
-              className={`flex-row items-center rounded-lg border px-3 py-2 gap-1 ${
+              className={`flex-row items-center rounded-lg border px-3 py-2 gap-2 ${
                 filter === type.key
                   ? "bg-black border-gray-300"
                   : "bg-white border-gray-200"

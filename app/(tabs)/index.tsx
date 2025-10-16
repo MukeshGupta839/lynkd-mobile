@@ -2,6 +2,7 @@ import BlockUserPopup from "@/components/BlockUserPopup";
 import CameraPost from "@/components/CameraPost";
 import Chats from "@/components/chat/Chat";
 import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
+import CompleteProfilePopup from "@/components/CompleteProfilePopup";
 import FeedSkeletonPlaceholder from "@/components/Placeholder/FeedSkeletonPlaceholder";
 
 import { PostCard } from "@/components/PostCard";
@@ -18,6 +19,7 @@ import {
   fetchUserFollowings,
   fetchUserLikedPosts,
 } from "@/lib/api/api";
+import { apiCall } from "@/lib/api/apiService";
 import { cameraActiveSV, tabBarHiddenSV } from "@/lib/tabBarVisibility";
 import { Post } from "@/types";
 import { FontAwesome6 } from "@expo/vector-icons";
@@ -54,26 +56,6 @@ import Reanimated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
-
-// ----- Dummy data (replace with your API data later) -----
-const STORIES = Array.from({ length: 10 }).map((_, i) => ({
-  id: String(i + 1),
-  name: [
-    "alex_harma",
-    "jamie.870",
-    "jane.math",
-    "mad_max",
-    "lucas",
-    "jane_doe",
-    "james_brown",
-    "sophia_king",
-    "emma_clarke",
-    "lucas_williams",
-  ][i],
-  avatar: `https://randomuser.me/api/portraits/${i % 2 ? "women" : "men"}/${
-    i + 1
-  }.jpg`,
-}));
 
 // ----- PostCard Component is now imported from @/components/PostCard -----
 
@@ -125,10 +107,8 @@ export default function ConsumerHomeUI() {
   // Camera active state: only mount/start CameraPost when true
   const [cameraActive, setCameraActive] = useState(false);
   const [page, setPage] = useState(2);
-  const [backupPosts, setBackupPosts] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [commentsClicked, setCommentsClicked] = useState(false);
-  const [selectedComment, setSelectedComment] = useState<string | null>(null);
+  const [likedPostIDs, setLikedPostIDs] = useState<string[]>([]);
 
   // Mock user data - replace with your actual user context
   // const user = { id: "1", username: "current_user" };
@@ -212,6 +192,7 @@ export default function ConsumerHomeUI() {
     return () => {
       tabBarHiddenSV.value = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleOnScroll = (event: any) => {
@@ -327,7 +308,6 @@ export default function ConsumerHomeUI() {
   const [isGestureActiveState, setIsGestureActiveState] = useState(false);
   const [commentsPost, setCommentsPost] = useState<any>(null);
   const [postComments, setPostComments] = useState<any[]>([]);
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [shouldNavigateToChat, setShouldNavigateToChat] = useState(false);
 
   // ref to control the modal
@@ -337,7 +317,6 @@ export default function ConsumerHomeUI() {
 
   // Fetch comments for a specific post
   const fetchCommentsForPost = useCallback(async (postId: string) => {
-    setIsLoadingComments(true);
     try {
       const response: any = await fetchComment(postId);
       // Transform API response to match CommentItem type
@@ -355,8 +334,6 @@ export default function ConsumerHomeUI() {
     } catch (error) {
       console.error("Error fetching comments for post:", postId, error);
       setPostComments([]);
-    } finally {
-      setIsLoadingComments(false);
     }
   }, []);
 
@@ -371,6 +348,30 @@ export default function ConsumerHomeUI() {
       commentsRef.current?.present();
     },
     [fetchCommentsForPost]
+  );
+
+  // Add comment handler
+  const addComment = useCallback(
+    async (text: string) => {
+      try {
+        if (!text || text.trim() === "") return;
+        if (!commentsPost?.id) return;
+
+        const response = await apiCall(`/api/comments/`, "POST", {
+          postID: commentsPost.id,
+          content: text,
+          userID: user.id,
+        });
+
+        console.log("Comment added:", response.comment);
+
+        // Refresh comments after adding
+        await fetchCommentsForPost(commentsPost.id);
+      } catch (error) {
+        console.error("Error adding comment:", error);
+      }
+    },
+    [commentsPost, user.id, fetchCommentsForPost]
   );
 
   // Handle navigation to chat after gesture completes
@@ -594,7 +595,55 @@ export default function ConsumerHomeUI() {
     };
   });
 
-  const fetchPosts = async (): Promise<void> => {
+  const toggleLike = useCallback(
+    async (postId: string) => {
+      const isLiked = likedPostIDs.includes(postId);
+      // add vibration
+      Vibration.vibrate(100);
+      try {
+        // Update likedPostIDs state
+        setLikedPostIDs((prev) =>
+          isLiked ? prev.filter((id) => id !== postId) : [...prev, postId]
+        );
+
+        // Update posts state first - use the current post's likes_count directly
+        setPosts((prevPosts) =>
+          prevPosts.map((post) =>
+            post.id === postId
+              ? {
+                  ...post,
+                  likes_count: post.likes_count + (isLiked ? -1 : 1),
+                }
+              : post
+          )
+        );
+
+        const endpoint = isLiked
+          ? `/api/likes/${postId}/${user.id}/unlike`
+          : `/api/likes/${postId}/${user.id}/like`;
+        await apiCall(endpoint, "POST");
+      } catch (error) {
+        console.error(`Error toggling like for post ${postId}:`, error);
+        // Revert the changes on error
+        setLikedPostIDs((prev) =>
+          isLiked ? [...prev, postId] : prev.filter((id) => id !== postId)
+        );
+        setPosts((prevPosts) =>
+          prevPosts.map((post) =>
+            post.id === postId
+              ? {
+                  ...post,
+                  likes_count: post.likes_count + (isLiked ? 1 : -1),
+                }
+              : post
+          )
+        );
+      }
+    },
+    [likedPostIDs, user.id]
+  );
+
+  const fetchPosts = useCallback(async (): Promise<void> => {
     try {
       const { userFeed, randomPosts }: FetchPostsResponse = await fetchPostsAPI(
         user.id
@@ -603,12 +652,9 @@ export default function ConsumerHomeUI() {
       console.log("Response:", userFeed);
       console.log("Response2:", randomPosts);
 
-      const mainFeed = userFeed.data.length ? userFeed.data : randomPosts.data;
-
       if (userFeed.data.length === 0) {
         console.log("No posts found");
         setPosts([]);
-        setBackupPosts(true);
       }
 
       // Combine user feed + random posts (deduplicated)
@@ -657,16 +703,27 @@ export default function ConsumerHomeUI() {
     } catch (error) {
       console.error("Error fetching posts:", error);
     }
-  };
+  }, [user.id]);
+
+  const fetchUserLikedPostsData = useCallback(async () => {
+    try {
+      const response: any = await fetchUserLikedPosts(user.id);
+      console.log("Liked Posts:", response.likedPosts);
+      setLikedPostIDs(response.likedPosts || []);
+    } catch (error) {
+      console.error("Error fetching liked posts:", error);
+    }
+  }, [user.id]);
 
   useEffect(() => {
     fetchPosts();
-  }, [user]);
+    fetchUserLikedPostsData();
+  }, [fetchPosts, fetchUserLikedPostsData]);
 
   const onRefresh = async () => {
     await clearPostsCache(user.id);
     fetchPosts();
-    await fetchUserLikedPosts(user.id);
+    await fetchUserLikedPostsData();
     await fetchUserFollowings(user.id);
   };
 
@@ -727,24 +784,6 @@ export default function ConsumerHomeUI() {
     } finally {
       setIsFetchingNextPage(false);
     }
-  };
-
-  const fetchPostComments = async (postId: string) => {
-    try {
-      const comments = await fetchComment(postId);
-      setCommentsPost(comments);
-      console.log("Fetched comments for post:", postId, comments);
-    } catch (error) {
-      console.error("Error fetching comments for post:", postId, error);
-    }
-  };
-
-  const toggleChat = (postID: string) => {
-    setCommentsClicked(!commentsClicked);
-    // setHideNavBar(!hideNavBar);
-    // setPanGestureEnabled(!panGestureEnabled);
-    fetchPostComments(postID);
-    setSelectedComment(postID);
   };
 
   console.log("posts state:", posts);
@@ -853,18 +892,11 @@ export default function ConsumerHomeUI() {
                 fetchMorePostsAPI();
               }}
               contentContainerStyle={{
-                // On Android we add paddingTop so the feed content sits below
-                // the absolute header. On iOS we use contentInset/contentOffset
-                // so RefreshControl positions correctly.
                 paddingTop: Platform.OS === "android" ? TOP_BAR_HEIGHT : 0,
                 paddingBottom:
                   Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
                 backgroundColor: "#F3F4F8",
               }}
-              // On iOS, use contentInset/contentOffset so RefreshControl is
-              // positioned relative to the scrollable area (appears under our
-              // absolute header). contentContainerStyle.top doesn't affect
-              // RefreshControl coordinates reliably on iOS.
               contentInset={
                 Platform.OS === "ios" ? { top: TOP_BAR_HEIGHT } : undefined
               }
@@ -878,6 +910,16 @@ export default function ConsumerHomeUI() {
               bounces={true}
               alwaysBounceVertical={true}
               style={{ backgroundColor: "#F3F4F8" }}
+              ListHeaderComponent={
+                user &&
+                (!user.username ||
+                  !user.profile_picture ||
+                  !user.bio ||
+                  !user.first_name ||
+                  !user.last_name) ? (
+                  <CompleteProfilePopup user={user} />
+                ) : null
+              }
               renderItem={({ item }) => (
                 <PostCard
                   item={item}
@@ -886,6 +928,8 @@ export default function ConsumerHomeUI() {
                   isGestureActive={isGestureActiveState}
                   panGesture={panGesture}
                   onPressComments={openComments}
+                  toggleLike={toggleLike}
+                  likedPostIDs={likedPostIDs}
                 />
               )}
               refreshControl={
@@ -952,22 +996,7 @@ export default function ConsumerHomeUI() {
               comments={postComments}
               postId={commentsPost?.id}
               onFetchComments={fetchCommentsForPost}
-              onSendComment={async (text) => {
-                if (!commentsPost?.id) return;
-                try {
-                  // Add your API call to post comment
-                  console.log(
-                    "Sending comment:",
-                    text,
-                    "for post:",
-                    commentsPost.id
-                  );
-                  // Refresh comments after posting
-                  await fetchCommentsForPost(commentsPost.id);
-                } catch (error) {
-                  console.error("Error sending comment:", error);
-                }
-              }}
+              onSendComment={addComment}
             />
 
             <ReportPostBottomSheet

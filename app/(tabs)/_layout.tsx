@@ -1,15 +1,22 @@
 import CustomTabBar from "@/components/CustomTabBar";
+import { useAuth } from "@/hooks/useAuth";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 
 export default function TabLayout() {
+  const { user } = useAuth();
+
+  console.log("user:", user, user?.profile_picture);
   return (
     <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={(props) => (
+        <CustomTabBar {...props} avatarUri={user?.profile_picture} />
+      )}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
-      }}>
+      }}
+    >
       {/* === Main App Tabs === */}
       <Tabs.Screen
         name="index"

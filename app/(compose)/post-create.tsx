@@ -7,13 +7,22 @@ import CreatePostImageViewer from "@/components/Product/CreatePostImageViewer";
 import CircularProgress from "@/components/ProgressBar/CircularProgress";
 import StatusModal from "@/components/StatusModal";
 import { TAGS, USERS } from "@/constants/PostCreation";
+import { AuthContext } from "@/context/AuthContext";
 import { useGradualAnimation } from "@/hooks/useGradualAnimation";
+import { apiCall } from "@/lib/api/apiService";
 import { Entypo, Ionicons, Octicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Dimensions,
   Image,
@@ -36,7 +45,6 @@ import Cart from "../../assets/posts/cart.svg";
 import Community from "../../assets/posts/community.svg";
 import Gallery from "../../assets/posts/gallery.svg";
 import Location from "../../assets/posts/location.svg";
-import Send from "../../assets/posts/send.svg";
 
 interface RNFile {
   id?: string;
@@ -64,6 +72,9 @@ interface Product {
   discount?: number;
   rating: number;
   reviewCount: number;
+  brandID?: string | number;
+  productID?: string | number;
+  productURL?: string;
 }
 // Allow zero or more username chars after @/# so partial tokens (eg. "@5" or just "@")
 // are still recognized and highlighted even when there are no matching options.
@@ -156,7 +167,8 @@ function HighlightedText({
     <Text
       style={styles.base}
       allowFontScaling={false}
-      textBreakStrategy="simple">
+      textBreakStrategy="simple"
+    >
       {parts.map((p, i) => (
         <Text key={i} style={p.isBlue ? styles.mention : undefined}>
           {p.text}
@@ -171,6 +183,9 @@ export default function PostCreate() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const kbHeight = useGradualAnimation();
+  const authContext = useContext(AuthContext);
+  const user = authContext?.user;
+  const firebaseUser = authContext?.firebaseUser;
   const [text, setText] = useState("");
   const [image, setImage] = useState<RNFile[]>([]);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
@@ -185,6 +200,11 @@ export default function PostCreate() {
   // NEW state (top of component)
   const [mode, setMode] = useState<"length" | "posting">("length");
   const [postingProgress, setPostingProgress] = useState(0);
+  const [location, setLocation] = useState("");
+  const [selectedMediaType, setSelectedMediaType] = useState<string | null>(
+    null
+  );
+  const [aspectRatio, setAspectRatio] = useState<string | null>(null);
 
   // Refs for managing transitions
   const keyboardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -555,26 +575,108 @@ export default function PostCreate() {
     setShowProductModal(true);
   };
 
+  // Helper functions for hashtags
+  const extractHashtagsFromCaption = (caption: string) => {
+    const words = caption.split(" ");
+    const hashtags = words.filter((word) => word.startsWith("#"));
+    return hashtags.join(" ");
+  };
+
+  const removeHashtagsFromCaption = (caption: string) => {
+    const words = caption.split(" ");
+    const filteredWords = words.filter((word) => !word.startsWith("#"));
+    return filteredWords.join(" ");
+  };
+
   const createPost = async () => {
-    // if (!text.trim() && image.length === 0) return;
+    if (!text.trim() && image.length === 0) return;
 
     setMode("posting");
     setLoader(true);
 
     try {
-      // TODO: call your real create API here.
-      // If using axios/fetch with upload progress, set postingProgress to real value (0..1).
-      await new Promise((r) => setTimeout(r, 2000)); // demo wait
-      setPostingProgress(1); // finish the ring
+      const formData = new FormData();
+      formData.append("firebaseUID", firebaseUser?.uid || "");
+      formData.append("userID", user?.id?.toString() || "");
+      formData.append("caption", removeHashtagsFromCaption(text));
+      formData.append("location", location);
+      formData.append("hashtags", extractHashtagsFromCaption(text));
+
+      // Add product information
+      console.log("selectedProduct:", selectedProduct);
+      formData.append(
+        "brandID",
+        selectedProduct ? selectedProduct.brandID?.toString() || "1" : "1"
+      );
+      formData.append(
+        "productID",
+        selectedProduct ? selectedProduct.productID?.toString() || "1" : "1"
+      );
+      formData.append(
+        "productURL",
+        selectedProduct ? selectedProduct.productURL || "" : ""
+      );
+
+      // Add media if available
+      if (image.length > 0 && image[0]) {
+        const firstImage = image[0];
+        const contentMediaType = firstImage.isVideo
+          ? "video/mp4"
+          : "image/jpeg";
+
+        formData.append("mediaUrl", {
+          uri: firstImage.uri,
+          name: `post-${Date.now()}.${contentMediaType === "video/mp4" ? "mp4" : "jpg"}`,
+          type: contentMediaType,
+        } as any);
+        formData.append(
+          "mediaType",
+          selectedMediaType || (firstImage.isVideo ? "reel" : "imagepost4x3")
+        );
+        formData.append("aspect_ratio", aspectRatio || "4:3");
+      } else {
+        formData.append("mediaUrl", "");
+        formData.append("mediaType", "");
+        formData.append("aspect_ratio", "");
+      }
+
+      // Simulate upload progress
+      setPostingProgress(0.3);
+
+      const response = await apiCall(
+        "/api/posts/createAffiliated",
+        "POST",
+        formData,
+        {
+          "Content-Type": "multipart/form-data",
+        }
+      );
+
+      setPostingProgress(0.9);
+
+      if (response.message === "Post and affiliation created successfully.") {
+        setPostingProgress(1);
+
+        // Clear form after successful post
+        setTimeout(() => {
+          setText("");
+          setImage([]);
+          setSelectedProduct(null);
+          setLocation("");
+          setSelectedMediaType(null);
+          setAspectRatio(null);
+          router.back(); // Navigate back after successful post
+        }, 500);
+      }
     } catch (e) {
-      console.log("error creating post:", e);
-      // on failure, optionally flash red, then fall back to length mode
+      console.error("error creating post:", e);
+      // On failure, show error and reset
+      setPostingProgress(0);
     } finally {
       setTimeout(() => {
         setLoader(false);
         setMode("length");
-        setPostingProgress(0);
-      }, 200); // tiny delay so users see 100%
+      }, 600);
     }
   };
 
@@ -587,7 +689,8 @@ export default function PostCreate() {
       }}
       onLayout={(event) => {
         setContainerLayout(event.nativeEvent.layout);
-      }}>
+      }}
+    >
       <ProductModal
         visible={showProductModal}
         onClose={() => setShowProductModal(false)}
@@ -600,11 +703,13 @@ export default function PostCreate() {
       {/* Header */}
       <View
         className="flex-row justify-between items-center border-gray-300 px-3"
-        style={{ height: 56 }}>
+        style={{ height: 56 }}
+      >
         <TouchableOpacity
           className="flex items-center justify-center rounded-full w-9 h-9"
           onPress={() => router.back()}
-          accessibilityLabel="Close">
+          accessibilityLabel="Close"
+        >
           <Ionicons name="close" size={24} color="#000" />
         </TouchableOpacity>
         <Text className="text-2xl text-black font-opensans-semibold text-center">
@@ -633,7 +738,8 @@ export default function PostCreate() {
           onLayout={(event) => {
             layoutRef.current = event.nativeEvent.layout;
             setMainContainerLayout(event.nativeEvent.layout);
-          }}>
+          }}
+        >
           <ScrollView
             ref={scrollViewRef}
             keyboardShouldPersistTaps="handled"
@@ -641,7 +747,8 @@ export default function PostCreate() {
             onScroll={(e) => {
               setScrollOffset(e.nativeEvent.contentOffset.y);
             }}
-            scrollEventThrottle={16}>
+            scrollEventThrottle={16}
+          >
             <View className="flex-1 pt-3 gap-3">
               <View className="flex flex-row items-center px-3">
                 <Image
@@ -654,10 +761,12 @@ export default function PostCreate() {
 
                 <View
                   className="ml-3 flex flex-row items-center"
-                  style={{ minWidth: 0 }}>
+                  style={{ minWidth: 0 }}
+                >
                   <Text
                     className="text-sm font-opensans-semibold"
-                    numberOfLines={1}>
+                    numberOfLines={1}
+                  >
                     Karthik Kumar
                   </Text>
 
@@ -688,7 +797,7 @@ export default function PostCreate() {
                 {/* Real input on top */}
                 <TextInput
                   ref={inputRef}
-                  className="border flex-1 border-gray-300 rounded-lg p-2"
+                  className="flex-1 border-gray-300 rounded-lg p-2"
                   placeholder="What's on your mind?"
                   style={[
                     styles.base,
@@ -755,7 +864,8 @@ export default function PostCreate() {
                     borderRadius: 999,
                     padding: 6,
                   }}
-                  accessibilityRole="button">
+                  accessibilityRole="button"
+                >
                   <Entypo name="cross" size={16} color="#fff" />
                 </Pressable>
               </View>
@@ -781,13 +891,15 @@ export default function PostCreate() {
                   className="
                     flex-row w-3/4 items-center rounded-xl bg-white border border-black/10
                     px-3 py-3
-                  ">
+                  "
+                >
                   {/* Left product tile */}
                   <View
                     className="
                       w-14 h-14 rounded-xl bg-white border border-neutral-200
                       items-center justify-center overflow-hidden
-                    ">
+                    "
+                  >
                     <Image
                       source={require("../../assets/images/Product/phone.png")}
                       className="w-12 h-12"
@@ -798,7 +910,8 @@ export default function PostCreate() {
                   {/* Name */}
                   <Text
                     className="flex-1 text-[16px] font-opensans-semibold text-neutral-900 ml-3"
-                    numberOfLines={1}>
+                    numberOfLines={1}
+                  >
                     {selectedProduct.name}
                   </Text>
 
@@ -820,7 +933,8 @@ export default function PostCreate() {
         {/* Bottom selector with stable positioning. When mentioning, show smart mention list here */}
         <Animated.View
           style={[keyboardPadding, { minHeight: 60 }]}
-          className="bg-white flex flex-row items-center px-3 gap-2">
+          className="bg-white flex flex-row items-center px-3 gap-2"
+        >
           {mentioning && filteredUsers.length > 0 ? (
             // When mentioning, show the Mention UI in place of the bottom selector.
             // Center it and use ~100% width so the left/right parts of the bar remain visible.
@@ -845,13 +959,15 @@ export default function PostCreate() {
                   onPress={async () => {
                     await dismissKeyboardAndWait();
                     console.log("Camera");
-                  }}>
+                  }}
+                >
                   <Camera width={22} height={22} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
-                  onPress={pickMedia}>
+                  onPress={pickMedia}
+                >
                   <Gallery width={22} height={22} />
                 </TouchableOpacity>
 
@@ -861,7 +977,8 @@ export default function PostCreate() {
                     await dismissKeyboardAndWait();
                     openProductModal();
                     console.log("GIF picker");
-                  }}>
+                  }}
+                >
                   <Cart width={22} height={22} />
                 </TouchableOpacity>
 
@@ -870,7 +987,8 @@ export default function PostCreate() {
                   onPress={async () => {
                     await dismissKeyboardAndWait();
                     setStatusOpen(true);
-                  }}>
+                  }}
+                >
                   <Community width={22} height={22} />
                 </TouchableOpacity>
 
@@ -879,15 +997,16 @@ export default function PostCreate() {
                   onPress={async () => {
                     await dismissKeyboardAndWait();
                     console.log("Location");
-                  }}>
+                  }}
+                >
                   <Location width={22} height={22} />
                 </TouchableOpacity>
               </View>
 
               <TouchableOpacity
-                className="bg-black flex-row rounded-full items-center justify-center px-3 py-2.5 gap-1"
-                onPress={createPost}>
-                <Send width={16} height={16} />
+                className="bg-black flex-row rounded-full items-center justify-center px-5 py-2.5 gap-1"
+                onPress={createPost}
+              >
                 <Text className="text-white text-sm font-opensans-semibold">
                   POST
                 </Text>

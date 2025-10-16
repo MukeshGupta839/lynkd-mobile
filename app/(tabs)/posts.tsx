@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 // app/(tabs)/posts.tsx
 /// <reference types="react" />
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
@@ -17,6 +18,7 @@ import {
   ListRenderItemInfo,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  RefreshControl,
   Text,
   TouchableOpacity,
   View,
@@ -34,6 +36,8 @@ import Send from "../../assets/posts/send.svg";
 import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
 // ✅ Added: Share bottom sheet (for Send button)
 import ShareSectionBottomSheet from "@/components/ShareSectionBottomSheet";
+import { useAuth } from "@/hooks/useAuth";
+import { clearReelsCache, fetchReelsApi, RawReel } from "@/lib/api/api";
 
 const { width, height } = Dimensions.get("window");
 const BOTTOM_NAV_HEIGHT = 80;
@@ -137,7 +141,7 @@ const StyledText: React.FC<any> = ({ children, className, style, ...rest }) => (
 /* NOTE: removed isLoaded-based thumbnail overlay here. The shared overlay in parent
    will show the thumbnail while the player is loading (mediaLoading). */
 const PostItem: React.FC<{
-  item: Post;
+  item: RawReel;
   index: number;
   active: boolean;
   onOpenProfile: (uid?: number) => void;
@@ -146,13 +150,14 @@ const PostItem: React.FC<{
   isFavorited: boolean;
   onToggleFollow: (uid?: number) => void;
   isFollowing: boolean;
-  setPostsState?: React.Dispatch<React.SetStateAction<Post[]>>;
+  setPostsState?: React.Dispatch<React.SetStateAction<RawReel[]>>;
   onOverlayPress: () => void;
   centerVisible: boolean;
   isPlaying: boolean;
   onCenterToggle: () => void;
   // ✅ Added: a callback to open comments for this item
   onOpenComments: () => void;
+  router: any;
 }> = memo(
   ({
     item,
@@ -170,8 +175,8 @@ const PostItem: React.FC<{
     isPlaying,
     onCenterToggle,
     onOpenComments, // ✅ Added
+    router,
   }: any) => {
-    const router = useRouter(); // ✅ router must be inside a component
     const [imgLoading, setImgLoading] = useState(false);
     const [imgError, setImgError] = useState(false);
     const [localFollowing, setLocalFollowing] = useState<boolean>(
@@ -268,7 +273,8 @@ const PostItem: React.FC<{
                       user: 999999,
                     },
                   })
-                }>
+                }
+                onLongPress={onOpenPostOptions}>
                 {part}
               </Text>
             );
@@ -287,7 +293,8 @@ const PostItem: React.FC<{
                     pathname: "/(search)/searchPostsWithTags" as any,
                     params: { tag },
                   })
-                }>
+                }
+                onLongPress={onOpenPostOptions}>
                 {part}
               </Text>
             );
@@ -302,7 +309,8 @@ const PostItem: React.FC<{
                 className="text-blue-400"
                 style={{ textDecorationLine: "underline" }}
                 suppressHighlighting
-                onPress={() => Linking.openURL(url)}>
+                onPress={() => Linking.openURL(url)}
+                onLongPress={onOpenPostOptions}>
                 {part}
               </Text>
             );
@@ -545,16 +553,21 @@ PostItem.displayName = "PostItem";
 
 /* ----------------- MAIN: single shared player overlay + AnimatedFlatList ----------------- */
 const VideoFeed: React.FC = () => {
-  const router = useRouter(); // ✅ router must live inside component
   const { openPostId } = useLocalSearchParams<{ openPostId?: string }>();
   const navigation = useNavigation<any>();
-  const flatListRef = useRef<FlatList<Post> | null>(null);
-  const [posts, setPosts] = useState<Post[]>(DUMMY_POSTS);
+  const router = useRouter();
+  const { user } = useAuth();
+  const flatListRef = useRef<FlatList<RawReel> | null>(null);
+  const [posts, setPosts] = useState<RawReel[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [followedUsers, setFollowedUsers] = useState<number[]>([]);
-  const [showPostOptionsFor, setShowPostOptionsFor] = useState<Post | null>(
+  const [showPostOptionsFor, setShowPostOptionsFor] = useState<RawReel | null>(
     null
   );
+  const [loading, setLoading] = useState<boolean>(false);
+  const [cursor, setCursor] = useState<number>(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [activeTag, setActiveTag] = useState("Trending");
 
   const focused = useIsFocused();
 
@@ -564,7 +577,8 @@ const VideoFeed: React.FC = () => {
   // reanimated scroll tracking
   const scrollY = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler((ev) => {
-    scrollY.value = ev.contentOffset.y;
+    // Clamp scroll value to prevent negative offsets during pull-to-refresh
+    scrollY.value = Math.max(0, ev.contentOffset.y);
   });
 
   // overlay top follows currentIndex and scroll offset
@@ -586,7 +600,7 @@ const VideoFeed: React.FC = () => {
 
   // current media = post object for currentIndex
   // NOTE: intentionally depends ONLY on currentIndex to avoid recreating player when posts change (likes etc.)
-  const [currentMedia, setCurrentMedia] = useState<Post | null>(
+  const [currentMedia, setCurrentMedia] = useState<RawReel | null>(
     posts[0] ?? null
   );
 
@@ -626,13 +640,18 @@ const VideoFeed: React.FC = () => {
   // parent-level center icon state and playing state
   const [centerVisible, setCenterVisible] = useState(false);
   const [isPlayingState, setIsPlayingState] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // ✅ Added: comments sheet ref + selected post state
   const commentsRef = useRef<CommentsSheetHandle>(null);
-  const [commentsPost, setCommentsPost] = useState<Post | null>(null);
+  const [commentsPost, setCommentsPost] = useState<RawReel | null>(null);
+
+  // Track video errors by index
+  const videoErrorsRef = useRef<Map<number, boolean>>(new Map());
+  const [hasVideoError, setHasVideoError] = useState(false);
 
   // ✅ Added: open comments handler
-  const openCommentsFor = useCallback((post: Post) => {
+  const openCommentsFor = useCallback((post: RawReel) => {
     setCommentsPost(post);
     commentsRef.current?.present();
   }, []);
@@ -642,21 +661,46 @@ const VideoFeed: React.FC = () => {
     currentMedia ? currentMedia.media_url : null,
     (pl) => {
       console.log("🎬 Player created for:", currentMedia?.media_url);
+      console.log("🎬 Player object:", pl ? "✅ Available" : "❌ Null");
+      console.log(
+        "🎬 Has getStatusAsync:",
+        typeof (pl as any)?.getStatusAsync === "function" ? "✅ Yes" : "❌ No"
+      );
       playerRef.current = pl as any;
       releasedRef.current = false;
       try {
         if (pl) {
+          // Listen for player errors
+          if (typeof (pl as any).addListener === "function") {
+            (pl as any).addListener("error", (error: any) => {
+              console.error("❌ Player error event:", error);
+              videoErrorsRef.current.set(currentIndex, true);
+              setHasVideoError(true);
+            });
+            console.log("👂 Error listener added");
+          }
+
           // apply looping & unmuted on the player instance (not the VideoView props)
-          if (typeof (pl as any).setIsLooping === "function")
+          if (typeof (pl as any).setIsLooping === "function") {
             (pl as any).setIsLooping(true);
-          else if ("loop" in (pl as any)) (pl as any).loop = true;
+            console.log("🔁 Looping enabled");
+          } else if ("loop" in (pl as any)) {
+            (pl as any).loop = true;
+            console.log("🔁 Looping enabled (alt method)");
+          }
 
           // Enable sound (unmuted)
-          if (typeof (pl as any).setIsMuted === "function")
+          if (typeof (pl as any).setIsMuted === "function") {
             (pl as any).setIsMuted(false);
-          else if ("muted" in (pl as any)) (pl as any).muted = false;
+            console.log("🔊 Audio enabled");
+          } else if ("muted" in (pl as any)) {
+            (pl as any).muted = false;
+            console.log("🔊 Audio enabled (alt method)");
+          }
         }
-      } catch {}
+      } catch (err) {
+        console.error("❌ Error configuring player:", err);
+      }
     }
   );
 
@@ -697,11 +741,10 @@ const VideoFeed: React.FC = () => {
       if (releasedRef.current) return;
       if (typeof p !== "object") return;
 
-      // start fresh (seek to 0 before play)
+      // Seek to beginning for new video (non-blocking for faster start)
+      const seekPromises = [];
       if (typeof (p as any).setPositionAsync === "function") {
-        try {
-          await (p as any).setPositionAsync(0);
-        } catch {}
+        seekPromises.push((p as any).setPositionAsync(0).catch(() => {}));
       } else if (typeof (p as any).setCurrentTime === "function") {
         try {
           (p as any).setCurrentTime(0);
@@ -716,6 +759,7 @@ const VideoFeed: React.FC = () => {
         } catch {}
       }
 
+      // Start playing immediately without waiting for seek (Instagram-style)
       if (typeof (p as any).playAsync === "function") {
         await (p as any).playAsync();
         return;
@@ -774,7 +818,9 @@ const VideoFeed: React.FC = () => {
         urls.forEach((u) => {
           Image.prefetch(u).catch(() => {});
         });
-      } catch (e) {}
+      } catch (e) {
+        console.log("prefetchAll error: ", e);
+      }
     };
     prefetchAll();
   }, [posts]);
@@ -902,7 +948,9 @@ const VideoFeed: React.FC = () => {
             }
           }
         }
-      } catch (error) {}
+      } catch (error) {
+        console.log("monitorPlaybackAndPreload error: ", error);
+      }
     };
 
     // Start monitoring when video is likely playing
@@ -1099,7 +1147,7 @@ const VideoFeed: React.FC = () => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     let pollCount = 0;
-    const MAX_POLL_COUNT = 100; // 10 seconds max (100ms * 100)
+    const MAX_POLL_COUNT = 150; // 15 seconds max (100ms * 150)
 
     const startPolling = () => {
       if (pollTimer) return;
@@ -1126,13 +1174,16 @@ const VideoFeed: React.FC = () => {
 
           if (typeof p.getStatusAsync === "function") {
             const status: any = await p.getStatusAsync();
-            // Improved ready detection: video is ready when loaded and has minimal buffering
-            const readyToRender =
-              status?.isLoaded &&
-              (!status?.isBuffering ||
-                status?.isPlaying ||
-                (typeof status?.positionMillis === "number" &&
-                  status.positionMillis > 0));
+            console.log(`📊 Video ${currentIndex} status:`, {
+              isLoaded: status?.isLoaded,
+              isBuffering: status?.isBuffering,
+              isPlaying: status?.isPlaying,
+              error: status?.error,
+              uri: status?.uri,
+            });
+
+            // Check if video is loaded and doesn't have an error
+            const readyToRender = status?.isLoaded && !status?.error;
 
             if (readyToRender) {
               if (cancelled) return;
@@ -1140,66 +1191,138 @@ const VideoFeed: React.FC = () => {
                 loadedSetRef.current.add(currentIndex);
                 setLoadedVersion((v) => v + 1);
                 console.log(
-                  `✅ Video ${currentIndex} loaded after ${pollCount} polls`
+                  `✅ Video ${currentIndex} loaded successfully after ${pollCount} polls`
                 );
               }
+
+              // Immediately hide loading and start playback for smooth experience
               setMediaLoading(false);
               setShowLoadingSpinner(false);
+
               const pausedForIndex =
                 pausedMapRef.current.get(currentIndex) ?? false;
               manualPausedRef.current = pausedForIndex;
+
               if (!pausedForIndex) {
-                await safePlay();
-                setIsPlayingState(true);
+                // Start playing immediately without waiting
+                safePlay().then(() => {
+                  setIsPlayingState(true);
+                });
               } else {
-                await safePause();
-                setIsPlayingState(false);
+                safePause().then(() => {
+                  setIsPlayingState(false);
+                });
               }
+
               if (pollTimer) {
                 clearInterval(pollTimer);
                 pollTimer = null;
               }
+            } else if (status?.error) {
+              // Video has an error, stop polling and show error state
+              console.error(
+                `❌ Video ${currentIndex} failed to load:`,
+                status.error
+              );
+              videoErrorsRef.current.set(currentIndex, true);
+              setHasVideoError(true);
+              if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+              }
+              setMediaLoading(false);
+              setShowLoadingSpinner(false);
+              // Don't add to loadedSetRef so it can retry on next view
             }
           } else {
-            // fallback behavior if status API not present
-            console.log(
-              "📹 Using fallback loading detection for index:",
-              currentIndex
-            );
-            if (!loadedSetRef.current.has(currentIndex)) {
-              loadedSetRef.current.add(currentIndex);
-              setLoadedVersion((v) => v + 1);
+            // Only use fallback after reasonable attempts AND validate URL
+            if (pollCount > 20) {
               console.log(
-                "✅ Video marked as loaded (fallback):",
-                currentIndex
+                "📹 Using fallback loading detection for index:",
+                currentIndex,
+                "after",
+                pollCount,
+                "polls"
               );
-            }
-            setMediaLoading(false);
-            setShowLoadingSpinner(false);
-            const pausedForIndex =
-              pausedMapRef.current.get(currentIndex) ?? false;
-            manualPausedRef.current = pausedForIndex;
-            if (!pausedForIndex) {
-              await safePlay();
-              setIsPlayingState(true);
-            } else {
-              await safePause();
-              setIsPlayingState(false);
-            }
-            if (pollTimer) {
-              clearInterval(pollTimer);
-              pollTimer = null;
+
+              // Validate video URL before marking as loaded
+              const videoUrl = currentMedia?.media_url;
+              if (videoUrl && typeof videoUrl === "string") {
+                console.log("🔍 Validating video URL:", videoUrl);
+
+                // Try to fetch video to check if it exists
+                fetch(videoUrl, { method: "HEAD" })
+                  .then((response) => {
+                    if (response.ok) {
+                      console.log("✅ Video URL is valid");
+                      if (!loadedSetRef.current.has(currentIndex)) {
+                        loadedSetRef.current.add(currentIndex);
+                        setLoadedVersion((v) => v + 1);
+                        console.log(
+                          "✅ Video marked as loaded (fallback):",
+                          currentIndex
+                        );
+                      }
+                      setMediaLoading(false);
+                      setShowLoadingSpinner(false);
+                      const pausedForIndex =
+                        pausedMapRef.current.get(currentIndex) ?? false;
+                      manualPausedRef.current = pausedForIndex;
+                      if (!pausedForIndex) {
+                        safePlay().then(() => {
+                          setIsPlayingState(true);
+                        });
+                      } else {
+                        safePause().then(() => {
+                          setIsPlayingState(false);
+                        });
+                      }
+                    } else {
+                      console.error(
+                        `❌ Video URL returned ${response.status}:`,
+                        videoUrl
+                      );
+                      videoErrorsRef.current.set(currentIndex, true);
+                      setHasVideoError(true);
+                      setMediaLoading(false);
+                      setShowLoadingSpinner(false);
+                    }
+                  })
+                  .catch((error) => {
+                    console.error("❌ Failed to validate video URL:", error);
+                    videoErrorsRef.current.set(currentIndex, true);
+                    setHasVideoError(true);
+                    setMediaLoading(false);
+                    setShowLoadingSpinner(false);
+                  })
+                  .finally(() => {
+                    if (pollTimer) {
+                      clearInterval(pollTimer);
+                      pollTimer = null;
+                    }
+                  });
+              } else {
+                console.error("❌ Invalid video URL:", videoUrl);
+                videoErrorsRef.current.set(currentIndex, true);
+                setHasVideoError(true);
+                setMediaLoading(false);
+                setShowLoadingSpinner(false);
+                if (pollTimer) {
+                  clearInterval(pollTimer);
+                  pollTimer = null;
+                }
+              }
             }
           }
         } catch (error) {
           // ignore but log for debugging
           console.log("Poll error:", error);
         }
-      }, 100);
+      }, 50); // Reduced from 100ms to 50ms for faster detection
     };
 
     setMediaLoading(true);
-    const startDelay = setTimeout(() => startPolling(), 30);
+    const startDelay = setTimeout(() => startPolling(), 10); // Reduced from 30ms to 10ms
 
     return () => {
       cancelled = true;
@@ -1259,6 +1382,10 @@ const VideoFeed: React.FC = () => {
     manualPausedRef.current = pausedMapRef.current.get(currentIndex) ?? false;
     setCenterVisible(false);
 
+    // Check if current video has error
+    const hasError = videoErrorsRef.current.get(currentIndex);
+    setHasVideoError(!!hasError);
+
     // Clear previous loading timeout
     if (loadingTimeoutRef.current) {
       clearTimeout(loadingTimeoutRef.current);
@@ -1277,27 +1404,30 @@ const VideoFeed: React.FC = () => {
       playbackPreloadTriggeredRef.current.delete(idx)
     );
 
+    // Check if already loaded (cached/preloaded)
+    const isAlreadyLoaded = loadedSetRef.current.has(currentIndex);
+
     // Always set loading to true first to show thumbnail immediately and hide previous video
     setMediaLoading(true);
     setShowLoadingSpinner(false);
+
+    // Update media immediately for faster response
     setCurrentMedia(next);
 
-    // Check if already loaded (cached/preloaded)
-    if (loadedSetRef.current.has(currentIndex)) {
-      // Video already loaded, show it quickly
+    if (isAlreadyLoaded) {
+      // Video already loaded, transition almost instantly for Instagram-like smoothness
       setTimeout(() => {
         setMediaLoading(false);
         setShowLoadingSpinner(false);
-      }, 50); // Reduced delay for faster transition
+      }, 10); // Minimal delay for instant feel
     } else {
-      // Show loading spinner after 500ms if still loading (network issue)
-      // Reduced from 800ms for better user feedback
+      // Show loading spinner after 300ms if still loading (network issue)
       loadingTimeoutRef.current = setTimeout(() => {
         if (!loadedSetRef.current.has(currentIndex)) {
           console.log(`⏳ Showing spinner for video ${currentIndex}`);
           setShowLoadingSpinner(true);
         }
-      }, 500);
+      }, 300); // Reduced from 500ms for faster feedback
     }
 
     return () => {
@@ -1305,7 +1435,6 @@ const VideoFeed: React.FC = () => {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex]); // intentionally not depending on `posts`  // cleanup on unmount
   useEffect(() => {
     return () => {
@@ -1315,10 +1444,11 @@ const VideoFeed: React.FC = () => {
       (async () => {
         try {
           await tryRelease(playerRef.current ?? player);
-        } catch (e) {}
+        } catch (e) {
+          console.log("single tap error: ", e);
+        }
       })();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // only on unmount
 
   // SINGLE vs DOUBLE tap handling: if second tap occurs within DELAY, treat as double-tap
@@ -1375,6 +1505,7 @@ const VideoFeed: React.FC = () => {
           setTimeout(() => setCenterVisible(false), 380);
         }
       } catch (e) {
+        console.log("onOverlayPress error :", e);
         // ignore
       } finally {
         lastTapRef.current = null;
@@ -1399,17 +1530,28 @@ const VideoFeed: React.FC = () => {
         setCenterVisible(true);
         setTimeout(() => setCenterVisible(false), 380);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.log("onCenterToggle error: ", e);
+    }
   };
 
-  // viewability
-  const viewabilityConfig = { itemVisiblePercentThreshold: 75 } as const;
+  // viewability - more sensitive detection for Instagram-like feel
+  const viewabilityConfig = {
+    itemVisiblePercentThreshold: 50, // Reduced from 75 to 50 for faster switching
+    minimumViewTime: 0, // Immediate response
+    waitForInteraction: false,
+  } as const;
+
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems?: any[] }) => {
       if (!viewableItems || viewableItems.length === 0) return;
       const firstVisible = viewableItems[0];
-      if (typeof firstVisible?.index === "number")
+      if (
+        typeof firstVisible?.index === "number" &&
+        firstVisible.index !== currentIndex
+      ) {
         setCurrentIndex(firstVisible.index);
+      }
     }
   ).current;
 
@@ -1419,16 +1561,36 @@ const VideoFeed: React.FC = () => {
     if (index !== currentIndex) setCurrentIndex(index);
   };
 
+  // Load more reels when approaching the end
+  const onEndReached = () => {
+    if (!loading && hasMore) {
+      console.log("Loading more reels...");
+      fetchReels(cursor);
+    }
+  };
+
+  // Render loading footer
+  const renderFooter = () => {
+    if (!loading) return null;
+    return (
+      <View style={{ padding: 20, alignItems: "center" }}>
+        <ActivityIndicator size="small" color="#ffffff" />
+      </View>
+    );
+  };
+
   // video style — keep under PostItem
-  // Important: completely hide video during loading to prevent flicker on Android
+  // Important: completely hide video during loading or error to prevent flicker on Android
   const videoStyle = {
     width,
     height,
     backgroundColor: "#000000",
-    // Hide video completely during loading to prevent previous video from showing
-    opacity: mediaLoading ? 0 : 1,
-    display: mediaLoading ? "none" : "flex", // Extra safety for Android
-    zIndex: mediaLoading ? -1 : 0, // Push behind during loading
+    // Use opacity for smoother transitions on Android
+    // Hide video when loading OR when there's an error (prevents previous video showing through)
+    opacity: mediaLoading || hasVideoError ? 0 : 1,
+    position: "absolute" as const,
+    left: 0,
+    top: 0,
   } as any;
 
   // shared thumbnail overlay is mandatory while mediaLoading is true
@@ -1440,7 +1602,7 @@ const VideoFeed: React.FC = () => {
     width,
     height,
     backgroundColor: "#000000", // Solid background to prevent any bleed-through
-    zIndex: 15, // Higher z-index to definitely cover video during transition
+    zIndex: 100, // Much higher z-index to ensure it's always on top during loading
   };
 
   // -------------------------
@@ -1458,80 +1620,319 @@ const VideoFeed: React.FC = () => {
     return unsubscribe;
   }, [navigation, focused]);
 
+  // Fetch reels function - defined before use
+  const fetchReels = async (currentCursor = 0) => {
+    try {
+      setLoading(true);
+      console.log(`🎯 Fetching reels at cursor ${currentCursor}...`);
+      const res = await fetchReelsApi(user.id, cursor);
+      console.log("reel res:", res);
+
+      console.log("cursor:", cursor, currentCursor);
+
+      if (res && res.data && Array.isArray(res.data)) {
+        console.log(`✅ Fetched ${res.data.length} reels from API`);
+
+        // Transform API response to match Post type
+        // const allPosts: Post[] = res.data.map((reel: any) => ({
+        //   id: Number(reel.id),
+        //   media_url: reel.media_url || "",
+        //   thumbnail_url: reel.thumbnail_url,
+        //   photoURL: reel.user?.profile_picture,
+        //   username: reel.user?.username,
+        //   user_id: Number(reel.user?.id || reel.user_id),
+        //   verified: false, // Add verified logic if available in API
+        //   caption: reel.caption || "",
+        //   likes: reel.likes_aggregate?.aggregate?.count || 0,
+        //   commentsCount: reel.comments_aggregate?.aggregate?.count || 0,
+        //   shareUrl: `https://example.com/reel/${reel.id}`,
+        //   liked: false, // This should come from user's like status
+        //   following: false, // This should come from user's follow status
+        //   isProduct: reel.affiliated || false,
+        //   productCount: undefined,
+        // }));
+
+        // Filter out posts with invalid or empty video URLs
+        const newPosts = res.data.filter((post) => {
+          const hasValidUrl =
+            post.media_url &&
+            typeof post.media_url === "string" &&
+            post.media_url.trim().length > 0 &&
+            (post.media_url.startsWith("http://") ||
+              post.media_url.startsWith("https://"));
+
+          if (!hasValidUrl) {
+            console.warn(
+              `⚠️ Skipping post ${post.id} - invalid video URL:`,
+              post.media_url
+            );
+          }
+          return hasValidUrl;
+        });
+
+        if (newPosts.length < res.data.length) {
+          console.warn(
+            `⚠️ Filtered out ${res.data.length - newPosts.length} posts with invalid URLs`
+          );
+        }
+
+        // Append new posts or replace based on cursor (page)
+        if (currentCursor === 0) {
+          console.log(`📝 Setting ${newPosts.length} posts (initial load)`);
+          setPosts(newPosts);
+        } else {
+          console.log(`📝 Appending ${newPosts.length} posts`);
+          setPosts((prev) => [...prev, ...newPosts]);
+        }
+
+        // Update cursor for next page
+        setHasMore(res.hasMore);
+        setCursor(res.nextCursor);
+      }
+    } catch (e) {
+      console.error("❌ Fetch reels error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // const shufflePosts = useCallback(() => {
+  //   setPosts((prev) => {
+  //     const shuffledPosts = [...prev];
+  //     shuffledPosts.sort(() => Math.random() - 0.5);
+  //     return shuffledPosts;
+  //   });
+  // }, []);
+
+  // useEffect(() => {
+  //   shufflePosts();
+  // }, [shufflePosts]);
+
+  // Refresh handler - clear all caches and fetch fresh data
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+
+    // Pause video during refresh to prevent UI issues
+    await safePause();
+    setIsPlayingState(false);
+
+    // Reset scroll position to 0 (both FlatList and reanimated value)
+    scrollY.value = 0;
+
+    // Scroll to top to ensure proper video positioning on iOS
+    try {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    } catch (e) {
+      console.log("Scroll to top error:", e);
+    }
+
+    // Small delay to let scroll complete
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Clear all video caches
+    console.log("🔄 Refreshing - clearing all caches");
+    preloadedPlayersRef.current.clear();
+    loadedSetRef.current.clear();
+    videoErrorsRef.current.clear();
+    playbackPreloadTriggeredRef.current.clear();
+    batchLoadTriggeredRef.current.clear();
+    pausedMapRef.current.clear();
+
+    // Clear API cache
+    await clearReelsCache(user.id);
+
+    // Reset states
+    setCurrentIndex(0);
+    setCurrentMedia(null);
+    // setCursor(0);
+    setPosts([]);
+    setHasVideoError(false);
+    setMediaLoading(true);
+
+    // Fetch fresh data from beginning
+    await fetchReels();
+
+    setRefreshing(false);
+    console.log("✅ Refresh complete");
+  }, [fetchReels, safePause, scrollY]);
+
+  // Fetch reels on component mount
+  useEffect(() => {
+    console.log("🚀 Component mounted - fetching initial reels");
+    fetchReels();
+  }, []);
+
+  // Initialize currentMedia when posts are loaded
+  useEffect(() => {
+    if (posts.length > 0 && !currentMedia && currentIndex === 0) {
+      console.log("📹 Initializing first video:", posts[0].media_url);
+      setCurrentMedia(posts[0]);
+      setMediaLoading(true);
+    }
+  }, [posts, currentMedia, currentIndex]);
+
+  // Show initial loading when no posts yet
+  if (posts.length === 0 && loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "black",
+          justifyContent: "center",
+          alignItems: "center",
+        }}>
+        <ActivityIndicator size="large" color="#ffffff" />
+        <Text style={{ color: "#ffffff", marginTop: 16, fontSize: 16 }}>
+          Loading reels...
+        </Text>
+      </View>
+    );
+  }
+
+  // Show message if no posts and not loading
+  if (posts.length === 0 && !loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "black",
+          justifyContent: "center",
+          alignItems: "center",
+        }}>
+        <Text style={{ color: "#ffffff", fontSize: 16 }}>
+          No reels available
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: "black" }}>
       {/* Shared overlay - non-interactive so touches pass to items */}
-      <Reanimated.View pointerEvents="none" style={overlayStyle}>
-        <View pointerEvents="none" style={{ width, height }}>
-          <VideoView
-            player={playerRef.current ?? (player as any)}
-            style={videoStyle}
-            contentFit="contain"
-            nativeControls={false}
-          />
-        </View>
+      {/* Hide overlay during refresh to prevent positioning issues on iOS */}
+      {!refreshing && posts.length > 0 && currentMedia && (
+        <Reanimated.View pointerEvents="none" style={overlayStyle}>
+          <View
+            pointerEvents="none"
+            style={{ width, height, backgroundColor: "#000000" }}>
+            <VideoView
+              player={playerRef.current ?? (player as any)}
+              style={videoStyle}
+              contentFit="contain"
+              nativeControls={false}
+              allowsPictureInPicture={false}
+            />
+          </View>
 
-        {/* mandatory shared thumbnail: visible while mediaLoading is true */}
-        {mediaLoading && (
-          <View pointerEvents="none" style={sharedThumbStyle}>
-            {currentMedia?.thumbnail_url ? (
-              <>
-                <Image
-                  source={{ uri: currentMedia.thumbnail_url }}
-                  style={{ width, height }}
-                  resizeMode="cover"
-                  onError={(e) => {
-                    console.log("Thumbnail load error:", currentMedia.id);
-                  }}
-                />
-                {/* Subtle overlay to indicate loading state */}
+          {/* mandatory shared thumbnail: visible while mediaLoading is true */}
+          {mediaLoading && (
+            <View pointerEvents="none" style={sharedThumbStyle}>
+              {currentMedia?.thumbnail_url ? (
+                <>
+                  <Image
+                    source={{ uri: currentMedia.thumbnail_url }}
+                    style={{ width, height }}
+                    resizeMode="cover"
+                    onError={(e) => {
+                      console.log("Thumbnail load error:", currentMedia.id);
+                    }}
+                  />
+                  {/* Subtle overlay to indicate loading state */}
+                  <View
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: "rgba(0,0,0,0.15)",
+                    }}
+                  />
+                </>
+              ) : (
+                // Fallback if no thumbnail - show dark background
                 <View
                   style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: "rgba(0,0,0,0.15)",
+                    width,
+                    height,
+                    backgroundColor: "#000000",
                   }}
                 />
-              </>
-            ) : (
-              // Fallback if no thumbnail - show dark background
-              <View
-                style={{
-                  width,
-                  height,
-                  backgroundColor: "#000000",
-                }}
-              />
-            )}
+              )}
 
-            {/* Loading spinner - show immediately for better feedback */}
-            <View
-              style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                right: 0,
-                bottom: 0,
-                justifyContent: "center",
-                alignItems: "center",
-                // Show spinner with slight delay or immediately based on showLoadingSpinner
-                opacity: showLoadingSpinner ? 1 : 0.7,
-              }}>
+              {/* Loading spinner - show immediately for better feedback */}
               <View
                 style={{
-                  backgroundColor: "rgba(0,0,0,0.4)",
-                  borderRadius: 50,
-                  padding: 16,
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  // Show spinner with slight delay or immediately based on showLoadingSpinner
+                  opacity: showLoadingSpinner ? 1 : 0.7,
                 }}>
-                <ActivityIndicator size="large" color="#ffffff" />
+                <View
+                  style={{
+                    backgroundColor: "rgba(0,0,0,0.4)",
+                    borderRadius: 50,
+                    padding: 16,
+                  }}>
+                  <ActivityIndicator size="large" color="#ffffff" />
+                </View>
               </View>
             </View>
-          </View>
-        )}
-      </Reanimated.View>
+          )}
+
+          {/* Error indicator - show when video fails to load */}
+          {hasVideoError && !mediaLoading && (
+            <Reanimated.View
+              pointerEvents="none"
+              style={[
+                {
+                  position: "absolute",
+                  left: 0,
+                  width,
+                  height,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "#000000", // Solid black to hide previous video on Android
+                  zIndex: 200,
+                },
+                { top: overlayTop.value },
+              ]}>
+              <View
+                style={{
+                  backgroundColor: "rgba(255,0,0,0.3)",
+                  borderRadius: 50,
+                  padding: 20,
+                  alignItems: "center",
+                }}>
+                <Ionicons name="alert-circle" size={48} color="#ff3b30" />
+                <Text
+                  style={{
+                    color: "#ffffff",
+                    marginTop: 12,
+                    fontSize: 16,
+                    fontWeight: "600",
+                  }}>
+                  Failed to load video
+                </Text>
+                <Text
+                  style={{
+                    color: "#ffffff",
+                    marginTop: 4,
+                    fontSize: 14,
+                    opacity: 0.8,
+                  }}>
+                  Swipe to next video
+                </Text>
+              </View>
+            </Reanimated.View>
+          )}
+        </Reanimated.View>
+      )}
 
       {/* Animated list of posts */}
       <AnimatedFlatList
@@ -1539,8 +1940,11 @@ const VideoFeed: React.FC = () => {
         key={String(refreshKey)}
         ref={flatListRef}
         data={posts}
-        keyExtractor={(item: Post) => item.id.toString()}
-        renderItem={({ item, index }: ListRenderItemInfo<Post>) => {
+        keyExtractor={(item: RawReel) => item.id.toString()}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
+        renderItem={({ item, index }: ListRenderItemInfo<RawReel>) => {
           const active = index === currentIndex;
           return (
             // ensure item container above shared overlay
@@ -1593,11 +1997,21 @@ const VideoFeed: React.FC = () => {
                 onCenterToggle={onCenterToggle}
                 // ✅ Pass the per-item comments opener
                 onOpenComments={() => openCommentsFor(item)}
+                router={router}
               />
             </View>
           );
         }}
         pagingEnabled
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#4D70D1"]}
+            tintColor={"#4D70D1"}
+            progressBackgroundColor={"#F3F4F8"}
+          />
+        }
         showsVerticalScrollIndicator={false}
         decelerationRate="fast"
         onMomentumScrollEnd={onMomentumScrollEnd}
@@ -1611,10 +2025,13 @@ const VideoFeed: React.FC = () => {
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
         contentContainerStyle={{ paddingBottom: BOTTOM_NAV_HEIGHT + 24 }}
-        initialNumToRender={1}
-        maxToRenderPerBatch={1}
-        windowSize={3}
-        removeClippedSubviews={true}
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={5}
+        removeClippedSubviews={false}
+        disableIntervalMomentum={true}
+        snapToInterval={height}
+        snapToAlignment="start"
       />
 
       {/* ✅ Added: Comments sheet instance */}

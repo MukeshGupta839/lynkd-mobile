@@ -59,6 +59,7 @@ interface ProfileScreenProps {
   fetchUserProducts?: (userId: number) => Promise<any[]>;
   onFollow?: (userId: number) => Promise<void>;
   onUnfollow?: (userId: number) => Promise<void>;
+  checkFollowStatus?: (userId: number) => Promise<string | null>;
   currentUserId?: number;
 }
 
@@ -71,6 +72,7 @@ const ProfileScreen = ({
   fetchUserProducts,
   onFollow,
   onUnfollow,
+  checkFollowStatus,
   currentUserId,
 }: ProfileScreenProps) => {
   const insets = useSafeAreaInsets();
@@ -325,7 +327,7 @@ const ProfileScreen = ({
       sale_price: 799,
     },
   ]);
-  const [userID] = useState(
+  const [userID, setUserID] = useState(
     propUserId ||
       (params.user
         ? Number(Array.isArray(params.user) ? params.user[0] : params.user) ||
@@ -353,55 +355,110 @@ const ProfileScreen = ({
     const loadUserData = async () => {
       setLoading(true);
       try {
-        // Fetch user details
-        if (fetchUserDetails) {
+        let actualUserId = userID;
+        const mentionedUsername = propUsername || (params.username as string);
+
+        console.log("ProfileScreen loadUserData:", {
+          propUserId,
+          propUsername,
+          userID,
+          actualUserId,
+          mentionedUsername,
+          "currentUser.id": currentUser.id,
+          "params.user": params.user,
+          "params.username": params.username,
+        });
+
+        // If we have a username but no valid userId was passed, fetch user details first to get the userId
+        // This happens when navigating with only username (no userId in params)
+        const hasValidUserId = propUserId && propUserId !== currentUser.id;
+        const needsUserIdResolution =
+          mentionedUsername && !hasValidUserId && fetchUserDetails;
+
+        console.log("Resolution check:", {
+          hasValidUserId,
+          needsUserIdResolution,
+        });
+
+        if (needsUserIdResolution) {
+          console.log(
+            "Fetching user details from username:",
+            mentionedUsername
+          );
           const details = await fetchUserDetails(
-            userID,
-            propUsername || (params.username as string)
+            actualUserId,
+            mentionedUsername
           );
           setUserDetails(details);
+
+          // Update the userID state with the fetched user's ID
+          if (details.id && details.id !== actualUserId) {
+            actualUserId = details.id;
+            setUserID(details.id);
+            console.log("Updated userID from username fetch:", details.id);
+          }
         } else {
-          // Mock data fallback
-          setUserDetails({
-            id: userID,
-            username: propUsername || (params.username as string) || "john_doe",
-            first_name: "John",
-            last_name: "Doe",
-            bio: "Photography enthusiast • Travel lover • Coffee addict ☕️ ssfsfs sffsfsf sffssfsf sfsfsfs sfsf sfsf sf sf sfsf sfsfsfs sfsf swrwrw wrwrwrwrw wwr wr wwrw wrwrwrrw wr wrwrwr wr wr wqahlskhlfkhashlf hahs ahfslkfh lkfhl akfhslksjhfalksfjh lakshf h afsakhflkfhlskhlak hasf hlakfh. fhashlffhfasl ",
-            profile_picture: "https://randomuser.me/api/portraits/men/1.jpg",
-            banner_image:
-              "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg",
-            is_creator: true,
-            postsCount: 12,
-            reelsCount: 5,
-            followersCount: 1250,
-            followingCount: 890,
-            social_media_accounts: [
-              {
-                instagram_username: "john_doe_photo",
-                twitter_username: "johndoe",
-                youtube_username: "johndoevlogs",
-              },
-            ],
-          });
+          // Fetch user details normally
+          if (fetchUserDetails) {
+            const details = await fetchUserDetails(
+              actualUserId,
+              mentionedUsername
+            );
+            setUserDetails(details);
+          } else {
+            // Mock data fallback
+            setUserDetails({
+              id: actualUserId,
+              username: mentionedUsername || "john_doe",
+              first_name: "John",
+              last_name: "Doe",
+              bio: "Photography enthusiast • Travel lover • Coffee addict ☕️ ssfsfs sffsfsf sffssfsf sfsfsfs sfsf sfsf sf sf sfsf sfsfsfs sfsf swrwrw wrwrwrwrw wwr wr wwrw wrwrwrrw wr wrwrwr wr wr wqahlskhlfkhashlf hahs ahfslkfh lkfhl akfhslksjhfalksfjh lakshf h afsakhflkfhlskhlak hasf hlakfh. fhashlffhfasl ",
+              profile_picture: "https://randomuser.me/api/portraits/men/1.jpg",
+              banner_image:
+                "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg",
+              is_creator: true,
+              postsCount: 12,
+              reelsCount: 5,
+              followersCount: 1250,
+              followingCount: 890,
+              social_media_accounts: [
+                {
+                  instagram_username: "john_doe_photo",
+                  twitter_username: "johndoe",
+                  youtube_username: "johndoevlogs",
+                },
+              ],
+            });
+          }
         }
 
+        // Now use the actual user ID for all subsequent API calls
         // Fetch user posts
         if (fetchUserPosts) {
-          const userPosts = await fetchUserPosts(userID);
+          const userPosts = await fetchUserPosts(actualUserId);
+          console.log("Loaded posts:", userPosts.length);
+          console.log("Sample post:", userPosts[0]);
           setPosts(userPosts);
         }
 
         // Fetch user reels
         if (fetchUserReels) {
-          const reels = await fetchUserReels(userID);
+          const reels = await fetchUserReels(actualUserId);
           setUserReels(reels);
         }
 
         // Fetch user products
         if (fetchUserProducts) {
-          const products = await fetchUserProducts(userID);
+          const products = await fetchUserProducts(actualUserId);
           setProductsAffiliated(products);
+        }
+
+        // Check follow status if this is not the current user's profile
+        if (checkFollowStatus && actualUserId !== currentUser.id) {
+          const status = await checkFollowStatus(actualUserId);
+          if (status) {
+            setFollowing(status);
+          }
         }
       } catch (error) {
         console.error("Error loading user data:", error);
@@ -412,13 +469,17 @@ const ProfileScreen = ({
 
     loadUserData();
   }, [
-    userID,
+    propUserId,
     propUsername,
     params.username,
     fetchUserDetails,
     fetchUserPosts,
     fetchUserReels,
     fetchUserProducts,
+    checkFollowStatus,
+    userID,
+    params.user,
+    currentUser.id,
   ]);
 
   const toggleFollow = async () => {
@@ -462,7 +523,15 @@ const ProfileScreen = ({
     const groupedImages: { [key: string]: any[] } = {};
     const months: string[] = [];
 
-    const filteredPosts = posts.filter((post) => post.text_post === false);
+    // Filter for posts with images (not text posts) and valid media_url
+    const filteredPosts = posts.filter(
+      (post) => post.text_post !== true && post.media_url
+    );
+
+    console.log("renderGridLayout - Total posts:", posts.length);
+    console.log("renderGridLayout - Filtered posts:", filteredPosts.length);
+    console.log("renderGridLayout - First post:", posts[0]);
+
     if (filteredPosts.length === 0) {
       return (
         <View className="items-center justify-center py-12">
@@ -708,7 +777,14 @@ const ProfileScreen = ({
   };
 
   const renderSquareGrid = () => {
-    const filteredPosts = posts.filter((post) => post.text_post === false);
+    // Filter for posts with images (not text posts) and valid media_url
+    const filteredPosts = posts.filter(
+      (post) => post.text_post !== true && post.media_url
+    );
+
+    console.log("renderSquareGrid - Total posts:", posts.length);
+    console.log("renderSquareGrid - Filtered posts:", filteredPosts.length);
+
     if (filteredPosts.length === 0) {
       return (
         <View className="items-center justify-center py-12">
@@ -885,7 +961,9 @@ const ProfileScreen = ({
   };
 
   const renderTextPosts = () => {
+    // Filter for text posts only
     const filteredPosts = posts.filter((post) => post.text_post === true);
+
     if (filteredPosts.length === 0) {
       return (
         <View className="items-center justify-center py-12">
@@ -1227,15 +1305,6 @@ const ProfileScreen = ({
                 {activeTab === "Notes" && renderTextPosts()}
                 {activeTab === " " && renderProductGrid()}
               </View>
-
-              {posts.length === 0 && (
-                <View className="items-center justify-center py-12">
-                  <Feather name="image" size={48} color="#ccc" />
-                  <Text className="text-sm text-gray-500 text-center mt-4 max-w-4/5">
-                    No posts yet. Content shared will appear here.
-                  </Text>
-                </View>
-              )}
             </>
           ) : (
             // Private account view
