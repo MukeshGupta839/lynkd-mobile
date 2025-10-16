@@ -247,7 +247,7 @@ const CommentsFooter = memo(function CommentsFooter({
     <BottomSheetFooter animatedFooterPosition={animatedFooterPosition}>
       <View
         onLayout={(e) => onLayoutHeight?.(e.nativeEvent.layout.height)}
-        className="flex-row gap-2 items-center bg-white border-t border-gray-200 px-3"
+        className="flex-row gap-2 items-center bg-white px-3"
         style={{
           paddingTop: 12,
           paddingBottom: !isKeyboardUp
@@ -259,7 +259,7 @@ const CommentsFooter = memo(function CommentsFooter({
         }}
       >
         <BottomSheetTextInput
-          placeholder="Reply"
+          placeholder="Add your comment..."
           value={text}
           onChangeText={setText}
           multiline
@@ -289,7 +289,7 @@ const CommentsFooter = memo(function CommentsFooter({
           className="items-center justify-center bg-black px-4 py-2.5 rounded-full"
         >
           <Text className="text-white font-opensans-semibold text-sm">
-            Reply
+            Send
           </Text>
         </TouchableOpacity>
       </View>
@@ -332,7 +332,12 @@ const CommentsSheet = forwardRef<CommentsSheetHandle, CommentsSheetProps>(
     const [footerHeight, setFooterHeight] = useState(FOOTER_HEIGHT);
 
     // Use comments from props if provided, otherwise use dummy data
-    const displayComments = commentsFromProps || comments;
+    const sourceComments = commentsFromProps || comments;
+
+    // Reverse comments so latest appear at the top
+    const displayComments = useMemo(() => {
+      return [...sourceComments].reverse();
+    }, [sourceComments]);
 
     useImperativeHandle(ref, () => ({
       present: () => {

@@ -288,7 +288,8 @@ export default function CustomTabBar({
                   .tabBarAccessibilityLabel as string) ?? "Scanner")
               : "Scanner";
           })()}
-          accessibilityState={focused ? { selected: true } : {}}>
+          accessibilityState={focused ? { selected: true } : {}}
+        >
           <Camera width={28} height={28} color={focused ? "#fff" : "#ccc"} />
         </TouchableOpacity>
       );
@@ -321,7 +322,8 @@ export default function CustomTabBar({
         className="w-14 h-14 rounded-full items-center justify-center"
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        accessibilityState={focused ? { selected: true } : {}}>
+        accessibilityState={focused ? { selected: true } : {}}
+      >
         <Ionicons
           name={iconName as any}
           size={25}
@@ -338,10 +340,12 @@ export default function CustomTabBar({
 
   return (
     <Animated.View
-      style={{ position: "absolute", left: 0, right: 0, bottom: 0 } as any}>
+      style={{ position: "absolute", left: 0, right: 0, bottom: 0 } as any}
+    >
       <Animated.View style={slideStyle}>
         <View
-          className={`flex-row ${Platform.OS === "ios" ? "-pb-safe-offset-3" : "pb-safe"}`}>
+          className={`flex-row ${Platform.OS === "ios" ? "-pb-safe-offset-3" : "pb-safe"}`}
+        >
           {/* Left pill */}
           <View className="flex-1 h-14 bg-black rounded-l-none rounded-2xl flex-row items-center justify-around mr-2 px-2">
             {slots.map((s, i) => renderSlotButton(s, i))}
@@ -374,11 +378,12 @@ export default function CustomTabBar({
                   }
                 ).tabBarAccessibilityLabel ?? "Profile"
               }
-              accessibilityState={profileFocused ? { selected: true } : {}}>
+              accessibilityState={profileFocused ? { selected: true } : {}}
+            >
               {avatarUri ? (
                 <Image
                   source={{ uri: avatarUri }}
-                  className="w-14 h-14 rounded-full"
+                  className="w-10 h-10 rounded-full"
                 />
               ) : (
                 <Ionicons

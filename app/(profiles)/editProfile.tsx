@@ -2,7 +2,7 @@ import { AuthContext } from "@/context/AuthContext";
 import { useGradualAnimation } from "@/hooks/useGradualAnimation";
 import { apiCall } from "@/lib/api/apiService";
 import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
@@ -48,7 +48,7 @@ export default function EditProfile() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [bannerImage, setBannerImage] = useState(
     user?.banner_image ||
-    "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg"
+      "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg"
   );
   const [imageSelector, setImageSelector] = useState("profile");
   const [displaySaveChanges, setDisplaySaveChanges] = useState(true);
@@ -89,11 +89,11 @@ export default function EditProfile() {
         setBio(userData.bio || "");
         setImage(
           userData.profile_picture ||
-          "https://media.istockphoto.com/id/1223671392/vector/default-profile-picture-avatar-photo-placeholder-vector-illustration.jpg?s=612x612&w=0&k=20&c=s0aTdmT5aU6b8ot7VKm11DeID6NctRCpB755rA1BIP0="
+            "https://media.istockphoto.com/id/1223671392/vector/default-profile-picture-avatar-photo-placeholder-vector-illustration.jpg?s=612x612&w=0&k=20&c=s0aTdmT5aU6b8ot7VKm11DeID6NctRCpB755rA1BIP0="
         );
         setBannerImage(
           userData.banner_image ||
-          "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg?semt=ais_hybrid"
+            "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg?semt=ais_hybrid"
         );
         setTwitterHandle(
           userData?.social_media_accounts?.[0]?.twitter_username || ""
@@ -111,7 +111,6 @@ export default function EditProfile() {
       console.error("Failed to fetch user profile:", error);
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser]);
 
   useEffect(() => {
@@ -213,12 +212,16 @@ export default function EditProfile() {
         }
 
         if (!result.canceled) {
-          const compressed = await manipulateAsync(
-            result.assets[0].uri,
-            [{ resize: { width: 500, height: 500 } }],
-            { compress: 0.7, format: SaveFormat.JPEG }
+          const manipulatorContext = ImageManipulator.manipulate(
+            result.assets[0].uri
           );
-          setImage(compressed.uri);
+          manipulatorContext.resize({ width: 500, height: 500 });
+          const compressed = await manipulatorContext.renderAsync();
+          const savedImage = await compressed.saveAsync({
+            compress: 0.7,
+            format: SaveFormat.JPEG,
+          });
+          setImage(savedImage.uri);
         }
       } else {
         // Banner image - use 16:9 aspect ratio to match banner dimensions (h-52 height)
@@ -240,34 +243,38 @@ export default function EditProfile() {
         }
 
         if (!result.canceled) {
-          let compressed;
+          let savedImage;
           if (Platform.OS === "ios") {
             const { width, height } = result.assets[0];
             const cropWidth = width;
             const cropHeight = (width * 75) / 206;
             const originY = (height - cropHeight) / 2;
-            compressed = await manipulateAsync(
-              result.assets[0].uri,
-              [
-                {
-                  crop: {
-                    originX: 0,
-                    originY,
-                    width: cropWidth,
-                    height: cropHeight,
-                  },
-                },
-              ],
-              { compress: 0.7, format: SaveFormat.JPEG }
+            const manipulatorContext = ImageManipulator.manipulate(
+              result.assets[0].uri
             );
+            manipulatorContext.crop({
+              originX: 0,
+              originY,
+              width: cropWidth,
+              height: cropHeight,
+            });
+            const compressed = await manipulatorContext.renderAsync();
+            savedImage = await compressed.saveAsync({
+              compress: 0.7,
+              format: SaveFormat.JPEG,
+            });
           } else {
-            compressed = await manipulateAsync(
-              result.assets[0].uri,
-              [{ resize: { width: 412, height: 150 } }],
-              { compress: 0.7, format: SaveFormat.JPEG }
+            const manipulatorContext = ImageManipulator.manipulate(
+              result.assets[0].uri
             );
+            manipulatorContext.resize({ width: 412, height: 150 });
+            const compressed = await manipulatorContext.renderAsync();
+            savedImage = await compressed.saveAsync({
+              compress: 0.7,
+              format: SaveFormat.JPEG,
+            });
           }
-          setBannerImage(compressed.uri);
+          setBannerImage(savedImage.uri);
         }
       }
     } catch (error) {
@@ -376,18 +383,20 @@ export default function EditProfile() {
     return (
       <View className="flex-row justify-start items-center px-4 gap-2.5">
         <Text
-          className={`text-base w-[120px] ${label === "Bio" ? "self-start pt-[15px]" : "self-center pt-0"
-            }`}
+          className={`text-base w-[120px] ${
+            label === "Bio" ? "self-start pt-[15px]" : "self-center pt-0"
+          }`}
         >
           {label}
         </Text>
         <View className="flex-row items-center gap-2 border-t border-gray-200">
           {label !== "Phone Number" ? (
             <TextInput
-              className={`text-base text-gray-600 w-[225px] ${label === "Bio"
-                ? "h-[100px] align-top pt-[15px]"
-                : "h-[40px] align-middle pt-0"
-                }`}
+              className={`text-base text-gray-600 w-[225px] ${
+                label === "Bio"
+                  ? "h-[100px] align-top pt-[15px]"
+                  : "h-[40px] align-middle pt-0"
+              }`}
               value={value}
               onChangeText={onChangeText}
               placeholder={"Type your " + label}
@@ -524,8 +533,8 @@ export default function EditProfile() {
 
           {renderSection("Name", name, setName)}
           {renderSection("Username", username, setUsername)}
-          {renderSection("Email", user.email, () => { })}
-          {renderSection("Phone Number", phoneNumber, () => { })}
+          {renderSection("Email", user.email, () => {})}
+          {renderSection("Phone Number", phoneNumber, () => {})}
           {renderSection("Bio", bio, setBio, true)}
 
           <View className="pt-4 px-4">

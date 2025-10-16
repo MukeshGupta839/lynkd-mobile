@@ -128,6 +128,8 @@ export interface PostCardProps {
   isGestureActive?: boolean;
   panGesture: GestureType;
   onPressComments?: (post: any) => void;
+  toggleLike?: (postId: string) => Promise<void>;
+  likedPostIDs?: string[];
 }
 
 // ----- PostCard Component -----
@@ -138,6 +140,8 @@ export const PostCard: React.FC<PostCardProps> = ({
   isGestureActive = false,
   panGesture,
   onPressComments,
+  toggleLike,
+  likedPostIDs = [],
 }) => {
   const router = useRouter();
   const navigating = useRef(false);
@@ -289,6 +293,82 @@ export const PostCard: React.FC<PostCardProps> = ({
                 panGesture={panGesture}
               />
 
+              {/* Affiliation */}
+              {item.affiliated && item.affiliation && (
+                <GestureDetector gesture={openProductTap}>
+                  <TouchableOpacity
+                    className="px-3"
+                    onLongPress={() => onLongPress?.(item)}
+                    delayLongPress={500}
+                    disabled={isGestureActive}
+                  >
+                    <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
+                      <View
+                        className="basis-1/4 self-stretch relative"
+                        style={{
+                          borderTopLeftRadius: 6,
+                          borderBottomLeftRadius: 6,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <Image
+                          source={{ uri: item.affiliation.productImage }}
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            right: 0,
+                            bottom: 0,
+                            left: 0,
+                          }}
+                          resizeMode="cover"
+                        />
+                      </View>
+                      <View className="flex-1 justify-between p-3">
+                        <View className="flex-row items-center justify-between mb-2">
+                          <View className="flex-row flex-1 items-center">
+                            <Image
+                              source={{ uri: item.affiliation.brandLogo }}
+                              className="w-11 h-11 rounded-full mr-2"
+                              resizeMode="contain"
+                            />
+                            <View className="flex-1">
+                              <Text className="font-semibold text-sm text-gray-800">
+                                {item.affiliation.brandName}
+                              </Text>
+                              <Text className="font-medium text-sm text-black">
+                                {item.affiliation.productName}
+                              </Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity
+                            onPress={isGestureActive ? undefined : () => {}}
+                            className="self-start"
+                            disabled={isGestureActive}
+                          >
+                            <MaterialIcons
+                              name="add-shopping-cart"
+                              size={24}
+                              color="#707070"
+                            />
+                          </TouchableOpacity>
+                        </View>
+                        <Text className="text-sm text-gray-600 mb-2 leading-4">
+                          {item.affiliation.productDescription}
+                        </Text>
+                        <View className="flex-row items-center">
+                          <Text className="text-sm text-gray-400 line-through mr-2">
+                            ₹{item.affiliation.productRegularPrice}
+                          </Text>
+                          <Text className="text-sm font-bold text-green-600">
+                            ₹{item.affiliation.productSalePrice}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </GestureDetector>
+              )}
+
               {/* Caption */}
               <View>
                 {(() => {
@@ -319,8 +399,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                           router.push({
                                             pathname: "/(profiles)" as any,
                                             params: {
-                                              username: part.slice(1),
-                                              user: 999999,
+                                              user: item.user_id as number,
+                                              username: item.username,
                                             },
                                           })
                                   }
@@ -341,7 +421,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                                       : () =>
                                           router.push({
                                             pathname:
-                                              "/(search)/searchPostsWithTags" as any,
+                                              "/(search)/tagPostSearch" as any,
                                             params: {
                                               tag: part,
                                             },
@@ -426,8 +506,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                             ? undefined
                             : () =>
                                 router.push({
-                                  pathname:
-                                    "/(search)/searchPostsWithTags" as any,
+                                  pathname: "/(search)/tagPostSearch" as any,
                                   params: {
                                     tag: "#" + tag,
                                   },
@@ -442,91 +521,27 @@ export const PostCard: React.FC<PostCardProps> = ({
                 ) : null}
               </View>
 
-              {/* Affiliation */}
-              {item.affiliated && item.affiliation && (
-                <GestureDetector gesture={openProductTap}>
-                  <TouchableOpacity
-                    className="px-3"
-                    onLongPress={() => onLongPress?.(item)}
-                    delayLongPress={500}
-                    disabled={isGestureActive}
-                  >
-                    <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
-                      <View
-                        className="basis-1/4 self-stretch relative"
-                        style={{
-                          borderTopLeftRadius: 6,
-                          borderBottomLeftRadius: 6,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <Image
-                          source={{ uri: item.affiliation.productImage }}
-                          style={{
-                            position: "absolute",
-                            top: 0,
-                            right: 0,
-                            bottom: 0,
-                            left: 0,
-                          }}
-                          resizeMode="cover"
-                        />
-                      </View>
-                      <View className="flex-1 justify-between p-3">
-                        <View className="flex-row items-center justify-between mb-2">
-                          <View className="flex-row flex-1 items-center">
-                            <Image
-                              source={{ uri: item.affiliation.brandLogo }}
-                              className="w-11 h-11 rounded-full mr-2"
-                              resizeMode="contain"
-                            />
-                            <View className="flex-1">
-                              <Text className="font-semibold text-sm text-gray-800">
-                                {item.affiliation.brandName}
-                              </Text>
-                              <Text className="font-medium text-sm text-black">
-                                {item.affiliation.productName}
-                              </Text>
-                            </View>
-                          </View>
-                          <TouchableOpacity
-                            onPress={isGestureActive ? undefined : () => {}}
-                            className="self-start"
-                            disabled={isGestureActive}
-                          >
-                            <MaterialIcons
-                              name="add-shopping-cart"
-                              size={24}
-                              color="#707070"
-                            />
-                          </TouchableOpacity>
-                        </View>
-                        <Text className="text-sm text-gray-600 mb-2 leading-4">
-                          {item.affiliation.productDescription}
-                        </Text>
-                        <View className="flex-row items-center">
-                          <Text className="text-sm text-gray-400 line-through mr-2">
-                            ₹{item.affiliation.productRegularPrice}
-                          </Text>
-                          <Text className="text-sm font-bold text-green-600">
-                            ₹{item.affiliation.productSalePrice}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                </GestureDetector>
-              )}
-
               {/* Actions */}
               <View className="flex-row items-center justify-between px-3">
                 <View className="flex-row items-center gap-x-4">
                   <TouchableOpacity
                     className="flex-row items-center"
                     disabled={isGestureActive}
-                    onPress={isGestureActive ? undefined : undefined}
+                    onPress={
+                      isGestureActive ? undefined : () => toggleLike?.(item.id)
+                    }
                   >
-                    <Ionicons name="heart-outline" size={20} color="#000" />
+                    <Ionicons
+                      name={
+                        likedPostIDs.includes(item.id)
+                          ? "heart"
+                          : "heart-outline"
+                      }
+                      size={20}
+                      color={
+                        likedPostIDs.includes(item.id) ? "#CE395F" : "#000"
+                      }
+                    />
                     <Text className="ml-1 text-sm font-medium">
                       {item.likes_count}
                     </Text>

@@ -5,6 +5,7 @@ import {
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import "react-native-reanimated";
@@ -21,6 +22,13 @@ import { useEffect } from "react";
 import { MD3LightTheme, PaperProvider } from "react-native-paper";
 
 import "../ReactotronConfig";
+
+// Prevent the splash screen from auto-hiding before asset loading is complete
+SplashScreen.preventAutoHideAsync();
+
+SplashScreen.setOptions({
+  fade: true,
+});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -51,6 +59,13 @@ export default function RootLayout() {
   }, []);
 
   useInitializeFCM();
+
+  // Hide splash screen when fonts are loaded
+  useEffect(() => {
+    if (loaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded]);
 
   if (!loaded) {
     return null;

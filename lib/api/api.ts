@@ -197,14 +197,15 @@ export const fetchComment = async (
 };
 
 export const fetchReelsApi = async (
+  userID: string,
   currentCursor: number
 ): Promise<FetchReelResponse> => {
   try {
     const reels = (await apiCall(
-      `/api/posts/reels?limit=16&page=${currentCursor}`,
+      `/api/posts/reels/feed/user/${userID}?page=${currentCursor}`,
       "GET"
     )) as FetchReelResponse;
-    console.log("Fetched reels:", reels);
+    console.log("Fetched reels:", currentCursor, userID, reels);
     return reels;
   } catch (error) {
     console.error("Error fetching reels:", error);
@@ -212,9 +213,10 @@ export const fetchReelsApi = async (
   }
 };
 
-export const clearReelsCache = async (): Promise<void> => {
+export const clearReelsCache = async (userID: string): Promise<void> => {
   try {
-    await apiCall(`/api/posts/cache/clearReels`, "DELETE");
+    console.log("Clearing reels cache for user:", userID);
+    await apiCall(`/api/posts/cache/clearReels/user/${userID}`, "DELETE");
   } catch (error) {
     console.error("Error clearing reels cache:", error);
     throw error;

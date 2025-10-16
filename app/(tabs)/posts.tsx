@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 // app/(tabs)/posts.tsx
 /// <reference types="react" />
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
@@ -34,6 +35,7 @@ import Send from "../../assets/posts/send.svg";
 
 // ✅ Added: import the comments sheet component + handle
 import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
+import { useAuth } from "@/hooks/useAuth";
 import { clearReelsCache, fetchReelsApi, RawReel } from "@/lib/api/api";
 
 const { width, height } = Dimensions.get("window");
@@ -448,6 +450,7 @@ PostItem.displayName = "PostItem";
 const VideoFeed: React.FC = () => {
   const navigation = useNavigation<any>();
   const router = useRouter();
+  const { user } = useAuth();
   const flatListRef = useRef<FlatList<RawReel> | null>(null);
   const [posts, setPosts] = useState<RawReel[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -1309,7 +1312,6 @@ const VideoFeed: React.FC = () => {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex]); // intentionally not depending on `posts`  // cleanup on unmount
   useEffect(() => {
     return () => {
@@ -1324,7 +1326,6 @@ const VideoFeed: React.FC = () => {
         }
       })();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // only on unmount
 
   // SINGLE vs DOUBLE tap handling: if second tap occurs within DELAY, treat as double-tap
@@ -1497,12 +1498,14 @@ const VideoFeed: React.FC = () => {
   }, [navigation, focused]);
 
   // Fetch reels function - defined before use
-  const fetchReels = useCallback(async (currentCursor = 0) => {
+  const fetchReels = async (currentCursor = 0) => {
     try {
       setLoading(true);
       console.log(`🎯 Fetching reels at cursor ${currentCursor}...`);
-      const res = await fetchReelsApi(currentCursor);
+      const res = await fetchReelsApi(user.id, cursor);
       console.log("reel res:", res);
+
+      console.log("cursor:", cursor, currentCursor);
 
       if (res && res.data && Array.isArray(res.data)) {
         console.log(`✅ Fetched ${res.data.length} reels from API`);
@@ -1568,7 +1571,7 @@ const VideoFeed: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   // const shufflePosts = useCallback(() => {
   //   setPosts((prev) => {
@@ -1613,12 +1616,12 @@ const VideoFeed: React.FC = () => {
     pausedMapRef.current.clear();
 
     // Clear API cache
-    await clearReelsCache();
+    await clearReelsCache(user.id);
 
     // Reset states
     setCurrentIndex(0);
     setCurrentMedia(null);
-    setCursor(0);
+    // setCursor(0);
     setPosts([]);
     setHasVideoError(false);
     setMediaLoading(true);
@@ -1634,7 +1637,7 @@ const VideoFeed: React.FC = () => {
   useEffect(() => {
     console.log("🚀 Component mounted - fetching initial reels");
     fetchReels();
-  }, [fetchReels]);
+  }, []);
 
   // Initialize currentMedia when posts are loaded
   useEffect(() => {

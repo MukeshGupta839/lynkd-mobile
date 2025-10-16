@@ -329,10 +329,10 @@ const ProfileScreen = ({
   ]);
   const [userID, setUserID] = useState(
     propUserId ||
-    (params.user
-      ? Number(Array.isArray(params.user) ? params.user[0] : params.user) ||
-      currentUser.id
-      : currentUser.id)
+      (params.user
+        ? Number(Array.isArray(params.user) ? params.user[0] : params.user) ||
+          currentUser.id
+        : currentUser.id)
   );
   const [following, setFollowing] = useState("");
   const [bioExpanded, setBioExpanded] = useState(false);
@@ -358,39 +358,52 @@ const ProfileScreen = ({
         let actualUserId = userID;
         const mentionedUsername = propUsername || (params.username as string);
 
-        console.log('ProfileScreen loadUserData:', {
+        console.log("ProfileScreen loadUserData:", {
           propUserId,
           propUsername,
           userID,
           actualUserId,
           mentionedUsername,
-          'currentUser.id': currentUser.id,
-          'params.user': params.user,
-          'params.username': params.username,
+          "currentUser.id": currentUser.id,
+          "params.user": params.user,
+          "params.username": params.username,
         });
 
         // If we have a username but no valid userId was passed, fetch user details first to get the userId
         // This happens when navigating with only username (no userId in params)
         const hasValidUserId = propUserId && propUserId !== currentUser.id;
-        const needsUserIdResolution = mentionedUsername && !hasValidUserId && fetchUserDetails;
+        const needsUserIdResolution =
+          mentionedUsername && !hasValidUserId && fetchUserDetails;
 
-        console.log('Resolution check:', { hasValidUserId, needsUserIdResolution });
+        console.log("Resolution check:", {
+          hasValidUserId,
+          needsUserIdResolution,
+        });
 
         if (needsUserIdResolution) {
-          console.log('Fetching user details from username:', mentionedUsername);
-          const details = await fetchUserDetails(actualUserId, mentionedUsername);
+          console.log(
+            "Fetching user details from username:",
+            mentionedUsername
+          );
+          const details = await fetchUserDetails(
+            actualUserId,
+            mentionedUsername
+          );
           setUserDetails(details);
 
           // Update the userID state with the fetched user's ID
           if (details.id && details.id !== actualUserId) {
             actualUserId = details.id;
             setUserID(details.id);
-            console.log('Updated userID from username fetch:', details.id);
+            console.log("Updated userID from username fetch:", details.id);
           }
         } else {
           // Fetch user details normally
           if (fetchUserDetails) {
-            const details = await fetchUserDetails(actualUserId, mentionedUsername);
+            const details = await fetchUserDetails(
+              actualUserId,
+              mentionedUsername
+            );
             setUserDetails(details);
           } else {
             // Mock data fallback
@@ -423,8 +436,8 @@ const ProfileScreen = ({
         // Fetch user posts
         if (fetchUserPosts) {
           const userPosts = await fetchUserPosts(actualUserId);
-          console.log('Loaded posts:', userPosts.length);
-          console.log('Sample post:', userPosts[0]);
+          console.log("Loaded posts:", userPosts.length);
+          console.log("Sample post:", userPosts[0]);
           setPosts(userPosts);
         }
 
@@ -464,6 +477,9 @@ const ProfileScreen = ({
     fetchUserReels,
     fetchUserProducts,
     checkFollowStatus,
+    userID,
+    params.user,
+    currentUser.id,
   ]);
 
   const toggleFollow = async () => {
@@ -512,9 +528,9 @@ const ProfileScreen = ({
       (post) => post.text_post !== true && post.media_url
     );
 
-    console.log('renderGridLayout - Total posts:', posts.length);
-    console.log('renderGridLayout - Filtered posts:', filteredPosts.length);
-    console.log('renderGridLayout - First post:', posts[0]);
+    console.log("renderGridLayout - Total posts:", posts.length);
+    console.log("renderGridLayout - Filtered posts:", filteredPosts.length);
+    console.log("renderGridLayout - First post:", posts[0]);
 
     if (filteredPosts.length === 0) {
       return (
@@ -772,8 +788,8 @@ const ProfileScreen = ({
       (post) => post.text_post !== true && post.media_url
     );
 
-    console.log('renderSquareGrid - Total posts:', posts.length);
-    console.log('renderSquareGrid - Filtered posts:', filteredPosts.length);
+    console.log("renderSquareGrid - Total posts:", posts.length);
+    console.log("renderSquareGrid - Filtered posts:", filteredPosts.length);
 
     if (filteredPosts.length === 0) {
       return (
@@ -985,12 +1001,12 @@ const ProfileScreen = ({
             }}
             likedPosts={[]}
             likedPostIDs={[]}
-            handleShare={() => { }}
-            toggleLike={() => { }}
-            commentBox={() => { }}
-            toggleFollow={() => { }}
+            handleShare={() => {}}
+            toggleLike={() => {}}
+            commentBox={() => {}}
+            toggleFollow={() => {}}
             followedUsers={[]}
-            setFocusedPostID={() => { }}
+            setFocusedPostID={() => {}}
             hideActions={true}
           />
         ))}
@@ -1222,13 +1238,15 @@ const ProfileScreen = ({
             ) : (
               <>
                 <TouchableOpacity
-                  className={`flex-1 h-10 rounded-full justify-center items-center ${following === "followed" ? "bg-white" : "bg-gray-900"
-                    }`}
+                  className={`flex-1 h-10 rounded-full justify-center items-center ${
+                    following === "followed" ? "bg-white" : "bg-gray-900"
+                  }`}
                   onPress={toggleFollow}
                 >
                   <Text
-                    className={`text-sm font-semibold ${following === "followed" ? "text-gray-900" : "text-white"
-                      }`}
+                    className={`text-sm font-semibold ${
+                      following === "followed" ? "text-gray-900" : "text-white"
+                    }`}
                   >
                     {following === "followed"
                       ? "Following"
@@ -1251,15 +1269,16 @@ const ProfileScreen = ({
 
           {/* Content Tabs and Display */}
           {userDetails.is_creator ||
-            following === "followed" ||
-            userDetails.id === currentUser.id ? (
+          following === "followed" ||
+          userDetails.id === currentUser.id ? (
             <>
               <View className="flex-row justify-between mb-4">
                 {tabs.map((tab) => (
                   <TouchableOpacity
                     key={tab}
-                    className={`w-12 h-12 rounded-full justify-center items-center ${activeTab === tab ? "bg-gray-900" : "bg-white"
-                      }`}
+                    className={`w-12 h-12 rounded-full justify-center items-center ${
+                      activeTab === tab ? "bg-gray-900" : "bg-white"
+                    }`}
                     onPress={() => setActiveTab(tab)}
                   >
                     {tab === "All" && (
@@ -1308,7 +1327,6 @@ const ProfileScreen = ({
                 {activeTab === "Notes" && renderTextPosts()}
                 {activeTab === " " && renderProductGrid()}
               </View>
-
             </>
           ) : (
             // Private account view

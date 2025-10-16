@@ -45,7 +45,6 @@ import Cart from "../../assets/posts/cart.svg";
 import Community from "../../assets/posts/community.svg";
 import Gallery from "../../assets/posts/gallery.svg";
 import Location from "../../assets/posts/location.svg";
-import Send from "../../assets/posts/send.svg";
 
 interface RNFile {
   id?: string;
@@ -798,7 +797,7 @@ export default function PostCreate() {
                 {/* Real input on top */}
                 <TextInput
                   ref={inputRef}
-                  className="border flex-1 border-gray-300 rounded-lg p-2"
+                  className="flex-1 border-gray-300 rounded-lg p-2"
                   placeholder="What's on your mind?"
                   style={[
                     styles.base,
@@ -1005,10 +1004,9 @@ export default function PostCreate() {
               </View>
 
               <TouchableOpacity
-                className="bg-black flex-row rounded-full items-center justify-center px-3 py-2.5 gap-1"
+                className="bg-black flex-row rounded-full items-center justify-center px-5 py-2.5 gap-1"
                 onPress={createPost}
               >
-                <Send width={16} height={16} />
                 <Text className="text-white text-sm font-opensans-semibold">
                   POST
                 </Text>

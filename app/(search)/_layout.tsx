@@ -8,10 +8,7 @@ export default function SearchLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="searchPostsWithTags"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="tagPostSearch" options={{ headerShown: false }} />
     </Stack>
   );
 }
