@@ -1,8 +1,11 @@
 // app/(account)/change-password.tsx
 import ScreenHeaderBack from "@/components/ScreenHeaderBack";
+import { AuthContext } from "@/context/AuthContext";
+import { apiCall } from "@/lib/api/apiService";
+import auth from "@react-native-firebase/auth";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -87,6 +90,10 @@ PasswordInput.displayName = "PasswordInput";
 export default function ChangePasswordScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const authContext = useContext(AuthContext);
+  const firebaseUser = authContext?.firebaseUser;
+
+  console.log("ChangePasswordScreen:", firebaseUser);
 
   // ---------------- Password state ----------------
   const [values, setValues] = useState<Record<FieldKey, string>>({
@@ -107,6 +114,15 @@ export default function ChangePasswordScreen() {
   const [confirmError, setConfirmError] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Check if user signed in with password provider
+  const hasPasswordProvider = useMemo(() => {
+    const currentUser = auth().currentUser;
+    if (!currentUser) return false;
+    return currentUser.providerData.some(
+      (provider) => provider.providerId === "password"
+    );
+  }, []);
+
   const errors = useMemo(() => {
     const e: Partial<Record<FieldKey, string>> = {};
     if (!values.current) e.current = "Enter your current password";
@@ -124,19 +140,85 @@ export default function ChangePasswordScreen() {
     values.next.length >= 6 &&
     values.next === values.confirm;
 
-  const handleSubmit = () => {
-    // purely UI: pretend to submit
+  const handleSubmit = async () => {
+    // Input validation
+    if (!firebaseUser) {
+      Alert.alert("Error", "User not authenticated. Please log in again.");
+      return;
+    }
+
     if (!isValid) {
       setTouched({ current: true, next: true, confirm: true });
       return;
     }
+
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert("Success", "Password updated (UI only).", [
+
+    try {
+      // Get the current Firebase Auth user
+      const currentUser = auth().currentUser;
+
+      if (!currentUser || !currentUser.email) {
+        throw new Error("User not found or email not available");
+      }
+
+      // Check if user has password provider
+      const hasPasswordProvider = currentUser.providerData.some(
+        (provider) => provider.providerId === "password"
+      );
+
+      if (!hasPasswordProvider) {
+        Alert.alert(
+          "Cannot Change Password",
+          "You signed in with Google. To set a password, please link your email/password authentication first or contact support.",
+          [{ text: "OK" }]
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Re-authenticate the user with email/password
+      const credential = auth.EmailAuthProvider.credential(
+        currentUser.email,
+        values.current
+      );
+      await currentUser.reauthenticateWithCredential(credential);
+
+      // Update password
+      await currentUser.updatePassword(values.next);
+
+      // Notify backend about password change
+      await apiCall(
+        `/api/users/last-password-changed/${currentUser.uid}`,
+        "PUT"
+      );
+
+      Alert.alert("Success", "Password updated successfully!", [
         { text: "OK", onPress: () => router.back() },
       ]);
-    }, 900);
+    } catch (error: any) {
+      console.error("Password change error:", error);
+
+      let errorMessage = "Failed to update password. Please try again.";
+
+      switch (error.code) {
+        case "auth/wrong-password":
+        case "auth/invalid-credential":
+          errorMessage = "The current password is incorrect.";
+          break;
+        case "auth/weak-password":
+          errorMessage = "The new password is too weak.";
+          break;
+        case "auth/requires-recent-login":
+          errorMessage =
+            "Please log out and log in again to change your password.";
+          break;
+      }
+
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -156,6 +238,19 @@ export default function ChangePasswordScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View className="flex-1 px-3 pt-3">
+          {/* Warning for Google sign-in users */}
+          {!hasPasswordProvider && (
+            <View className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+              <Text className="text-yellow-800 font-semibold mb-1">
+                ⚠️ Password Not Available
+              </Text>
+              <Text className="text-yellow-700 text-sm">
+                You signed in with Google. To set a password for your account,
+                you&apos;ll need to link email/password authentication first.
+              </Text>
+            </View>
+          )}
+
           {/* -------- Password fields -------- */}
           <PasswordInput
             label="Current Password"
@@ -236,11 +331,6 @@ export default function ChangePasswordScreen() {
               <Text className="text-white font-semibold">Change Password</Text>
             )}
           </Pressable>
-
-          {/* Footer note */}
-          <Text className="text-xs text-zinc-500 mt-3 text-center">
-            This screen is UI only. Hook it up to your auth flow later.
-          </Text>
         </View>
       </KeyboardAvoidingView>
     </View>

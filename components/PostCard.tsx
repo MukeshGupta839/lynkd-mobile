@@ -56,6 +56,12 @@ const PostMedia = ({
     [isGestureActive]
   );
 
+  // Extract Image path from aws for image kit
+  const extractImagePath = (image: string) => {
+    const parts = image.split("posts-images/");
+    return parts.length > 1 ? parts[1] : image;
+  };
+
   console.log("postImage :", media);
 
   // If no media, return null
@@ -68,7 +74,13 @@ const PostMedia = ({
     return (
       <View>
         <FacebookStyleImage
-          uri={media}
+          uri={
+            Platform.OS === "ios"
+              ? media
+              : media
+                ? `https://ik.imagekit.io/cs3lxv36v/lynkd-posts/${extractImagePath(media)}`
+                : media
+          }
           style={{ marginBottom: 0 }}
           onLongPress={onLongPress}
           isGestureActive={isGestureActive}
@@ -82,7 +94,13 @@ const PostMedia = ({
     return (
       <View>
         <FacebookStyleImage
-          uri={media.uris[0]}
+          uri={
+            Platform.OS === "ios"
+              ? media.uris[0]
+              : media.uris[0]
+                ? `https://ik.imagekit.io/cs3lxv36v/lynkd-posts/${extractImagePath(media.uris[0])}`
+                : media.uris[0]
+          }
           style={{ marginBottom: 0 }}
           onLongPress={onLongPress}
           isGestureActive={isGestureActive}
@@ -215,7 +233,8 @@ export const PostCard: React.FC<PostCardProps> = ({
       <TouchableOpacity
         activeOpacity={1}
         onLongPress={() => onLongPress?.(item)}
-        delayLongPress={500}>
+        delayLongPress={500}
+      >
         <View className="px-3 mt-2 bg-gray-100">
           <View
             style={{
@@ -225,20 +244,23 @@ export const PostCard: React.FC<PostCardProps> = ({
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.12,
               shadowRadius: 8,
-            }}>
+            }}
+          >
             <View
               className="bg-white py-3 gap-2.5"
               style={{
                 borderRadius: 16,
                 overflow: "hidden",
-              }}>
+              }}
+            >
               {/* Header */}
               <View className="flex-row px-3 items-center h-10">
                 <GestureDetector gesture={openProfileTap}>
                   <TouchableOpacity
                     className="flex-row items-center flex-1 mr-2"
                     activeOpacity={0.7}
-                    disabled={isGestureActive}>
+                    disabled={isGestureActive}
+                  >
                     <Image
                       source={{ uri: item.userProfilePic }}
                       className="w-10 h-10 rounded-full mr-2"
@@ -296,7 +318,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                     className="px-3"
                     onLongPress={() => onLongPress?.(item)}
                     delayLongPress={500}
-                    disabled={isGestureActive}>
+                    disabled={isGestureActive}
+                  >
                     <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
                       <View
                         className="basis-1/4 self-stretch relative"
@@ -304,7 +327,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                           borderTopLeftRadius: 6,
                           borderBottomLeftRadius: 6,
                           overflow: "hidden",
-                        }}>
+                        }}
+                      >
                         <Image
                           source={{ uri: item.affiliation.productImage }}
                           style={{
@@ -337,7 +361,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                           <TouchableOpacity
                             onPress={isGestureActive ? undefined : () => {}}
                             className="self-start"
-                            disabled={isGestureActive}>
+                            disabled={isGestureActive}
+                          >
                             <MaterialIcons
                               name="add-shopping-cart"
                               size={24}
@@ -397,7 +422,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                             },
                                           })
                                   }
-                                  onLongPress={openPostOptions}>
+                                  onLongPress={openPostOptions}
+                                >
                                   {part}
                                 </Text>
                               );
@@ -419,7 +445,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                             },
                                           })
                                   }
-                                  onLongPress={openPostOptions}>
+                                  onLongPress={openPostOptions}
+                                >
                                   {part}
                                 </Text>
                               );
@@ -440,7 +467,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                       ? undefined
                                       : () => Linking.openURL(url)
                                   }
-                                  onLongPress={openPostOptions}>
+                                  onLongPress={openPostOptions}
+                                >
                                   {part}
                                 </Text>
                               );
@@ -458,7 +486,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                           hitSlop={8}
                           style={{ marginLeft: 2, alignSelf: "baseline" }}
                           onLongPress={openPostOptions}
-                          delayLongPress={500}>
+                          delayLongPress={500}
+                        >
                           <Text className="text-sm text-gray-500 px-3 font-medium">
                             Show more
                           </Text>
@@ -475,7 +504,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                           hitSlop={8}
                           style={{ marginLeft: 2, alignSelf: "baseline" }}
                           onLongPress={openPostOptions}
-                          delayLongPress={500}>
+                          delayLongPress={500}
+                        >
                           <Text className="text-sm text-gray-500 px-3 font-medium">
                             Show less
                           </Text>
@@ -499,7 +529,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                     tag: "#" + tag,
                                   },
                                 })
-                        }>
+                        }
+                      >
                         #{tag}
                         {i < neededHashtags.length - 1 ? " " : ""}
                       </Text>
@@ -516,7 +547,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                     disabled={isGestureActive}
                     onPress={
                       isGestureActive ? undefined : () => toggleLike?.(item.id)
-                    }>
+                    }
+                  >
                     <Ionicons
                       name={
                         likedPostIDs.includes(item.id)
@@ -541,7 +573,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                         : () => {
                             onPressComments?.(item);
                           }
-                    }>
+                    }
+                  >
                     <Ionicons
                       name="chatbubble-outline"
                       size={18}
@@ -555,7 +588,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                     disabled={isGestureActive}
                     onPress={
                       isGestureActive ? undefined : () => setShareOpen(true)
-                    }>
+                    }
+                  >
                     <Ionicons
                       name="arrow-redo-outline"
                       size={20}

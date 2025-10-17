@@ -16,14 +16,19 @@ export default function Index() {
     if (!authContext?.loading) {
       // Preload/prepare the navigation target
       if (authContext?.user && authContext?.completedRegistration) {
-        // Preload tabs route in background
-        router.push("/(tabs)");
+        // Use replace to prevent back navigation to splash
+        router.replace("/(tabs)");
       } else {
-        // Preload auth route in background
-        router.push("/(auth)");
+        // Use replace to prevent back navigation to splash
+        router.replace("/(auth)");
       }
     }
-  }, [authContext?.loading, authContext?.user, authContext?.completedRegistration]);
+  }, [
+    authContext?.loading,
+    authContext?.user,
+    authContext?.completedRegistration,
+    router,
+  ]);
 
   useEffect(() => {
     const animation = Animated.loop(

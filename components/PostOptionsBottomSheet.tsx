@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -108,7 +108,14 @@ const PostOptionsBottomSheet = ({
         isButton: true,
         onPress: () => {
           setShow(false);
+          // TODO: Navigate to chat screen when it's available
           console.log("Navigate to message:", focusedPost?.username);
+          // Example navigation (uncomment when route is available):
+          // navigation.navigate("chat/[id]", {
+          //   id: focusedPost?.user_id,
+          //   username: focusedPost?.username,
+          //   profilePicture: focusedPost?.photoURL || 'https://via.placeholder.com/150',
+          // });
         },
       },
       {

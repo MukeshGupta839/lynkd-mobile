@@ -79,260 +79,18 @@ const ProfileScreen = ({
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // Mock user data - replace with your actual user context
-  const currentUser = {
-    id: currentUserId || 1,
-    username: "current_user",
-    profile_picture: "https://randomuser.me/api/portraits/men/1.jpg",
-  };
-
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [activeTab, setActiveTab] = useState("All");
   const [loading, setLoading] = useState(true);
-  const [posts, setPosts] = useState([
-    // March 2024
-    {
-      id: 1,
-      media_url: "https://picsum.photos/400/400?random=1",
-      text_post: false,
-      created_at: "2024-03-28",
-      username: "john_doe",
-    },
-    {
-      id: 2,
-      media_url: "https://picsum.photos/400/400?random=2",
-      text_post: false,
-      created_at: "2024-03-25",
-      username: "john_doe",
-    },
-
-    // February 2024
-    {
-      id: 8,
-      media_url: "https://picsum.photos/400/400?random=6",
-      text_post: false,
-      created_at: "2024-02-28",
-      username: "john_doe",
-    },
-    {
-      id: 9,
-      media_url: "https://picsum.photos/400/400?random=7",
-      text_post: false,
-      created_at: "2024-02-25",
-      username: "john_doe",
-    },
-    {
-      id: 10,
-      media_url: "https://picsum.photos/400/400?random=8",
-      text_post: false,
-      created_at: "2024-02-22",
-      username: "john_doe",
-    },
-    {
-      id: 11,
-      media_url: "https://picsum.photos/400/400?random=9",
-      text_post: false,
-      created_at: "2024-02-20",
-      username: "john_doe",
-    },
-    {
-      id: 12,
-      text_post: true,
-      caption:
-        "Happy Valentine's Day! ❤️ Spreading love and positivity to everyone. What are you grateful for today?",
-      created_at: "2024-02-14",
-      post_hashtags: [
-        "love",
-        "valentinesday",
-        "positivity",
-        "grateful",
-        "happiness",
-      ],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 45,
-      comments_count: 12,
-    },
-    {
-      id: 13,
-      media_url: "https://picsum.photos/400/400?random=10",
-      text_post: false,
-      created_at: "2024-02-10",
-      username: "john_doe",
-    },
-    {
-      id: 14,
-      media_url: "https://picsum.photos/400/400?random=11",
-      text_post: false,
-      created_at: "2024-02-08",
-      username: "john_doe",
-    },
-    {
-      id: 15,
-      text_post: true,
-      caption:
-        "Coffee and creativity ☕ Starting the day with fresh ideas and positive energy. What inspires you?",
-      created_at: "2024-02-05",
-      post_hashtags: [
-        "coffee",
-        "creativity",
-        "inspiration",
-        "morning",
-        "energy",
-      ],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 38,
-      comments_count: 8,
-      affiliated: true,
-      affiliation: {
-        productID: 101,
-        brandName: "BrewMaster",
-        brandLogo: "https://picsum.photos/100/100?random=20",
-        productName: "Premium Coffee Beans",
-        productImage: "https://picsum.photos/300/300?random=21",
-        productDescription:
-          "Freshly roasted premium coffee beans sourced from the best coffee farms around the world. Perfect for starting your creative morning with rich, aromatic flavor.",
-        productRegularPrice: 899,
-        productSalePrice: 649,
-      },
-    },
-
-    // January 2024
-    {
-      id: 16,
-      media_url: "https://picsum.photos/400/400?random=12",
-      text_post: false,
-      created_at: "2024-01-30",
-      username: "john_doe",
-    },
-    {
-      id: 17,
-      media_url: "https://picsum.photos/400/400?random=13",
-      text_post: false,
-      created_at: "2024-01-28",
-      username: "john_doe",
-    },
-    {
-      id: 18,
-      media_url: "https://picsum.photos/400/400?random=14",
-      text_post: false,
-      created_at: "2024-01-25",
-      username: "john_doe",
-    },
-    {
-      id: 19,
-      text_post: true,
-      caption:
-        "New year, new adventures! 🎉 Already making progress on my 2024 goals. What's on your bucket list this year?",
-      created_at: "2024-01-20",
-      post_hashtags: [
-        "newyear",
-        "goals",
-        "adventure",
-        "2024",
-        "motivation",
-        "bucketlist",
-      ],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 67,
-      comments_count: 23,
-    },
-    {
-      id: 20,
-      media_url: "https://picsum.photos/400/400?random=15",
-      text_post: false,
-      created_at: "2024-01-15",
-      username: "john_doe",
-    },
-    {
-      id: 21,
-      media_url: "https://picsum.photos/400/400?random=16",
-      text_post: false,
-      created_at: "2024-01-12",
-      username: "john_doe",
-    },
-    {
-      id: 22,
-      text_post: true,
-      caption:
-        "Weekend vibes! 🌅 Sometimes the best moments are the quiet ones. Taking time to appreciate the little things.",
-      created_at: "2024-01-08",
-      post_hashtags: ["weekend", "vibes", "mindfulness", "grateful", "peace"],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 52,
-      comments_count: 15,
-    },
-    {
-      id: 23,
-      media_url: "https://picsum.photos/400/400?random=17",
-      text_post: false,
-      created_at: "2024-01-05",
-      username: "john_doe",
-    },
-    {
-      id: 24,
-      text_post: true,
-      caption:
-        "Fresh start, fresh mindset! 💫 Ready to make 2024 the best year yet. Here's to new beginnings!",
-      created_at: "2024-01-01",
-      post_hashtags: [
-        "freshstart",
-        "mindset",
-        "2024",
-        "newbeginnings",
-        "motivation",
-      ],
-      username: "john_doe",
-      userProfilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-      is_creator: true,
-      likes_count: 89,
-      comments_count: 34,
-    },
-  ]);
-  const [userReels, setUserReels] = useState([
-    {
-      id: 1,
-      thumbnail_url: "https://picsum.photos/400/600?random=4",
-      reels_views_aggregate: { aggregate: { count: 1250 } },
-    },
-    {
-      id: 2,
-      thumbnail_url: "https://picsum.photos/400/600?random=5",
-      reels_views_aggregate: { aggregate: { count: 3400 } },
-    },
-    {
-      id: 3,
-      thumbnail_url: "https://picsum.photos/400/600?random=5",
-      reels_views_aggregate: { aggregate: { count: 3400 } },
-    },
-  ]);
-  const [productsAffiliated, setProductsAffiliated] = useState([
-    {
-      id: 1,
-      name: "Wireless Headphones",
-      main_image: "https://picsum.photos/300/300?random=6",
-      sale_price: 2999,
-    },
-    {
-      id: 2,
-      name: "Smartphone Case",
-      main_image: "https://picsum.photos/300/300?random=7",
-      sale_price: 799,
-    },
-  ]);
-  const [userID, setUserID] = useState(
+  const [posts, setPosts] = useState<any[]>([]);
+  const [userReels, setUserReels] = useState<any[]>([]);
+  const [productsAffiliated, setProductsAffiliated] = useState<any[]>([]);
+  const [userID, setUserID] = useState<number | undefined>(
     propUserId ||
       (params.user
         ? Number(Array.isArray(params.user) ? params.user[0] : params.user) ||
-          currentUser.id
-        : currentUser.id)
+          currentUserId
+        : currentUserId)
   );
   const [following, setFollowing] = useState("");
   const [bioExpanded, setBioExpanded] = useState(false);
@@ -364,14 +122,14 @@ const ProfileScreen = ({
           userID,
           actualUserId,
           mentionedUsername,
-          "currentUser.id": currentUser.id,
+          currentUserId: currentUserId,
           "params.user": params.user,
           "params.username": params.username,
         });
 
         // If we have a username but no valid userId was passed, fetch user details first to get the userId
         // This happens when navigating with only username (no userId in params)
-        const hasValidUserId = propUserId && propUserId !== currentUser.id;
+        const hasValidUserId = propUserId && propUserId !== currentUserId;
         const needsUserIdResolution =
           mentionedUsername && !hasValidUserId && fetchUserDetails;
 
@@ -385,21 +143,23 @@ const ProfileScreen = ({
             "Fetching user details from username:",
             mentionedUsername
           );
-          const details = await fetchUserDetails(
-            actualUserId,
-            mentionedUsername
-          );
-          setUserDetails(details);
+          if (actualUserId) {
+            const details = await fetchUserDetails(
+              actualUserId,
+              mentionedUsername
+            );
+            setUserDetails(details);
 
-          // Update the userID state with the fetched user's ID
-          if (details.id && details.id !== actualUserId) {
-            actualUserId = details.id;
-            setUserID(details.id);
-            console.log("Updated userID from username fetch:", details.id);
+            // Update the userID state with the fetched user's ID
+            if (details.id && details.id !== actualUserId) {
+              actualUserId = details.id;
+              setUserID(details.id);
+              console.log("Updated userID from username fetch:", details.id);
+            }
           }
         } else {
           // Fetch user details normally
-          if (fetchUserDetails) {
+          if (fetchUserDetails && actualUserId) {
             const details = await fetchUserDetails(
               actualUserId,
               mentionedUsername
@@ -408,7 +168,7 @@ const ProfileScreen = ({
           } else {
             // Mock data fallback
             setUserDetails({
-              id: actualUserId,
+              id: actualUserId || 0,
               username: mentionedUsername || "john_doe",
               first_name: "John",
               last_name: "Doe",
@@ -433,6 +193,12 @@ const ProfileScreen = ({
         }
 
         // Now use the actual user ID for all subsequent API calls
+        // Only proceed if we have a valid userId
+        if (!actualUserId) {
+          console.error("No valid userId found");
+          return;
+        }
+
         // Fetch user posts
         if (fetchUserPosts) {
           const userPosts = await fetchUserPosts(actualUserId);
@@ -454,7 +220,7 @@ const ProfileScreen = ({
         }
 
         // Check follow status if this is not the current user's profile
-        if (checkFollowStatus && actualUserId !== currentUser.id) {
+        if (checkFollowStatus && actualUserId !== currentUserId) {
           const status = await checkFollowStatus(actualUserId);
           if (status) {
             setFollowing(status);
@@ -479,10 +245,15 @@ const ProfileScreen = ({
     checkFollowStatus,
     userID,
     params.user,
-    currentUser.id,
+    currentUserId,
   ]);
 
   const toggleFollow = async () => {
+    if (!userID) {
+      console.error("Cannot toggle follow: userID is undefined");
+      return;
+    }
+
     try {
       if (following === "followed") {
         // Unfollow
@@ -583,7 +354,8 @@ const ProfileScreen = ({
                         focusedIndexPost: dateImages[0].id,
                       },
                     });
-                  }}>
+                  }}
+                >
                   <Image
                     source={{ uri: dateImages[0].media_url }}
                     className="w-full h-full"
@@ -620,7 +392,8 @@ const ProfileScreen = ({
                             focusedIndexPost: image.id,
                           },
                         });
-                      }}>
+                      }}
+                    >
                       <Image
                         source={{ uri: image.media_url }}
                         className="w-full h-full"
@@ -660,7 +433,8 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       });
-                    }}>
+                    }}
+                  >
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -688,7 +462,8 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           });
-                        }}>
+                        }}
+                      >
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -718,7 +493,8 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       });
-                    }}>
+                    }}
+                  >
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -747,7 +523,8 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           });
-                        }}>
+                        }}
+                      >
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -827,7 +604,8 @@ const ProfileScreen = ({
                       focusedIndexPost: image.id,
                     },
                   });
-                }}>
+                }}
+              >
                 <Image
                   source={{ uri: image.media_url }}
                   className="w-full h-full"
@@ -882,7 +660,8 @@ const ProfileScreen = ({
           <View
             key={rowIndex}
             className="flex-row mb-1 gap-1"
-            style={{ gap: gap }}>
+            style={{ gap: gap }}
+          >
             {row.map((video, videoIndex) => (
               <TouchableOpacity
                 key={video.id}
@@ -890,7 +669,8 @@ const ProfileScreen = ({
                 style={{
                   width: videoWidth,
                   height: videoHeight,
-                }}>
+                }}
+              >
                 <Image
                   source={{ uri: video.thumbnail_url }}
                   className="w-full h-full"
@@ -938,7 +718,8 @@ const ProfileScreen = ({
           <TouchableOpacity
             key={product.id}
             className="mb-4 rounded-xl overflow-hidden bg-gray-50 border border-gray-200"
-            style={{ width: (width - 40) / 2 }}>
+            style={{ width: (width - 40) / 2 }}
+          >
             <Image
               source={{ uri: product.main_image }}
               className="w-full h-40"
@@ -1029,7 +810,8 @@ const ProfileScreen = ({
         overScrollMode="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
-        nestedScrollEnabled={true}>
+        nestedScrollEnabled={true}
+      >
         {/* Header with Banner - Fixed height */}
         <View className="relative h-52">
           <Image
@@ -1050,19 +832,22 @@ const ProfileScreen = ({
 
           <View
             className="absolute inset-0 flex-row justify-between px-4"
-            style={{ paddingTop: insets.top - 10 }}>
+            style={{ paddingTop: insets.top - 10 }}
+          >
             <TouchableOpacity
               className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-              onPress={() => router.back()}>
+              onPress={() => router.back()}
+            >
               <MaterialIcons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
 
-            {userID === currentUser.id && (
+            {userID === currentUserId && (
               <TouchableOpacity
                 className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
                 onPress={() => {
                   router.push("/(settings)");
-                }}>
+                }}
+              >
                 <Ionicons name="settings-outline" size={24} color="#fff" />
               </TouchableOpacity>
             )}
@@ -1082,7 +867,8 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://instagram.com/${userDetails.social_media_accounts![0].instagram_username}`
                           )
-                        }>
+                        }
+                      >
                         <FontAwesome5 name="instagram" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1095,7 +881,8 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://twitter.com/${userDetails.social_media_accounts![0].twitter_username}`
                           )
-                        }>
+                        }
+                      >
                         <FontAwesome5 name="twitter" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1108,7 +895,8 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://youtube.com/${userDetails.social_media_accounts![0].youtube_username}`
                           )
-                        }>
+                        }
+                      >
                         <FontAwesome5 name="youtube" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1125,7 +913,8 @@ const ProfileScreen = ({
               onPress={async () => {
                 // Copy profile link functionality
                 console.log("Profile link copied");
-              }}>
+              }}
+            >
               <Image
                 source={{
                   uri:
@@ -1167,7 +956,8 @@ const ProfileScreen = ({
           {/* Bio Section - Optimized for expansion */}
           <TouchableOpacity
             onPress={() => setBioExpanded(!bioExpanded)}
-            className="py-2">
+            className="py-2"
+          >
             {userDetails?.bio && (
               <Text className="text-base text-gray-700 leading-5">
                 {bioExpanded
@@ -1186,7 +976,8 @@ const ProfileScreen = ({
                 key={index}
                 className="items-center"
                 onPress={() => handleOpenSheet(stat.label)}
-                disabled={userID !== currentUser.id || stat.label === "Posts"}>
+                disabled={userID !== currentUserId || stat.label === "Posts"}
+              >
                 <Text className="text-sm font-bold text-gray-900">
                   {kFormatter(stat.value)}
                 </Text>
@@ -1197,20 +988,22 @@ const ProfileScreen = ({
 
           {/* Action Buttons */}
           <View className="flex-row justify-between mb-6">
-            {userID === currentUser.id ? (
+            {userID === currentUserId ? (
               <>
                 <TouchableOpacity
                   className="flex-1 h-10 rounded-full justify-center items-center bg-white mr-2"
                   onPress={() => {
                     router.push("/(profiles)/editProfile");
-                  }}>
+                  }}
+                >
                   <Text className="text-sm font-semibold text-gray-900">
                     Edit Profile
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 h-10 rounded-full justify-center items-center bg-gray-900 ml-2"
-                  onPress={() => router.push("/(profiles)/InviteHome")}>
+                  onPress={() => router.push("/(profiles)/InviteHome")}
+                >
                   <Text className="text-sm font-semibold text-white">
                     Invite
                   </Text>
@@ -1222,11 +1015,13 @@ const ProfileScreen = ({
                   className={`flex-1 h-10 rounded-full justify-center items-center ${
                     following === "followed" ? "bg-white" : "bg-gray-900"
                   }`}
-                  onPress={toggleFollow}>
+                  onPress={toggleFollow}
+                >
                   <Text
                     className={`text-sm font-semibold ${
                       following === "followed" ? "text-gray-900" : "text-white"
-                    }`}>
+                    }`}
+                  >
                     {following === "followed"
                       ? "Following"
                       : following === "pending"
@@ -1249,7 +1044,7 @@ const ProfileScreen = ({
           {/* Content Tabs and Display */}
           {userDetails.is_creator ||
           following === "followed" ||
-          userDetails.id === currentUser.id ? (
+          userDetails.id === currentUserId ? (
             <>
               <View className="flex-row justify-between mb-4">
                 {tabs.map((tab) => (
@@ -1258,7 +1053,8 @@ const ProfileScreen = ({
                     className={`w-12 h-12 rounded-full justify-center items-center ${
                       activeTab === tab ? "bg-gray-900" : "bg-white"
                     }`}
-                    onPress={() => setActiveTab(tab)}>
+                    onPress={() => setActiveTab(tab)}
+                  >
                     {tab === "All" && (
                       <FontAwesome
                         name="snowflake-o"

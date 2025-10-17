@@ -1,5 +1,7 @@
 // app/components/Stories/Stories.tsx
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
+import { useAuth } from "@/hooks/useAuth";
+import { apiCall } from "@/lib/api/apiService";
 import { Ionicons } from "@expo/vector-icons";
 import { useEventListener } from "expo";
 import { useRouter } from "expo-router";
@@ -178,11 +180,12 @@ const Stories = ({
 }: StoriesProps): React.ReactElement | null => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
 
   const TOP_UI_HEIGHT = 60;
   const BOTTOM_UI_HEIGHT = 50;
 
-  const LOGGED_IN_USER_ID = "you"; // replace with auth user id
+  const LOGGED_IN_USER_ID = user?.id || "you"; // Use actual user ID from auth
 
   // Editable copy of incoming data
   const [localStories, setLocalStories] = useState<StoryUser[]>(storiesData);
@@ -198,6 +201,7 @@ const Stories = ({
   const [message, setMessage] = useState("");
   const [postOptionsVisible, setPostOptionsVisible] = useState(false);
   const [focusedPost, setFocusedPost] = useState<any | null>(null);
+  const [followedUsers, setFollowedUsers] = useState<string[]>([]);
 
   // playback/progress anim
   const progress = useRef(new Animated.Value(0)).current;
@@ -544,6 +548,43 @@ const Stories = ({
     });
   };
 
+  /** Toggle follow/unfollow for a user */
+  const toggleFollow = async (userId: string | number) => {
+    if (!user?.id || !userId) return;
+
+    const userIdStr = String(userId);
+    const isFollowing = followedUsers.includes(userIdStr);
+
+    // Optimistic update - instant UI response
+    setFollowedUsers((prev) =>
+      isFollowing ? prev.filter((id) => id !== userIdStr) : [...prev, userIdStr]
+    );
+
+    try {
+      console.log(
+        isFollowing ? "✅ Unfollowing user:" : "✅ Following user:",
+        userId
+      );
+
+      const endpoint = isFollowing
+        ? `/api/follows/unfollow/${user.id}/${userId}`
+        : `/api/follows/follow/${user.id}/${userId}`;
+
+      await apiCall(endpoint, isFollowing ? "DELETE" : "POST");
+      console.log(
+        isFollowing ? "✅ Unfollow successful" : "✅ Follow successful"
+      );
+    } catch (error) {
+      console.error(`❌ Error toggling follow for user ${userId}:`, error);
+      // Rollback on error
+      setFollowedUsers((prev) =>
+        isFollowing
+          ? [...prev, userIdStr]
+          : prev.filter((id) => id !== userIdStr)
+      );
+    }
+  };
+
   /* =========================
      GESTURES
      ========================= */
@@ -656,7 +697,8 @@ const Stories = ({
       <GestureDetector gesture={combinedGesture}>
         <SafeAreaView
           edges={["top", "bottom"]}
-          style={{ flex: 1, backgroundColor: "black" }}>
+          style={{ flex: 1, backgroundColor: "black" }}
+        >
           {/* Media area between top and bottom UI */}
           <View style={{ flex: 1, paddingBottom: BOTTOM_UI_HEIGHT }}>
             <View style={{ flex: 1 }}>
@@ -698,12 +740,14 @@ const Stories = ({
               bottom: 0,
               alignItems: "center",
               justifyContent: "center",
-            }}>
+            }}
+          >
             <Animated.View
               style={{
                 opacity: heartOpacity,
                 transform: [{ scale: heartScale }],
-              }}>
+              }}
+            >
               <Ionicons name="heart" size={140} color="#FF2D55" />
             </Animated.View>
           </View>
@@ -716,7 +760,8 @@ const Stories = ({
               top: insets.top + 10,
               left: 6,
               right: 6,
-            }}>
+            }}
+          >
             {/* Progress bars */}
             <View className="flex-row h-[3px] mb-5">
               {user.stories.map((_, index) => {
@@ -732,7 +777,8 @@ const Stories = ({
                 return (
                   <View
                     key={`${user.user_id}-${index}`}
-                    className="flex-1 bg-white/30 mx-0.5 overflow-hidden">
+                    className="flex-1 bg-white/30 mx-0.5 overflow-hidden"
+                  >
                     <Animated.View
                       style={{ width: animatedWidth, height: "100%" }}
                       className="bg-white"
@@ -755,7 +801,8 @@ const Stories = ({
                       username: user.user_name,
                     },
                   })
-                }>
+                }
+              >
                 <Image
                   source={{ uri: user.user_image }}
                   className="w-10 h-10 rounded-full"
@@ -780,7 +827,8 @@ const Stories = ({
 
                   setPostOptionsVisible(true);
                 }}
-                className="p-2">
+                className="p-2"
+              >
                 <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -796,10 +844,12 @@ const Stories = ({
                 left: 0,
                 right: 0,
               }}
-              className="bg-black/60 px-3 py-2">
+              className="bg-black/60 px-3 py-2"
+            >
               <Text
                 style={{ fontSize: story.caption_size ?? 18 }}
-                className="text-white self-center">
+                className="text-white self-center"
+              >
                 {story.caption}
               </Text>
             </View>
@@ -814,7 +864,8 @@ const Stories = ({
               right: 0,
               bottom: insets.bottom,
               paddingHorizontal: 12,
-            }}>
+            }}
+          >
             <View className="flex-row items-center justify-between bg-transparent py-2">
               <View className="flex-1 flex-row items-center bg-transparent border border-white rounded-full px-3">
                 <TextInput
@@ -827,9 +878,7 @@ const Stories = ({
                 />
               </View>
 
-              <TouchableOpacity
-                onPress={triggerHeartAnimation}
-                className="ml-4">
+              <TouchableOpacity onPress={handleLikePress} className="ml-4">
                 <Ionicons
                   name={liked ? "heart" : "heart-outline"}
                   size={32}
@@ -872,7 +921,8 @@ const Stories = ({
                   setMediaKey((k) => k + 1);
                   startProgress();
                 }}
-                className="items-center">
+                className="items-center"
+              >
                 <Image
                   source={{
                     uri: item.stories[0]?.story_image ?? item.user_image,
@@ -887,7 +937,8 @@ const Stories = ({
                 />
                 <Text
                   className="text-white text-xs text-center w-20 mt-1"
-                  numberOfLines={1}>
+                  numberOfLines={1}
+                >
                   {item.user_name}
                 </Text>
               </TouchableOpacity>
@@ -905,8 +956,20 @@ const Stories = ({
         setBlockUser={() => {}}
         setReportVisible={() => {}}
         setFocusedPost={(post: any) => setFocusedPost(post)}
-        toggleFollow={() => {}}
-        isFollowing={false}
+        toggleFollow={() => {
+          const currentStory =
+            currentUserIndex !== null ? localStories[currentUserIndex] : null;
+          if (currentStory?.user_id) {
+            toggleFollow(currentStory.user_id);
+          }
+        }}
+        isFollowing={
+          currentUserIndex !== null && localStories[currentUserIndex]
+            ? followedUsers.includes(
+                String(localStories[currentUserIndex].user_id)
+              )
+            : false
+        }
         focusedPost={focusedPost}
         deleteAction={() => {
           handleDeleteCurrent();

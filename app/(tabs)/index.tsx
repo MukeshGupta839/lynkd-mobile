@@ -265,31 +265,62 @@ export default function ConsumerHomeUI() {
   // Post options helper functions
   const toggleFollow = useCallback(
     async (userId: string) => {
+      if (!user?.id || !userId) return;
+
       const isFollowing = followedUsers.includes(userId);
+
+      // Optimistic update - instant UI response
+      setFollowedUsers((prev) =>
+        isFollowing ? prev.filter((id) => id !== userId) : [...prev, userId]
+      );
+
       try {
         Vibration.vibrate(100);
-        console.log(isFollowing ? "Unfollowing" : "Following", userId);
-        // Add your follow/unfollow API call here
+        console.log(
+          isFollowing ? "✅ Unfollowing user:" : "✅ Following user:",
+          userId
+        );
 
-        setFollowedUsers((prev) =>
-          isFollowing ? prev.filter((id) => id !== userId) : [...prev, userId]
+        const endpoint = isFollowing
+          ? `/api/follows/unfollow/${user?.id}/${userId}`
+          : `/api/follows/follow/${user?.id}/${userId}`;
+
+        await apiCall(endpoint, isFollowing ? "DELETE" : "POST");
+        console.log(
+          isFollowing ? "✅ Unfollow successful" : "✅ Follow successful"
         );
       } catch (error) {
-        console.error(`Error toggling follow for user ${userId}:`, error);
+        console.error(`❌ Error toggling follow for user ${userId}:`, error);
+        // Rollback on error
+        setFollowedUsers((prev) =>
+          isFollowing ? [...prev, userId] : prev.filter((id) => id !== userId)
+        );
       }
     },
-    [followedUsers]
+    [followedUsers, user?.id]
   );
 
-  const deletePost = useCallback(async (postId: string) => {
-    try {
-      console.log("Deleting post:", postId);
-      // Add your delete post API call here
-      setPostOptionsVisible(false);
-    } catch (error) {
-      console.error("Error deleting post:", error);
-    }
-  }, []);
+  const deletePost = useCallback(
+    async (postId: string) => {
+      if (!user?.id) return;
+
+      try {
+        Vibration.vibrate(100);
+        console.log("🗑️ Deleting post:", postId);
+
+        await apiCall(`/api/posts/${postId}`, "DELETE");
+
+        // Remove from local state
+        setPosts((prevPosts) => prevPosts.filter((post) => post.id !== postId));
+        setPostOptionsVisible(false);
+
+        console.log("✅ Post deleted successfully");
+      } catch (error) {
+        console.error("❌ Error deleting post:", error);
+      }
+    },
+    [user?.id]
+  );
 
   const handleLongPress = useCallback((item: any) => {
     Vibration.vibrate(100);
@@ -356,6 +387,10 @@ export default function ConsumerHomeUI() {
       try {
         if (!text || text.trim() === "") return;
         if (!commentsPost?.id) return;
+        if (!user?.id) {
+          console.warn("Cannot add comment: user is not logged in");
+          return;
+        }
 
         const response = await apiCall(`/api/comments/`, "POST", {
           postID: commentsPost.id,
@@ -371,7 +406,7 @@ export default function ConsumerHomeUI() {
         console.error("Error adding comment:", error);
       }
     },
-    [commentsPost, user.id, fetchCommentsForPost]
+    [commentsPost, user?.id, fetchCommentsForPost]
   );
 
   // Handle navigation to chat after gesture completes
@@ -619,8 +654,8 @@ export default function ConsumerHomeUI() {
         );
 
         const endpoint = isLiked
-          ? `/api/likes/${postId}/${user.id}/unlike`
-          : `/api/likes/${postId}/${user.id}/like`;
+          ? `/api/likes/${postId}/${user?.id}/unlike`
+          : `/api/likes/${postId}/${user?.id}/like`;
         await apiCall(endpoint, "POST");
       } catch (error) {
         console.error(`Error toggling like for post ${postId}:`, error);
@@ -640,11 +675,12 @@ export default function ConsumerHomeUI() {
         );
       }
     },
-    [likedPostIDs, user.id]
+    [likedPostIDs, user?.id]
   );
 
   const fetchPosts = useCallback(async (): Promise<void> => {
     try {
+      if (!user?.id) return;
       const { userFeed, randomPosts }: FetchPostsResponse = await fetchPostsAPI(
         user.id
       );
@@ -703,17 +739,18 @@ export default function ConsumerHomeUI() {
     } catch (error) {
       console.error("Error fetching posts:", error);
     }
-  }, [user.id]);
+  }, [user?.id]);
 
   const fetchUserLikedPostsData = useCallback(async () => {
     try {
+      if (!user?.id) return;
       const response: any = await fetchUserLikedPosts(user.id);
       console.log("Liked Posts:", response.likedPosts);
       setLikedPostIDs(response.likedPosts || []);
     } catch (error) {
       console.error("Error fetching liked posts:", error);
     }
-  }, [user.id]);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchPosts();
@@ -721,6 +758,7 @@ export default function ConsumerHomeUI() {
   }, [fetchPosts, fetchUserLikedPostsData]);
 
   const onRefresh = async () => {
+    if (!user?.id) return;
     await clearPostsCache(user.id);
     fetchPosts();
     await fetchUserLikedPostsData();
@@ -729,6 +767,7 @@ export default function ConsumerHomeUI() {
 
   const fetchMorePostsAPI = async () => {
     if (isFetchingNextPage) return; // Prevent multiple simultaneous fetches
+    if (!user?.id) return;
 
     try {
       console.log("🔄 Fetching more posts... Page:", page);
@@ -788,6 +827,16 @@ export default function ConsumerHomeUI() {
 
   console.log("posts state:", posts);
   console.log("auth user:", user);
+
+  // If user is not loaded or is null, show loading screen
+  // This prevents errors when user logs out
+  if (!user || !user.id) {
+    return (
+      <View className="flex-1 items-center justify-center bg-gray-100">
+        <Text className="text-gray-500 text-base">Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <GestureDetector gesture={panGesture}>
@@ -1003,7 +1052,7 @@ export default function ConsumerHomeUI() {
               show={reportVisible}
               setShow={setReportVisible}
               postId={focusedPost?.id || ""}
-              userId={user.id}
+              userId={user?.id || ""}
             />
 
             <BlockUserPopup
