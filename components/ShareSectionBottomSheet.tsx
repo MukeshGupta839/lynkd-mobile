@@ -20,15 +20,46 @@ import {
 import { FlatList, TextInput } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ✅ use the same data + helpers as chat.ts
+// ✅ chat store + helpers
 import {
   LOGGED_USER,
   PostPreview,
-  registerPost, // ensure preview is saved to the registry
+  registerPost,
   sendPostToChat,
   sharePostToUsers,
   USERS,
 } from "@/constants/chat";
+
+/** Small helper: always coerce a preview into the right shape */
+function normalizePreview(src?: Partial<PostPreview>): PostPreview | undefined {
+  if (!src || !src.id || !src.image || !src.author) return undefined;
+
+  const v =
+    (src as any).verified ??
+    (src as any).isVerified ??
+    (src as any).author_verified ??
+    (src as any).user?.verified ??
+    (src as any).user?.isVerified ??
+    (src as any).is_creator ??
+    false;
+
+  return {
+    id: String(src.id),
+    image: String(src.image),
+    author: String(src.author),
+    caption: src.caption ?? "",
+    author_avatar: src.author_avatar || "",
+    videoUrl:
+      typeof src.videoUrl === "string" && src.videoUrl.length > 0
+        ? src.videoUrl
+        : undefined,
+    thumb:
+      typeof src.thumb === "string" && src.thumb.length > 0
+        ? src.thumb
+        : String(src.image),
+    verified: Boolean(v),
+  };
+}
 
 /** Types */
 export type ShareUser = {
@@ -44,21 +75,24 @@ type Props = {
   users?: ShareUser[]; // optional override list
   postId?: string | number;
 
-  // ✅ Optional: pass a preview so DM can render the real post (image/author/caption)
-  postPreview?: PostPreview;
+  /**
+   * ✅ The preview of the post you're sharing.
+   * Must contain at least: id, image, author.
+   * If verified creator, set verified: true.
+   */
+  postPreview?: Partial<PostPreview>;
 
   onSelectUser?: (user: ShareUser) => void;
   onShareImage?: (
     target?: "whatsapp" | "system" | "facebook" | "instagram"
   ) => void;
 
-  // removed onSendToUsers to avoid double-sends
   initialHeightPct?: number;
   maxHeightPct?: number;
   maxSelect?: number;
 };
 
-/** (kept) Local dummy — not used unless you pass users prop */
+/** Local dummy — only used when `users` prop is omitted */
 const USERNAMES = [
   "emma_w",
   "oliver",
@@ -146,7 +180,7 @@ const ShareSectionBottomSheet = memo<Props>(
     setShow,
     users = [],
     postId,
-    postPreview, // ✅ we will normalize verified from here
+    postPreview,
     onSelectUser,
     onShareImage,
     initialHeightPct = 0.35,
@@ -211,7 +245,7 @@ const ShareSectionBottomSheet = memo<Props>(
 
     const [search, setSearch] = useState("");
 
-    // ✅ Default to the same USERS used by chat.ts (keeps everything in sync)
+    // ✅ Use the same USERS as the store unless provided
     const baseUsers = useMemo<ShareUser[]>(() => {
       if (users.length) return users;
       return USERS.map((u) => ({
@@ -292,77 +326,49 @@ const ShareSectionBottomSheet = memo<Props>(
       [onSelectUser, maxSelect]
     );
 
-    // 🔒 simple re-entrancy guard to avoid double-taps
+    // 🔒 re-entrancy guard
     const isSendingRef = useRef(false);
 
-    // ✅ helper: normalize any incoming verified-ish flags to a proper boolean
-    const normalizeVerified = (p?: PostPreview) =>
-      Boolean(
-        p &&
-          ((p as any).verified ??
-            (p as any).isVerified ??
-            (p as any).author_verified ??
-            (p as any).user?.verified ??
-            (p as any).user?.isVerified ??
-            (p as any).is_creator)
-      );
-
-    // ✅ The sheet is the ONLY place that sends.
+    /** ✅ Send to selected users with a GUARANTEED preview */
     const handleSend = useCallback(() => {
-      if (isSendingRef.current) return; // guard double-tap
+      if (isSendingRef.current) return;
       if (!selectedUsers.length) return;
 
-      if (postId == null || postId === "") {
-        Alert.alert("Nothing to send", "Missing post id.");
+      const id =
+        postId != null ? String(postId) : String(postPreview?.id ?? "");
+      const normalized = normalizePreview(
+        postPreview ?? ({} as Partial<PostPreview>)
+      );
+
+      if (!id || !normalized) {
+        Alert.alert(
+          "Missing post data",
+          "To share a post in chat, please provide postPreview with id, image and author."
+        );
         return;
       }
 
       isSendingRef.current = true;
 
       try {
-        // ✅ Ensure preview is registered so chat/inbox can render it next time
-        if (postPreview?.id) {
-          const normalizedVerified = normalizeVerified(postPreview);
+        // 1) Register so the registry always has it for future reads
+        registerPost(normalized);
 
-          registerPost({
-            id: String(postPreview.id),
-            image: postPreview.image || "",
-            author: postPreview.author || "",
-            caption: postPreview.caption,
-            author_avatar: postPreview.author_avatar,
-            videoUrl: postPreview.videoUrl,
-            thumb: postPreview.thumb || postPreview.image,
-            verified: normalizedVerified, // ✅ FIXED
-          });
-        }
-
-        // 1) Insert the post into each selected DM (thread store)
+        // 2) Insert into each DM (thread store) WITH preview
         selectedUsers.forEach((u) => {
-          // also pass a preview with normalized verified so UI shows instantly
-          const normalizedPreview = postPreview
-            ? {
-                ...postPreview,
-                verified: normalizeVerified(postPreview),
-              }
-            : undefined;
-          sendPostToChat(String(u.id), String(postId), normalizedPreview);
+          sendPostToChat(String(u.id), id, normalized);
         });
 
-        // 2) Update inbox preview/badges (also normalized)
-        const normalizedForInbox = postPreview
-          ? { ...postPreview, verified: normalizeVerified(postPreview) }
-          : undefined;
-
+        // 3) Update inbox preview/badges WITH preview
         sharePostToUsers(
-          String(postId),
+          id,
           selectedUsers.map((u) => String(u.id)),
-          normalizedForInbox
+          normalized
         );
 
-        // 3) Close sheet
+        // 4) Close and jump to the first chat
         closeSheet();
 
-        // 4) Navigate into the first chat (IG behavior)
         const first = selectedUsers[0];
         router.push({
           pathname: "/chat/UserChatScreen",
@@ -376,7 +382,6 @@ const ShareSectionBottomSheet = memo<Props>(
           },
         });
       } finally {
-        // slight delay so rapid back-and-forth doesn't re-enter
         setTimeout(() => {
           isSendingRef.current = false;
         }, 400);
@@ -448,7 +453,7 @@ const ShareSectionBottomSheet = memo<Props>(
               </View>
 
               {/* Search */}
-              <View className="relative  mb-2">
+              <View className="relative mb-2">
                 <TextInput
                   placeholder="Search"
                   placeholderTextColor="#666"
@@ -472,7 +477,7 @@ const ShareSectionBottomSheet = memo<Props>(
                 />
               </View>
 
-              {/* Sticky horizontal chips */}
+              {/* Chips */}
               {selectedUsers.length > 0 && (
                 <View style={{ height: CHIP_HEIGHT + 14, marginBottom: 4 }}>
                   <ScrollView
@@ -520,9 +525,9 @@ const ShareSectionBottomSheet = memo<Props>(
                 </View>
               )}
 
-              {/* Scrollable users grid */}
+              {/* Users grid */}
               <FlatList
-                data={filteredUsers}
+                data={filteredUsers.length ? filteredUsers : DUMMY_USERS}
                 keyExtractor={(it) => String(it.id)}
                 renderItem={({ item }) => (
                   <GridUser
@@ -541,7 +546,7 @@ const ShareSectionBottomSheet = memo<Props>(
                 showsVerticalScrollIndicator={false}
               />
 
-              {/* Bottom actions — hidden when Send bar visible */}
+              {/* Bottom actions (hidden when Send bar shows) */}
               {!showSendBar && (
                 <View
                   style={{

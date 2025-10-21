@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Stories, { StoryUser } from "@/components/Stories/Stories";
+import Stories from "@/components/Stories/Stories";
 import {
   CHAT_LIST_DUMMY,
   ChatItem,
@@ -31,13 +31,12 @@ import { useEventListener } from "expo";
 import * as ImagePicker from "expo-image-picker";
 import { useVideoPlayer, VideoView } from "expo-video";
 
-/* ---------- helpers (kept) ---------- */
+/* ---------- helpers ---------- */
 function normalizeAssetDuration(raw: any): number | undefined {
   if (typeof raw !== "number" || !isFinite(raw)) return undefined;
   if (raw > 1000) return raw / 1000;
   return raw;
 }
-
 const MAX_VIDEO_SECONDS = 60;
 
 /* ---------- Story bubble (other users) ---------- */
@@ -45,7 +44,7 @@ type StoryBubbleProps = {
   user: User;
   onOpen: (u: User) => void;
   onOpenProfile: (img?: string) => void;
-  isSeen?: boolean;
+  isSeen?: boolean; // <-- seen means finished all stories
 };
 const StoryBubble = memo<StoryBubbleProps>(
   ({ user, onOpen, onOpenProfile, isSeen }) => {
@@ -61,7 +60,7 @@ const StoryBubble = memo<StoryBubbleProps>(
           className="items-center">
           {hasStory ? (
             isSeen ? (
-              // gray ring + dim avatar if seen
+              // Gray ring + dim avatar if finished
               <View
                 style={{
                   padding: 2,
@@ -78,7 +77,7 @@ const StoryBubble = memo<StoryBubbleProps>(
                 </View>
               </View>
             ) : (
-              // colorful ring if unseen
+              // Colorful ring if not finished
               <LinearGradient
                 colors={["#C0C0C0", "#000000", "#FFD700", "#FFA500"]}
                 start={[0, 0]}
@@ -193,7 +192,6 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
   const displayName =
     otherUser.username.charAt(0).toUpperCase() + otherUser.username.slice(1);
 
-  // 👇 read only the aggregated unreadCount from the conversation row
   const unreadCount = (item as any).unreadCount ?? 0;
 
   const preview =
@@ -334,11 +332,10 @@ export default function Chats() {
     ...USERS,
   ]);
 
-  // ✅ Seen tracking
+  // ✅ Track which users have fully finished (for gray + move to end)
   const [seenStoryUserIds, setSeenStoryUserIds] = useState<Set<string>>(
     new Set()
   );
-  const openedUserIdRef = useRef<string | null>(null);
 
   // ==== PREVIEW state
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -365,7 +362,7 @@ export default function Chats() {
     const isVideo =
       (a.type?.startsWith("video") ?? false) || a.type === "video";
 
-    // ✅ Enforce <= 60 seconds for videos (block longer)
+    // Enforce <= 60 seconds for videos (block longer)
     if (isVideo) {
       const durSec = normalizeAssetDuration((a as any).duration);
       if (typeof durSec === "number" && durSec > MAX_VIDEO_SECONDS) {
@@ -409,6 +406,13 @@ export default function Chats() {
     }
   }, [previewUri]);
 
+  type StoryUser = {
+    user_id: string | number;
+    user_image: string;
+    user_name: string;
+    stories: { story_id: string; story_image: string; created_at: string }[];
+  };
+
   /* Stories viewer data (only users with stories) */
   const storiesViewerData: StoryUser[] = useMemo(() => {
     const you = storyUsers.find((u) => (u as any).isYou);
@@ -441,32 +445,32 @@ export default function Chats() {
     (user: User) => {
       const idx = viewerIndexByUserId.get(user.id);
       if (idx === undefined) return;
-      openedUserIdRef.current = String(user.id);
       setStoriesInitialIndex(idx);
       setStoriesVisible(true);
     },
     [viewerIndexByUserId]
   );
 
-  /* Stories row data (You, then Unseen, then Seen) */
+  /* Stories row data (You, then Unseen, then Seen@end) */
   const youUser = storyUsers.find((u) => (u as any).isYou)!;
   const storyRowData = useMemo(() => {
     const othersWithStories = storyUsers.filter(
       (u) => !(u as any).isYou && (u.stories ?? []).length > 0
     );
+
     const unseen = othersWithStories.filter(
       (u) => !seenStoryUserIds.has(String(u.id))
     );
     const seen = othersWithStories.filter((u) =>
       seenStoryUserIds.has(String(u.id))
     );
+
+    // Move finished (seen) to the end
     return [youUser, ...unseen, ...seen];
   }, [youUser, storyUsers, seenStoryUserIds]);
 
   /* ---------- Build IG-style conversation rows ---------- */
   const conversations = useMemo(() => {
-    // Group messages by the "other user", keep the latest message for preview/time,
-    // and sum all unread incoming messages.
     type Acc = {
       [otherId: string]: ChatItem & { unreadCount: number };
     };
@@ -478,7 +482,6 @@ export default function Chats() {
         msg.sender.id === LOGGED_USER.id ? msg.receiver : msg.sender;
       const key = String(other.id);
 
-      // Count unread only when the message is to the logged user and is flagged unread
       const unreadInc =
         msg.receiver.id === LOGGED_USER.id && (msg as any).unread === true
           ? 1
@@ -489,26 +492,23 @@ export default function Chats() {
       if (!acc[key]) {
         acc[key] = {
           ...msg,
-          id: `conv-${key}`, // ensure single row per conversation
+          id: `conv-${key}`,
           unreadCount: unreadInc,
         };
       } else {
-        // accumulate unread properly
         acc[key].unreadCount += unreadInc;
 
-        // always keep the latest message for preview/time
         const prevTime = new Date(acc[key].created_at).getTime();
         if (msgTime > prevTime) {
           acc[key] = {
             ...msg,
             id: `conv-${key}`,
-            unreadCount: acc[key].unreadCount, // keep the summed unread
+            unreadCount: acc[key].unreadCount,
           };
         }
       }
     }
 
-    // Sort like IG: (1) unread first, (2) newest first
     return Object.values(acc).sort((a, b) => {
       const au = a.unreadCount || 0;
       const bu = b.unreadCount || 0;
@@ -532,22 +532,6 @@ export default function Chats() {
     });
   }, [conversations, searchQuery]);
 
-  // Helper: mark a user as seen
-  const markUserSeen = useCallback((uid: string | number) => {
-    setSeenStoryUserIds((prev) => {
-      const next = new Set(prev);
-      next.add(String(uid));
-      return next;
-    });
-  }, []);
-
-  // Fallback: if viewer is closed without finishing the currently opened user
-  const markOpenedAsSeen = useCallback(() => {
-    if (!openedUserIdRef.current) return;
-    markUserSeen(openedUserIdRef.current);
-    openedUserIdRef.current = null;
-  }, [markUserSeen]);
-
   /* ✅ Mark conversation read when opening it (IG style) */
   const markConversationRead = useCallback((otherUserId: string | number) => {
     setChatList((prev) =>
@@ -558,7 +542,6 @@ export default function Chats() {
 
         if (!betweenSamePair) return c;
 
-        // Clear unread on messages *to me*
         if (c.receiver.id === LOGGED_USER.id) {
           const next: any = { ...c, unread: false };
           if (typeof (c as any).unreadCount !== "undefined") {
@@ -571,13 +554,9 @@ export default function Chats() {
     );
   }, []);
 
-  // Single handler used by each row
   const openChatAndMarkRead = useCallback(
     (u: User) => {
-      // Mark as read immediately (like Instagram)
       markConversationRead(u.id);
-
-      // Then navigate
       router.push({
         pathname: "/chat/UserChatScreen",
         params: {
@@ -593,8 +572,7 @@ export default function Chats() {
     [markConversationRead, router]
   );
 
-  // --- bottom padding so the last user is fully above the bottom tab bar
-  const bottomSpacer = (insets.bottom || 16) + 55; // ~tab height + safe area
+  const bottomSpacer = (insets.bottom || 16) + 55;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff", paddingTop: insets.top }}>
@@ -650,21 +628,21 @@ export default function Chats() {
         />
       </View>
 
-      {/* Chats list (grouped + sorted like IG) */}
+      {/* Chats list */}
       <View className="flex-1 mt-2">
         <FlatList
           data={filteredChats}
           renderItem={({ item }) => (
             <ChatRow
               item={item}
-              onOpenChat={openChatAndMarkRead} // mark read then open
+              onOpenChat={openChatAndMarkRead}
               onOpenProfile={(img) => {
                 setProfileModalImage(img ?? DEFAULT_AVATAR);
                 setProfileModalVisible(true);
               }}
             />
           )}
-          keyExtractor={(item) => item.id} // id is conv-<userId>
+          keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: bottomSpacer }}
           scrollIndicatorInsets={{ bottom: bottomSpacer }}
@@ -710,7 +688,6 @@ export default function Chats() {
           animationType="fade"
           onRequestClose={() => {
             setStoriesVisible(false);
-            markOpenedAsSeen();
           }}>
           <View className="flex-1 bg-black">
             <Stories
@@ -718,9 +695,16 @@ export default function Chats() {
               initialUserIndex={storiesInitialIndex}
               onRequestClose={() => {
                 setStoriesVisible(false);
-                markOpenedAsSeen();
               }}
               showStrip={false}
+              // ⬇️ Mark finished user as seen → row reorders & turns gray
+              onUserFinished={(userId) => {
+                setSeenStoryUserIds((prev) => {
+                  const next = new Set(prev);
+                  next.add(String(userId));
+                  return next;
+                });
+              }}
             />
           </View>
         </Modal>
@@ -736,7 +720,7 @@ export default function Chats() {
           <View
             className="flex-1 bg-black"
             style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
-            {/* Top-right CLOSE (X) — transparent overlay */}
+            {/* Top-right CLOSE (X) */}
             <Pressable
               onPress={() => setPreviewOpen(false)}
               accessibilityLabel="Close preview"
@@ -770,7 +754,7 @@ export default function Chats() {
               )}
             </View>
 
-            {/* Bottom-center Send — transparent outline so media stays visible */}
+            {/* Bottom-center Send */}
             {!hudVisible && (
               <Pressable
                 onPress={confirmPreviewAdd}

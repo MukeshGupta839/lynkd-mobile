@@ -264,7 +264,7 @@ function ProductCard({
         shadowRadius: 4,
         elevation: 3,
       }}
-      className="aspect-[127/189] bg-white rounded-xl p-2">
+      className="aspect-[120/189] bg-white rounded-xl p-2">
       <View className="flex-1">
         <View
           className="w-full aspect-[114/90] rounded-lg items-center justify-center mb-1.5 relative bg-gray-100"
@@ -332,28 +332,34 @@ function ProductCard({
 
         {/* Bottom area */}
         <View className="gap-1.5">
-          <View className="flex-row items-end">
-            <Text
-              className="text-xs font-bold mr-1"
-              style={{ includeFontPadding: false }}>
-              {priceStr}
-            </Text>
-            {!!oldStr && (
-              <Text
-                className="text-gray-400 text-xxs line-through mr-1"
-                style={{ includeFontPadding: false }}>
-                {oldStr}
-              </Text>
-            )}
-            {!!discount && (
-              <Text
-                className="text-green-500 text-xs font-bold"
-                style={{ includeFontPadding: false }}>
-                {discount}
-              </Text>
-            )}
-          </View>
+          {/* Total Price (Main Line) */}
+          <Text
+            className="text-xs font-bold"
+            style={{ includeFontPadding: false }}>
+            {priceStr}
+          </Text>
 
+          {/* Old Price + Discount (Below Line) */}
+          {(!!oldStr || !!discount) && (
+            <View className="flex-row items-center">
+              {!!oldStr && (
+                <Text
+                  className="text-gray-400 text-xxs line-through mr-1"
+                  style={{ includeFontPadding: false }}>
+                  {oldStr}
+                </Text>
+              )}
+              {!!discount && (
+                <Text
+                  className="text-green-500 text-xxs font-bold"
+                  style={{ includeFontPadding: false }}>
+                  {discount}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Delivery Tag */}
           <View className="flex-row items-center rounded-full self-start bg-[#26FF91]/70 px-2 py-0.5">
             <Truck size={14} color="#000" />
             <Text

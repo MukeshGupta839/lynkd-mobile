@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  PixelRatio,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -26,20 +27,27 @@ import TextPost from "./TextPost";
 
 const { width } = Dimensions.get("window");
 
+// Match container padding (px-3) = 12 on each side
+const H_PADDING = 12;
+// Desired gap between tiles
+const GAP = 2;
+// Helper to keep sizes on device pixel grid
+const toDP = (n: number) => PixelRatio.roundToNearestPixel(n);
+
 interface StoreDetails {
   id: number;
   slug?: string;
   name: string;
-  handle: string; // @apple
+  handle: string;
   bio?: string;
-  logo?: string; // avatar
-  banner?: string; // cover
+  logo?: string;
+  banner?: string;
   verified?: boolean;
   postsCount: number;
   reelsCount: number;
   followersCount: number;
   followingCount: number;
-  is_owner: boolean; // show Edit/Invite if true
+  is_owner: boolean;
 }
 
 interface StoreProfileProps {
@@ -83,7 +91,6 @@ export default function StoreProfileScreen({
       ? Number(Array.isArray(params.store) ? params.store[0] : params.store)
       : 1);
 
-  // 1.3K formatter
   const kFormatter = (num: number): string => {
     if (Math.abs(num) > 999_999_999)
       return (Math.abs(num) / 1_000_000_000).toFixed(1) + "B";
@@ -134,22 +141,20 @@ export default function StoreProfileScreen({
     }
   };
 
-  // ---- Handle SVG logos (RN Image can't render .svg URLs) --------------
   const logoUri = useMemo(() => {
     const u = store?.logo || "";
     const isSvg = /\.svg($|\?)/i.test(u);
     return isSvg
-      ? // fallback PNG (replace with your own brand PNG if available)
-        "https://fabrikbrands.com/wp-content/uploads/Apple-Logo-History-1-1155x770.png"
+      ? "https://fabrikbrands.com/wp-content/uploads/Apple-Logo-History-1-1155x770.png"
       : u || "https://dummyimage.com/200x200/ffffff/000000.png&text=Logo";
   }, [store?.logo]);
 
-  // ---------- Grids ----------
+  // ---------- Grids (EVEN EDGES) ----------
   const renderPhotosGrid = () => {
-    const images = posts.filter((p) => p.text_post === false);
+    const images = posts.filter((p) => p.text_post === false && p.media_url);
     if (images.length === 0)
       return (
-        <View className="items-center justify-center py-12">
+        <View className="items-center justify-center py-12 ">
           <Feather name="image" size={48} color="#ccc" />
           <Text className="text-sm text-gray-500 mt-4 text-center">
             No photos yet. Photos shared will appear here.
@@ -157,10 +162,13 @@ export default function StoreProfileScreen({
         </View>
       );
 
-    const containerWidth = width - 32;
-    const gap = 2;
-    const size = (containerWidth - gap * 2) / 3;
+    // inner width inside px-3 padding
+    const innerWidth = width - H_PADDING * 2;
 
+    // base size per tile (rounded to device pixels)
+    const baseSize = toDP((innerWidth - GAP * 2) / 3);
+
+    // rows of 3
     const rows: any[][] = [];
     for (let i = 0; i < images.length; i += 3)
       rows.push(images.slice(i, i + 3));
@@ -168,28 +176,51 @@ export default function StoreProfileScreen({
     return (
       <View>
         {rows.map((row, idx) => (
-          <View key={idx} className="flex-row mb-1" style={{ gap }}>
-            {row.map((img) => (
-              <TouchableOpacity
-                key={img.id}
-                className="rounded-xl overflow-hidden"
-                style={{ width: size, height: size }}>
-                <Image
-                  source={{ uri: img.media_url }}
-                  className="w-full h-full"
-                  resizeMode="cover"
+          <View
+            key={idx}
+            style={{
+              width: innerWidth, // lock exact row width
+              flexDirection: "row",
+              marginBottom: 1,
+            }}>
+            {row.map((img, i) => {
+              const isLastOfThree = row.length === 3 && i === 2;
+              const computedW = isLastOfThree
+                ? // let last tile absorb fractional remainder
+                  toDP(innerWidth - (baseSize * 2 + GAP * 2))
+                : baseSize;
+
+              return (
+                <TouchableOpacity
+                  key={img.id}
+                  className="rounded-xl overflow-hidden"
+                  style={{
+                    width: computedW,
+                    height: baseSize,
+                    marginRight: i < row.length - 1 ? GAP : 0,
+                  }}>
+                  <Image
+                    source={{ uri: img.media_url }}
+                    style={{ width: "100%", height: "100%" }}
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* Fillers to keep alignment if row < 3 */}
+            {row.length < 3 &&
+              new Array(3 - row.length).fill(0).map((_, fillerIdx) => (
+                <View
+                  key={`f-${fillerIdx}`}
+                  style={{
+                    width: fillerIdx < 3 - row.length - 1 ? baseSize : baseSize,
+                    height: baseSize,
+                    marginLeft: GAP,
+                    opacity: 0,
+                  }}
                 />
-              </TouchableOpacity>
-            ))}
-            {row.length < 3 && (
-              <View
-                style={{
-                  flex: 3 - row.length,
-                  minWidth:
-                    size * (3 - row.length) + gap * (3 - row.length - 1),
-                }}
-              />
-            )}
+              ))}
           </View>
         ))}
       </View>
@@ -207,10 +238,9 @@ export default function StoreProfileScreen({
         </View>
       );
 
-    const containerWidth = width - 32;
-    const gap = 2;
-    const videoWidth = (containerWidth - gap * 2) / 3;
-    const videoHeight = videoWidth * 1.5;
+    const innerWidth = width - H_PADDING * 2;
+    const baseW = toDP((innerWidth - GAP * 2) / 3);
+    const videoH = baseW * 1.5;
 
     const rows: any[][] = [];
     for (let i = 0; i < reels.length; i += 3) rows.push(reels.slice(i, i + 3));
@@ -218,36 +248,57 @@ export default function StoreProfileScreen({
     return (
       <View>
         {rows.map((row, idx) => (
-          <View key={idx} className="flex-row mb-1" style={{ gap }}>
-            {row.map((v) => (
-              <TouchableOpacity
-                key={v.id}
-                className="rounded-xl overflow-hidden relative"
-                style={{ width: videoWidth, height: videoHeight }}>
-                <Image
-                  source={{ uri: v.thumbnail_url }}
-                  className="w-full h-full"
-                  resizeMode="cover"
+          <View
+            key={idx}
+            style={{
+              width: innerWidth,
+              flexDirection: "row",
+              marginBottom: 1,
+            }}>
+            {row.map((v, i) => {
+              const isLastOfThree = row.length === 3 && i === 2;
+              const computedW = isLastOfThree
+                ? toDP(innerWidth - (baseW * 2 + GAP * 2))
+                : baseW;
+
+              return (
+                <TouchableOpacity
+                  key={v.id}
+                  className="rounded-xl overflow-hidden"
+                  style={{
+                    width: computedW,
+                    height: videoH,
+                    marginRight: i < row.length - 1 ? GAP : 0,
+                  }}>
+                  <Image
+                    source={{ uri: v.thumbnail_url }}
+                    style={{ width: "100%", height: "100%" }}
+                    resizeMode="cover"
+                  />
+                  <View className="absolute bottom-2 left-2 flex-row items-center bg-black/50 px-2 py-1 rounded-xl">
+                    <Feather name="play" size={16} color="#fff" />
+                    <Text className="text-white text-xs ml-1">
+                      {kFormatter(
+                        v?.reels_views_aggregate?.aggregate?.count || 0
+                      )}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+
+            {row.length < 3 &&
+              new Array(3 - row.length).fill(0).map((_, fillerIdx) => (
+                <View
+                  key={`fv-${fillerIdx}`}
+                  style={{
+                    width: baseW,
+                    height: videoH,
+                    marginLeft: GAP,
+                    opacity: 0,
+                  }}
                 />
-                <View className="absolute bottom-2 left-2 flex-row items-center bg-black/50 px-2 py-1 rounded-xl">
-                  <Feather name="play" size={16} color="#fff" />
-                  <Text className="text-white text-xs ml-1">
-                    {kFormatter(
-                      v?.reels_views_aggregate?.aggregate?.count || 0
-                    )}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-            {row.length < 3 && (
-              <View
-                style={{
-                  flex: 3 - row.length,
-                  minWidth:
-                    videoWidth * (3 - row.length) + gap * (3 - row.length - 1),
-                }}
-              />
-            )}
+              ))}
           </View>
         ))}
       </View>
@@ -287,7 +338,6 @@ export default function StoreProfileScreen({
     );
   };
 
-  // We keep products + renderProducts in case you navigate to a dedicated shop screen.
   const renderProducts = () => {
     if (products.length === 0)
       return (
@@ -370,7 +420,6 @@ export default function StoreProfileScreen({
               <MaterialIcons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
 
-            {/* Always show settings (to match your user screen look) */}
             <TouchableOpacity
               className="w-9 h-9 rounded-full bg-black/30 justify-center items-center"
               onPress={() => router.push("/(settings)")}>
@@ -379,18 +428,15 @@ export default function StoreProfileScreen({
           </View>
         </View>
 
-        {/* Light card below banner */}
+        {/* Card */}
         <View className="bg-gray-100 px-3 pt-4 -mt-4">
-          {/* Row: Avatar + (Name, Handle) – aligned like your user screen */}
+          {/* Avatar + name */}
           <View className="flex-row items-center -mt-10">
             <View className="rounded-full border-4 border-white bg-white overflow-hidden">
               <Image
                 source={{ uri: logoUri }}
                 className="w-20 h-20 rounded-full"
                 resizeMode="cover"
-                onError={(e) =>
-                  console.log("⚠️ Store logo load error:", e.nativeEvent.error)
-                }
               />
             </View>
 
@@ -459,7 +505,6 @@ export default function StoreProfileScreen({
               </>
             ) : (
               <>
-                {/* Initially: one full-width Follow button */}
                 {followState !== "followed" ? (
                   <TouchableOpacity
                     className="flex-1 h-10 rounded-full justify-center items-center bg-gray-900"
@@ -469,7 +514,6 @@ export default function StoreProfileScreen({
                     </Text>
                   </TouchableOpacity>
                 ) : (
-                  // After following: two buttons (Following + View Shop)
                   <>
                     <TouchableOpacity
                       className="flex-1 h-10 rounded-full justify-center items-center bg-white mr-2"
@@ -484,8 +528,8 @@ export default function StoreProfileScreen({
                         router.push({
                           pathname: "/Store/viewShop",
                           params: {
-                            store: store.id, // Pass store ID dynamically
-                            slug: store.slug || "", // Optional if you also have a slug
+                            store: store.id,
+                            slug: store.slug || "",
                           },
                         });
                       }}>
@@ -499,7 +543,7 @@ export default function StoreProfileScreen({
             )}
           </View>
 
-          {/* Tabs: Photos / Videos / Notes (bag/shop removed) */}
+          {/* Tabs */}
           <View className="flex-row justify-between mb-4">
             {(["Photos", "Videos", "Notes"] as const).map((tab) => (
               <TouchableOpacity
@@ -534,11 +578,10 @@ export default function StoreProfileScreen({
           </View>
 
           {/* Content */}
-          <View className="mb-6">
+          <View className="mb-6 ">
             {activeTab === "Photos" && renderPhotosGrid()}
             {activeTab === "Videos" && renderVideosGrid()}
             {activeTab === "Notes" && renderNotes()}
-            {/* Shop tab removed — products available via View Shop button */}
           </View>
 
           {posts.length === 0 && (

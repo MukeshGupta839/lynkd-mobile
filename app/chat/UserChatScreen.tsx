@@ -265,7 +265,7 @@ const MessageBubble = React.memo(function MessageBubble({
                         <Octicons
                           name="verified"
                           size={16}
-                          color="#0ea5e9"
+                          color="#000000ff"
                           style={{ marginLeft: 6 }}
                         />
                       ) : null}

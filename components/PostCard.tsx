@@ -1,7 +1,7 @@
+// components/PostCard.tsx
 import { FacebookStyleImage } from "@/components/FacebookStyleImage";
 import { MultiImageCollage } from "@/components/MultiImageCollage";
 import { MultiImageViewer } from "@/components/MultiImageViewer";
-import { sendPostToChat, sharePostToUsers } from "@/constants/chat";
 import { MaterialIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
@@ -24,9 +24,10 @@ import {
 } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import ShareSectionBottomSheet from "./ShareSectionBottomSheet";
-// 👇 NEW: import your UI-only bottom sheet (adjust path if needed)
 
-// ----- PostMedia Component -----
+/* ===========================
+   Media renderer
+   =========================== */
 const PostMedia = ({
   media,
   isVisible,
@@ -45,8 +46,6 @@ const PostMedia = ({
   const [showMultiViewer, setShowMultiViewer] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  // console.log("PostMedia rendered with:", media, "isVisible:", isVisible);
-
   const handlePressImage = useCallback(
     (index: number) => {
       if (isGestureActive) return;
@@ -56,14 +55,8 @@ const PostMedia = ({
     [isGestureActive]
   );
 
-  console.log("postImage :", media);
+  if (!media) return null;
 
-  // If no media, return null
-  if (!media) {
-    return null;
-  }
-
-  // Handle string URL (legacy/simple format)
   if (typeof media === "string") {
     return (
       <View>
@@ -100,7 +93,6 @@ const PostMedia = ({
           onPressImage={handlePressImage}
           onLongPress={onLongPress}
         />
-
         <MultiImageViewer
           images={media.uris}
           visible={showMultiViewer}
@@ -120,7 +112,9 @@ const PostMedia = ({
   );
 };
 
-// ----- PostCard Types -----
+/* ===========================
+   Types
+   =========================== */
 export interface PostCardProps {
   item: any;
   isVisible: boolean;
@@ -128,11 +122,11 @@ export interface PostCardProps {
   isGestureActive?: boolean;
   panGesture: GestureType;
   onPressComments?: (post: any) => void;
-  toggleLike?: (postId: string) => Promise<void>;
-  likedPostIDs?: string[];
 }
 
-// ----- PostCard Component -----
+/* ===========================
+   Card
+   =========================== */
 export const PostCard: React.FC<PostCardProps> = ({
   item,
   isVisible,
@@ -140,13 +134,10 @@ export const PostCard: React.FC<PostCardProps> = ({
   isGestureActive = false,
   panGesture,
   onPressComments,
-  toggleLike,
-  likedPostIDs = [],
 }) => {
   const router = useRouter();
   const navigating = useRef(false);
   const [showFullCaption, setShowFullCaption] = useState(false);
-  // 👇 NEW: share modal state
   const [shareOpen, setShareOpen] = useState(false);
 
   const openPostOptions = React.useCallback(() => {
@@ -155,21 +146,14 @@ export const PostCard: React.FC<PostCardProps> = ({
   }, [item, onLongPress]);
 
   useEffect(() => {
-    console.log(
-      `PostCard ${item.id} - isGestureActive changed to:`,
-      isGestureActive
-    );
+    // console.log(`PostCard ${item.id} isGestureActive:`, isGestureActive);
   }, [isGestureActive, item.id]);
 
   const handleUserPressSafe = () => {
     if (isGestureActive) return;
-
     router.push({
       pathname: "/(profiles)" as any,
-      params: {
-        user: item.user_id as number,
-        username: item.username,
-      },
+      params: { user: item.user_id as number, username: item.username },
     });
   };
 
@@ -181,7 +165,6 @@ export const PostCard: React.FC<PostCardProps> = ({
       return totalLength <= limit;
     });
   };
-
   const neededHashtags = getHashtagsWithinLimit(item.post_hashtags || []);
 
   const goToProductSafe = () => {
@@ -202,404 +185,384 @@ export const PostCard: React.FC<PostCardProps> = ({
       .requireExternalGestureToFail(panGesture)
       .onEnd((_e, success) => {
         "worklet";
-        if (success) {
-          scheduleOnRN(onEnd);
-        }
+        if (success) scheduleOnRN(onEnd);
       });
 
   const openProductTap = makeTapThatYieldsToPan(goToProductSafe);
   const openProfileTap = makeTapThatYieldsToPan(handleUserPressSafe);
 
+  /* ---------- Build a SAFE post preview for chat ---------- */
+  const previewImage =
+    typeof item.postImage === "string"
+      ? item.postImage
+      : item?.postImage?.type === "images"
+        ? item?.postImage?.uris?.[0] || ""
+        : "";
+
+  const postPreview = {
+    id: String(item.id),
+    image: previewImage || "",
+    author: item.username || "user",
+    caption: item.caption || "",
+    author_avatar: item.userProfilePic || "",
+    // 👇 this drives the blue badge in chat
+    verified: Boolean(
+      item?.is_creator ||
+        item?.verified ||
+        item?.user?.verified ||
+        item?.user?.isVerified
+    ),
+    // Optional extras (kept safely typed)
+    likes: typeof item.likes_count === "number" ? item.likes_count : 0,
+    comments: typeof item.comments_count === "number" ? item.comments_count : 0,
+    // If you have video:
+    videoUrl: typeof item.videoUrl === "string" ? item.videoUrl : undefined,
+    thumb:
+      typeof item.thumbUrl === "string"
+        ? item.thumbUrl
+        : typeof previewImage === "string"
+          ? previewImage
+          : undefined,
+  };
+
   return (
-    <>
-      <TouchableOpacity
-        activeOpacity={1}
-        onLongPress={() => onLongPress?.(item)}
-        delayLongPress={500}>
-        <View className="px-3 mt-2 bg-gray-100">
+    <TouchableOpacity
+      activeOpacity={1}
+      onLongPress={() => onLongPress?.(item)}
+      delayLongPress={500}>
+      <View className="px-3 mt-2 bg-gray-100">
+        <View
+          style={{
+            borderRadius: 16,
+            elevation: Platform.OS === "android" ? 2 : 0,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.12,
+            shadowRadius: 8,
+          }}>
           <View
-            style={{
-              borderRadius: 16,
-              elevation: Platform.OS === "android" ? 2 : 0,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.12,
-              shadowRadius: 8,
-            }}>
-            <View
-              className="bg-white py-3 gap-2.5"
-              style={{
-                borderRadius: 16,
-                overflow: "hidden",
-              }}>
-              {/* Header */}
-              <View className="flex-row px-3 items-center h-10">
-                <GestureDetector gesture={openProfileTap}>
-                  <TouchableOpacity
-                    className="flex-row items-center flex-1 mr-2"
-                    activeOpacity={0.7}
-                    disabled={isGestureActive}>
-                    <Image
-                      source={{ uri: item.userProfilePic }}
-                      className="w-10 h-10 rounded-full mr-2"
-                    />
-                    <View>
+            className="bg-white py-3 gap-2.5"
+            style={{ borderRadius: 16, overflow: "hidden" }}>
+            {/* Header */}
+            <View className="flex-row px-3 items-center h-10">
+              <GestureDetector gesture={openProfileTap}>
+                <TouchableOpacity
+                  className="flex-row items-center flex-1 mr-2"
+                  activeOpacity={0.7}
+                  disabled={isGestureActive}>
+                  <Image
+                    source={{ uri: item.userProfilePic }}
+                    className="w-10 h-10 rounded-full mr-2"
+                  />
+                  <View>
+                    <View className="flex-row items-center">
+                      <Text className="font-semibold text-lg">
+                        {item.username}
+                      </Text>
+                      {Boolean(
+                        item?.is_creator ||
+                          item?.verified ||
+                          item?.user?.verified ||
+                          item?.user?.isVerified
+                      ) && (
+                        <Octicons
+                          name="verified"
+                          size={14}
+                          color="#000"
+                          style={{ marginLeft: 4 }}
+                        />
+                      )}
+                    </View>
+                    {item.location && item.postDate && (
                       <View className="flex-row items-center">
-                        <Text className="font-semibold text-lg">
-                          {item.username}
-                        </Text>
-                        {item.is_creator && (
-                          <Octicons
-                            name="verified"
-                            size={14}
-                            color="#000"
-                            style={{ marginLeft: 4 }}
-                          />
+                        {item.location && (
+                          <Text className="text-xs text-[#257AF1] mr-2 font-opensans-regular">
+                            {item.location}
+                          </Text>
+                        )}
+                        <View className="w-1 h-1 rounded-full bg-black mr-1.5" />
+                        {item.postDate && (
+                          <Text className="text-xs text-black font-opensans-regular">
+                            {item.postDate}
+                          </Text>
                         )}
                       </View>
-                      {item.location && item.postDate && (
-                        <View className="flex-row items-center">
-                          {item.location && (
-                            <Text className="text-xs text-[#257AF1] mr-2 font-opensans-regular">
-                              {item.location}
-                            </Text>
-                          )}
-                          <View className="w-1 h-1 rounded-full bg-black mr-1.5" />
-                          {item.postDate && (
-                            <Text className="text-xs text-black font-opensans-regular">
-                              {item.postDate}
-                            </Text>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                </GestureDetector>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </GestureDetector>
+              {item.affiliated && item.affiliation && <View />}
+            </View>
 
-                {item.affiliated && item.affiliation && <View />}
-              </View>
+            {/* Media */}
+            <PostMedia
+              media={item.postImage}
+              isVisible={isVisible}
+              postId={item.id}
+              onLongPress={() => onLongPress?.(item)}
+              isGestureActive={isGestureActive}
+              panGesture={panGesture}
+            />
 
-              {/* Media Display */}
-              <PostMedia
-                media={item.postImage}
-                isVisible={isVisible}
-                postId={item.id}
-                onLongPress={() => onLongPress?.(item)}
-                isGestureActive={isGestureActive}
-                panGesture={panGesture}
-              />
+            {/* Caption */}
+            <View>
+              {(() => {
+                const caption = item.caption || "";
+                const captionLimit = 150;
+                const shouldTruncate = caption.length > captionLimit;
+                const displayCaption =
+                  shouldTruncate && !showFullCaption
+                    ? caption.substring(0, captionLimit)
+                    : caption;
 
-              {/* Affiliation */}
-              {item.affiliated && item.affiliation && (
-                <GestureDetector gesture={openProductTap}>
-                  <TouchableOpacity
-                    className="px-3"
-                    onLongPress={() => onLongPress?.(item)}
-                    delayLongPress={500}
-                    disabled={isGestureActive}>
-                    <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
-                      <View
-                        className="basis-1/4 self-stretch relative"
-                        style={{
-                          borderTopLeftRadius: 6,
-                          borderBottomLeftRadius: 6,
-                          overflow: "hidden",
-                        }}>
-                        <Image
-                          source={{ uri: item.affiliation.productImage }}
-                          style={{
-                            position: "absolute",
-                            top: 0,
-                            right: 0,
-                            bottom: 0,
-                            left: 0,
-                          }}
-                          resizeMode="cover"
-                        />
-                      </View>
-                      <View className="flex-1 justify-between p-3">
-                        <View className="flex-row items-center justify-between mb-2">
-                          <View className="flex-row flex-1 items-center">
-                            <Image
-                              source={{ uri: item.affiliation.brandLogo }}
-                              className="w-11 h-11 rounded-full mr-2"
-                              resizeMode="contain"
-                            />
-                            <View className="flex-1">
-                              <Text className="font-semibold text-sm text-gray-800">
-                                {item.affiliation.brandName}
+                return caption ? (
+                  <View>
+                    <Text className="text-sm px-3 text-gray-900">
+                      {displayCaption
+                        .split(/((?:@|#)[\w.]+|(?:https?:\/\/|www\.)\S+)/gi)
+                        .map((part: string, index: number) => {
+                          if (part && part.startsWith("@")) {
+                            return (
+                              <Text
+                                key={`cap-mention-${index}`}
+                                className="text-blue-600"
+                                suppressHighlighting
+                                onPress={
+                                  isGestureActive
+                                    ? undefined
+                                    : () =>
+                                        router.push({
+                                          pathname: "/(profiles)" as any,
+                                          params: {
+                                            username: part.slice(1),
+                                            user: 999999,
+                                          },
+                                        })
+                                }
+                                onLongPress={openPostOptions}>
+                                {part}
                               </Text>
-                              <Text className="font-medium text-sm text-black">
-                                {item.affiliation.productName}
+                            );
+                          }
+                          if (part && part.startsWith("#")) {
+                            return (
+                              <Text
+                                key={`cap-hash-${index}`}
+                                className="text-blue-600"
+                                suppressHighlighting
+                                onPress={
+                                  isGestureActive
+                                    ? undefined
+                                    : () =>
+                                        router.push({
+                                          pathname:
+                                            "/(search)/searchPostsWithTags" as any,
+                                          params: { tag: part },
+                                        })
+                                }
+                                onLongPress={openPostOptions}>
+                                {part}
                               </Text>
-                            </View>
-                          </View>
-                          <TouchableOpacity
-                            onPress={isGestureActive ? undefined : () => {}}
-                            className="self-start"
-                            disabled={isGestureActive}>
-                            <MaterialIcons
-                              name="add-shopping-cart"
-                              size={24}
-                              color="#707070"
-                            />
-                          </TouchableOpacity>
-                        </View>
-                        <Text className="text-sm text-gray-600 mb-2 leading-4">
-                          {item.affiliation.productDescription}
-                        </Text>
-                        <View className="flex-row items-center">
-                          <Text className="text-sm text-gray-400 line-through mr-2">
-                            ₹{item.affiliation.productRegularPrice}
-                          </Text>
-                          <Text className="text-sm font-bold text-green-600">
-                            ₹{item.affiliation.productSalePrice}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                </GestureDetector>
-              )}
-
-              {/* Caption */}
-              <View>
-                {(() => {
-                  const caption = item.caption || "";
-                  const captionLimit = 150;
-                  const shouldTruncate = caption.length > captionLimit;
-                  const displayCaption =
-                    shouldTruncate && !showFullCaption
-                      ? caption.substring(0, captionLimit)
-                      : caption;
-
-                  return caption ? (
-                    <View>
-                      <Text className="text-sm px-3 text-gray-900">
-                        {displayCaption
-                          .split(/((?:@|#)[\w.]+|(?:https?:\/\/|www\.)\S+)/gi)
-                          .map((part: string, index: number) => {
-                            if (part && part.startsWith("@")) {
-                              return (
-                                <Text
-                                  key={index}
-                                  className="text-blue-600"
-                                  suppressHighlighting
-                                  onPress={
-                                    isGestureActive
-                                      ? undefined
-                                      : () =>
-                                          router.push({
-                                            pathname: "/(profiles)" as any,
-                                            params: {
-                                              user: item.user_id as number,
-                                              username: item.username,
-                                            },
-                                          })
-                                  }
-                                  onLongPress={openPostOptions}>
-                                  {part}
-                                </Text>
-                              );
-                            } else if (part && part.startsWith("#")) {
-                              return (
-                                <Text
-                                  key={index}
-                                  className="text-blue-600"
-                                  suppressHighlighting
-                                  onPress={
-                                    isGestureActive
-                                      ? undefined
-                                      : () =>
-                                          router.push({
-                                            pathname:
-                                              "/(search)/tagPostSearch" as any,
-                                            params: {
-                                              tag: part,
-                                            },
-                                          })
-                                  }
-                                  onLongPress={openPostOptions}>
-                                  {part}
-                                </Text>
-                              );
-                            } else if (
-                              part &&
-                              /^(https?:\/\/|www\.)/i.test(part)
-                            ) {
-                              const url = part.startsWith("www.")
-                                ? `https://${part}`
-                                : part;
-                              return (
-                                <Text
-                                  key={index}
-                                  className="text-blue-600 underline"
-                                  suppressHighlighting
-                                  onPress={
-                                    isGestureActive
-                                      ? undefined
-                                      : () => Linking.openURL(url)
-                                  }
-                                  onLongPress={openPostOptions}>
-                                  {part}
-                                </Text>
-                              );
-                            }
-                            return part;
-                          })}
-                      </Text>
-                      {shouldTruncate && !showFullCaption && (
-                        <Pressable
-                          onPress={
-                            isGestureActive
-                              ? undefined
-                              : () => setShowFullCaption(true)
+                            );
                           }
-                          hitSlop={8}
-                          style={{ marginLeft: 2, alignSelf: "baseline" }}
-                          onLongPress={openPostOptions}
-                          delayLongPress={500}>
-                          <Text className="text-sm text-gray-500 px-3 font-medium">
-                            Show more
-                          </Text>
-                        </Pressable>
-                      )}
-
-                      {shouldTruncate && showFullCaption && (
-                        <Pressable
-                          onPress={
-                            isGestureActive
-                              ? undefined
-                              : () => setShowFullCaption(false)
+                          if (part && /^(https?:\/\/|www\.)/i.test(part)) {
+                            const url = part.startsWith("www.")
+                              ? `https://${part}`
+                              : part;
+                            return (
+                              <Text
+                                key={`cap-link-${index}`}
+                                className="text-blue-600 underline"
+                                suppressHighlighting
+                                onPress={
+                                  isGestureActive
+                                    ? undefined
+                                    : () => Linking.openURL(url)
+                                }
+                                onLongPress={openPostOptions}>
+                                {part}
+                              </Text>
+                            );
                           }
-                          hitSlop={8}
-                          style={{ marginLeft: 2, alignSelf: "baseline" }}
-                          onLongPress={openPostOptions}
-                          delayLongPress={500}>
-                          <Text className="text-sm text-gray-500 px-3 font-medium">
-                            Show less
-                          </Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  ) : null;
-                })()}
-                {item?.post_hashtags?.length ? (
-                  <Text className="text-blue-600 mt-1 px-3">
-                    {neededHashtags.map((tag: string, i: number) => (
-                      <Text
-                        key={tag}
+                          return (
+                            <Text
+                              key={`cap-plain-${index}`}
+                              className="text-gray-900">
+                              {part}
+                            </Text>
+                          );
+                        })}
+                    </Text>
+
+                    {shouldTruncate && !showFullCaption && (
+                      <Pressable
                         onPress={
                           isGestureActive
                             ? undefined
-                            : () =>
-                                router.push({
-                                  pathname: "/(search)/tagPostSearch" as any,
-                                  params: {
-                                    tag: "#" + tag,
-                                  },
-                                })
-                        }>
-                        #{tag}
-                        {i < neededHashtags.length - 1 ? " " : ""}
-                      </Text>
-                    ))}
-                  </Text>
-                ) : null}
-              </View>
+                            : () => setShowFullCaption(true)
+                        }
+                        hitSlop={8}
+                        style={{ marginLeft: 2, alignSelf: "baseline" }}
+                        onLongPress={openPostOptions}
+                        delayLongPress={500}>
+                        <Text className="text-sm text-gray-500 px-3 font-medium">
+                          Show more
+                        </Text>
+                      </Pressable>
+                    )}
 
-              {/* Actions */}
-              <View className="flex-row items-center justify-between px-3">
-                <View className="flex-row items-center gap-x-4">
-                  <TouchableOpacity
-                    className="flex-row items-center"
-                    disabled={isGestureActive}
-                    onPress={
-                      isGestureActive ? undefined : () => toggleLike?.(item.id)
-                    }>
-                    <Ionicons
-                      name={
-                        likedPostIDs.includes(item.id)
-                          ? "heart"
-                          : "heart-outline"
-                      }
-                      size={20}
-                      color={
-                        likedPostIDs.includes(item.id) ? "#CE395F" : "#000"
-                      }
-                    />
-                    <Text className="ml-1 text-sm font-medium">
-                      {item.likes_count}
+                    {shouldTruncate && showFullCaption && (
+                      <Pressable
+                        onPress={
+                          isGestureActive
+                            ? undefined
+                            : () => setShowFullCaption(false)
+                        }
+                        hitSlop={8}
+                        style={{ marginLeft: 2, alignSelf: "baseline" }}
+                        onLongPress={openPostOptions}
+                        delayLongPress={500}>
+                        <Text className="text-sm text-gray-500 px-3 font-medium">
+                          Show less
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ) : null;
+              })()}
+              {item?.post_hashtags?.length ? (
+                <Text className="text-blue-600 mt-1 px-3">
+                  {neededHashtags.map((tag: string, i: number) => (
+                    <Text
+                      key={`hash-${tag}`}
+                      onPress={
+                        isGestureActive
+                          ? undefined
+                          : () =>
+                              router.push({
+                                pathname:
+                                  "/(search)/searchPostsWithTags" as any,
+                                params: { tag: "#" + tag },
+                              })
+                      }>
+                      #{tag}
+                      {i < neededHashtags.length - 1 ? <Text> </Text> : null}
                     </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className="flex-row items-center"
-                    disabled={isGestureActive}
-                    onPress={
-                      isGestureActive
-                        ? undefined
-                        : () => {
-                            onPressComments?.(item);
-                          }
-                    }>
-                    <Ionicons
-                      name="chatbubble-outline"
-                      size={18}
-                      color="#000"
-                    />
-                    <Text className="ml-1 text-sm font-medium">
-                      {item.comments_count}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    disabled={isGestureActive}
-                    onPress={
-                      isGestureActive ? undefined : () => setShareOpen(true)
-                    }>
-                    <Ionicons
-                      name="arrow-redo-outline"
-                      size={20}
-                      color="#000"
-                    />
-                  </TouchableOpacity>
-                </View>
+                  ))}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* (Optional) Affiliation card */}
+            {item.affiliated && item.affiliation && (
+              <GestureDetector gesture={openProductTap}>
+                <TouchableOpacity
+                  className="px-3"
+                  onLongPress={() => onLongPress?.(item)}
+                  delayLongPress={500}
+                  disabled={isGestureActive}>
+                  <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
+                    <View
+                      className="basis-1/4 self-stretch relative"
+                      style={{
+                        borderTopLeftRadius: 6,
+                        borderBottomLeftRadius: 6,
+                        overflow: "hidden",
+                      }}>
+                      <Image
+                        source={{ uri: item.affiliation.productImage }}
+                        style={{ position: "absolute", inset: 0 as any }}
+                        resizeMode="cover"
+                      />
+                    </View>
+                    <View className="flex-1 justify-between p-3">
+                      <View className="flex-row items-center justify-between mb-2">
+                        <View className="flex-row flex-1 items-center">
+                          <Image
+                            source={{ uri: item.affiliation.brandLogo }}
+                            className="w-11 h-11 rounded-full mr-2"
+                            resizeMode="contain"
+                          />
+                          <View className="flex-1">
+                            <Text className="font-semibold text-sm text-gray-800">
+                              {item.affiliation.brandName}
+                            </Text>
+                            <Text className="font-medium text-sm text-black">
+                              {item.affiliation.productName}
+                            </Text>
+                          </View>
+                        </View>
+                        <TouchableOpacity
+                          className="self-start"
+                          disabled={isGestureActive}>
+                          <MaterialIcons
+                            name="add-shopping-cart"
+                            size={24}
+                            color="#707070"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                      <Text className="text-sm text-gray-600 mb-2 leading-4">
+                        {item.affiliation.productDescription}
+                      </Text>
+                      <View className="flex-row items-center">
+                        <Text className="text-sm text-gray-400 line-through mr-2">
+                          ₹{item.affiliation.productRegularPrice}
+                        </Text>
+                        <Text className="text-sm font-bold text-green-600">
+                          ₹{item.affiliation.productSalePrice}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </GestureDetector>
+            )}
+
+            {/* Actions */}
+            <View className="flex-row items-center justify-between px-3">
+              <View className="flex-row items-center gap-x-4">
+                <TouchableOpacity
+                  className="flex-row items-center"
+                  disabled={isGestureActive}>
+                  <Ionicons name="heart-outline" size={20} color="#000" />
+                  <Text className="ml-1 text-sm font-medium">
+                    {item.likes_count}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-row items-center"
+                  disabled={isGestureActive}
+                  onPress={
+                    isGestureActive ? undefined : () => onPressComments?.(item)
+                  }>
+                  <Ionicons name="chatbubble-outline" size={18} color="#000" />
+                  <Text className="ml-1 text-sm font-medium">
+                    {item.comments_count}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={isGestureActive}
+                  onPress={() => setShareOpen(true)}>
+                  <Ionicons name="arrow-redo-outline" size={20} color="#000" />
+                </TouchableOpacity>
               </View>
             </View>
           </View>
         </View>
-      </TouchableOpacity>
+      </View>
 
+      {/* Share sheet (handles sending & registry). We pass a complete preview. */}
       <ShareSectionBottomSheet
-        {...({
-          show: shareOpen,
-          setShow: setShareOpen,
-          users: item?.shareUsers || [], // must match { id, username, profile_picture }
-          postId: item.id,
-          initialHeightPct: 0.4,
-          maxHeightPct: 0.9,
-          maxSelect: 5,
-          onSendToUsers: (selected: any, pid: any) => {
-            const postId = String(pid);
-
-            // A) Update inbox list previews (optional, but nice)
-            sharePostToUsers(
-              postId,
-              selected.map((u: any) => String(u.id))
-            );
-
-            // B) ✅ Important: write into each DM so Chat screen shows it
-            selected.forEach((u: any) => {
-              sendPostToChat(String(u.id), postId);
-            });
-
-            // C) OPTIONAL: navigate to one chat
-            // const last = selected[selected.length - 1];
-            // if (last) {
-            //   router.push({ pathname: "/chat/[id]", params: { id: String(last.id) } });
-            // }
-          },
-        } as any)}
+        show={shareOpen}
+        setShow={setShareOpen}
+        users={item?.shareUsers || []}
+        postId={item.id}
+        postPreview={postPreview}
+        initialHeightPct={0.4}
+        maxHeightPct={0.9}
+        maxSelect={5}
       />
-    </>
+    </TouchableOpacity>
   );
 };
