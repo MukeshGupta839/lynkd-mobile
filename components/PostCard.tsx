@@ -56,12 +56,25 @@ const PostMedia = ({
   );
 
   if (!media) return null;
+  // Extract Image path from aws for image kit
+  const extractImagePath = (image: string) => {
+    const parts = image.split("posts-images/");
+    return parts.length > 1 ? parts[1] : image;
+  };
+
+  console.log("postImage :", media);
 
   if (typeof media === "string") {
     return (
       <View>
         <FacebookStyleImage
-          uri={media}
+          uri={
+            Platform.OS === "ios"
+              ? media
+              : media
+                ? `https://ik.imagekit.io/cs3lxv36v/lynkd-posts/${extractImagePath(media)}`
+                : media
+          }
           style={{ marginBottom: 0 }}
           onLongPress={onLongPress}
           isGestureActive={isGestureActive}
@@ -75,7 +88,13 @@ const PostMedia = ({
     return (
       <View>
         <FacebookStyleImage
-          uri={media.uris[0]}
+          uri={
+            Platform.OS === "ios"
+              ? media.uris[0]
+              : media.uris[0]
+                ? `https://ik.imagekit.io/cs3lxv36v/lynkd-posts/${extractImagePath(media.uris[0])}`
+                : media.uris[0]
+          }
           style={{ marginBottom: 0 }}
           onLongPress={onLongPress}
           isGestureActive={isGestureActive}

@@ -1,10 +1,12 @@
 // app/screens/SettingsMain.tsx
 import ScreenHeaderBack from "@/components/ScreenHeaderBack";
 import { AuthContext } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
+import { apiCall } from "@/lib/api/apiService";
 import useAuthTokenStore from "@/stores/authTokenStore";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import React, { useContext, useState } from "react";
+import React, { useContext } from "react";
 import {
   Alert,
   Dimensions,
@@ -74,16 +76,60 @@ const LogoutType = ({ title, icon, onPress }: SettingItemProps) => (
   </TouchableOpacity>
 );
 
-const AccountType = ({
-  isCreator,
-  setIsCreator,
-}: {
-  isCreator: boolean;
-  setIsCreator: React.Dispatch<React.SetStateAction<boolean>>;
-}) => {
-  const handleSaveProfile = () => {
-    setIsCreator((prev) => !prev);
-    Alert.alert("Updated", `Switched to ${isCreator ? "Private" : "Public"}`);
+const AccountType = () => {
+  const {
+    user,
+    isCreator,
+    setIsCreator,
+    firebaseUser,
+    setUser,
+    resetUserState,
+  } = useAuth();
+  const router = useRouter();
+
+  const handleSaveProfile = async () => {
+    try {
+      const accountType = !isCreator;
+      if (!firebaseUser) throw new Error("No authenticated user found.");
+
+      const uid = firebaseUser.uid;
+      const formData = new FormData();
+      formData.append("uid", uid);
+      // FormData expects string or Blob; convert boolean to string
+      formData.append("isCreator", JSON.stringify(accountType));
+      const url = `/api/users/editing/type/${uid}`;
+      console.log("URL:", url);
+      // Use 'apiCall' for the API call
+      const response = await apiCall(url, "POST", formData, {
+        "Content-Type": "multipart/form-data",
+      });
+
+      if (response.user) {
+        const updatedUser = {
+          ...user,
+          is_creator: response.user.is_creator,
+        };
+
+        setUser(updatedUser);
+        setIsCreator(response.user.is_creator);
+
+        // Alert.alert('Profile Updated', 'Your profile has been updated successfully.');
+
+        // Replace navigation to the appropriate area — use router.replace to avoid using undefined navigator
+        // Adjust destination as needed; here we go to the profile tab which will reflect changes
+        router.replace("/(tabs)/profile");
+      } else {
+        throw new Error("Failed to update profile.");
+      }
+    } catch (error) {
+      console.error("Profile update failed:", error);
+      // Handle unknown error types safely
+      let message = "Issue updating your profile.";
+      if (error instanceof Error) message = error.message;
+      else if (typeof error === "string") message = error;
+
+      Alert.alert("Profile Update Failed", message);
+    }
   };
 
   return (
@@ -110,32 +156,29 @@ export default function SettingsMain() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // ---- DUMMY DATA (no context) ----
-  const [user] = useState<User>({
-    id: 1,
-    username: "nupurs",
-    is_creator: true,
-  });
-  const [isCreator, setIsCreator] = useState<boolean>(true);
+  const { user } = useAuth();
 
-  const { resetUserState } = useContext(AuthContext);
-  const logoutUser = useAuthTokenStore(state => state.logoutUser);
+  const resetUserState = useContext(AuthContext)?.resetUserState;
+  const logoutUser = useAuthTokenStore((state) => state.logoutUser);
 
   const logout = async () => {
     try {
-      // await resetUserState(() =>
-      //     navigator.reset({
-      //         index: 0,
-      //         routes: [{ name: 'AuthHome' }],
-      //     })
-      // );
-      await resetUserState();
+      console.log("Starting logout process...");
+
+      // Logout from token store first
       await logoutUser();
-      Alert.alert("Signed out", "You have been signed out.");
-      router.replace('/(auth)');
-    } catch (error) {
-      console.error('Logout failed:', error);
-      Alert.alert('Logout Failed', error.message || 'An unexpected error occurred.');
+
+      // Reset user state
+      if (resetUserState) {
+        await resetUserState();
+      }
+
+      console.log("Logout completed successfully");
+
+      // Use replace to clear the navigation stack and prevent going back
+      router.replace("/(auth)");
+    } catch (error: any) {
+      console.error("Logout failed:", error);
     }
   };
 
@@ -189,7 +232,7 @@ export default function SettingsMain() {
             onPress={() => router.push("/(settings)/instagramVerification")}
           />
 
-          {user.is_creator && (
+          {user?.is_creator && (
             <SettingItem
               title="Agency Collaborations"
               icon="ticket-outline"
@@ -197,7 +240,7 @@ export default function SettingsMain() {
             />
           )}
 
-          <AccountType isCreator={isCreator} setIsCreator={setIsCreator} />
+          <AccountType />
 
           <SettingItem
             title="Request for Account Deletion"
@@ -208,12 +251,12 @@ export default function SettingsMain() {
           <SettingItem
             title="Legal Policies"
             icon="document-text-outline"
-          // onPress={() => navigator.navigate("LegalPolicies" as never)}
+            // onPress={() => navigator.navigate("LegalPolicies" as never)}
           />
           <SettingItem
             title="App Information"
             icon="phone-portrait-outline"
-          // onPress={() => navigator.navigate("AppInformation" as never)}
+            // onPress={() => navigator.navigate("AppInformation" as never)}
           />
           <LogoutType title="Logout" icon="exit-outline" onPress={logout} />
         </SettingGroup>

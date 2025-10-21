@@ -31,6 +31,12 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
+/* Ensure:
+   - import 'react-native-gesture-handler' FIRST in your app entry
+   - Root wrapped in <GestureHandlerRootView style={{flex:1}}>
+   - 'react-native-reanimated' plugin LAST in babel.config.js
+*/
+
 const { width, height } = Dimensions.get("window");
 
 /** Types */
@@ -252,8 +258,7 @@ const Stories = ({
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
 
   // Reanimated shared values
-  const rProgress = useSharedValue(0); // 0..1 for current media
-  const rCurrentReady = useSharedValue(0); // 0 until onMediaReady fires
+  const rProgress = useSharedValue(0); // 0..1
   const mediaOpacity = useSharedValue(0);
   const heartScale = useSharedValue(0);
   const heartOpacity = useSharedValue(0);
@@ -269,35 +274,26 @@ const Stories = ({
   const [isFollowing, setIsFollowing] = useState(false);
   const toggleFollow = () => setIsFollowing((v) => !v);
 
-  // epoch to ignore stale callbacks
+  const isTransitioningRef = useRef(false);
   const storyEpochRef = useRef(0);
+
+  const beginTransition = () => {
+    isTransitioningRef.current = true;
+  };
+  const endTransition = () => {
+    setTimeout(() => {
+      isTransitioningRef.current = false;
+    }, 0);
+  };
   const bumpEpoch = () => {
     storyEpochRef.current += 1;
     return storyEpochRef.current;
-  };
-
-  // transition flags to freeze old slot
-  const isTransitioningRef = useRef(false);
-  const transitionDirRef = useRef<"forward" | "backward" | null>(null);
-  const prevStoryIndexRef = useRef(0);
-  const beginTransition = (dir: "forward" | "backward") => {
-    isTransitioningRef.current = true;
-    transitionDirRef.current = dir;
-    prevStoryIndexRef.current = currentStoryIndex;
-    rCurrentReady.value = 0; // new current not ready yet → keep width 0
-  };
-  const endTransition = () => {
-    isTransitioningRef.current = false;
-    transitionDirRef.current = null;
   };
 
   const advancedRef = useRef(false);
   const resetAdvanceFlags = () => {
     advancedRef.current = false;
   };
-
-  // prevent duplicate finish notifications per viewer session
-  const notifiedFinishedRef = useRef<Set<string>>(new Set());
 
   const resetProgressReanimated = () => {
     rProgress.value = 0;
@@ -348,6 +344,7 @@ const Stories = ({
       }
       return copy;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localStories, pointersLoaded]);
 
   const getTotal = (u: NormalizedUser) => u.stories.length;
@@ -372,7 +369,6 @@ const Stories = ({
     setMediaKey((k) => k + 1);
     resetAdvanceFlags();
     resetProgressReanimated();
-    rCurrentReady.value = 0; // wait for first media
     bumpEpoch();
     mediaOpacity.value = 0;
   }, [currentUserIndex, pointersLoaded, localStories]);
@@ -395,78 +391,67 @@ const Stories = ({
         [key]: { pointer: Math.min(nextPointer, total), total },
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStoryIndex, currentUserIndex, localStories, pointersLoaded]);
 
   /** ---------- Image autoplay ---------- */
   const startProgressImage = () => {
-    // rProgress already 0; only start timing when ready
+    if (isTransitioningRef.current || postOptionsVisible) return;
+    resetProgressReanimated();
     resetAdvanceFlags();
     rProgress.value = withTiming(
       1,
       { duration: 5000, easing: REEasing.linear },
       (finished) => {
-        if (finished) runOnJS(finishAndAdvance)();
+        if (finished) {
+          // use the unified finishing path
+          runOnJS(finishAndAdvance)();
+        }
       }
     );
   };
 
-  /** ---------- NAV helpers ---------- */
-  const bumpPointerForward = (user: NormalizedUser, nextIndex: number) => {
-    const total = user.stories.length;
-    const key = toKey(user.user_id);
-    updatePointers((prev) => {
-      const cur = prev[key] ?? { pointer: 0, total };
-      const bumped = Math.max(cur.pointer, nextIndex);
-      return { ...prev, [key]: { pointer: Math.min(bumped, total), total } };
-    });
-  };
-
-  const safeBumpAtCompletion = () => {
-    if (!pointersLoaded) return;
-    if (currentUserIndex === null) return;
-    const u = localStories[currentUserIndex];
-    if (!u) return;
-
-    if (!advancedRef.current && progressValRef.current >= 0.98) {
-      advancedRef.current = true;
-      bumpPointerForward(u, currentStoryIndex + 1);
-    }
-  };
-
-  /** ---------- SMOOTH FINISH (no flash) ---------- */
+  // Unified finishing path: show last bar as PAST (full), then advance
+  const FINAL_HOLD_MS = 200; // tweak 150–250ms to taste
   const finishAndAdvance = () => {
+    // 1) force-fill bar
+    rProgress.value = 1;
+    progressValRef.current = 1;
+
+    // 2) safety bump (pointer)
     safeBumpAtCompletion();
+
+    // 3) after a short hold, advance
     const u = currentUserIndex != null ? localStories[currentUserIndex] : null;
     if (!u) return;
 
     const isLastStory = currentStoryIndex >= u.stories.length - 1;
-    const userKey = String(u.user_id);
 
-    // Do NOT reset here (old current slot would flash full→0). The new slot remains 0 until ready via rCurrentReady.
-    if (isLastStory) {
-      clearUserPointer(userKey);
-      if (!notifiedFinishedRef.current.has(userKey)) {
-        notifiedFinishedRef.current.add(userKey);
-        onUserFinished?.(u.user_id);
+    setTimeout(() => {
+      if (isLastStory) {
+        // last story in this user → go next user (or close)
+        handleNextUser();
+      } else {
+        handleNextStoryCore(); // internal path without re-filling
       }
-      handleNextUser();
-    } else {
-      handleNextStoryCore();
-    }
+    }, FINAL_HOLD_MS);
   };
 
+  // Internal next-story switch (used by finishAndAdvance)
   const handleNextStoryCore = () => {
     if (currentUserIndex === null) return;
     const u = localStories[currentUserIndex];
     if (!u) return;
 
-    beginTransition("forward");
+    // NOTE: do NOT reset to 0 here; we already showed full for a beat
+    // Reset happens on the NEXT media's onReady
     setCurrentStoryIndex((i) => i + 1);
     setMediaKey((k) => k + 1);
     bumpEpoch();
     advancedRef.current = false;
     mediaOpacity.value = 0;
 
+    // keep pointer ahead
     bumpPointerForward(u, currentStoryIndex + 1);
   };
 
@@ -522,6 +507,7 @@ const Stories = ({
     return () => {
       bumpPointerOnExit();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cap video to 60s
@@ -558,9 +544,34 @@ const Stories = ({
     cappedOnce.current.add(key);
   };
 
-  /** ---------- Manual nav ---------- */
+  /** ---------- NAV ---------- */
+  const bumpPointerForward = (user: NormalizedUser, nextIndex: number) => {
+    const total = user.stories.length;
+    const key = toKey(user.user_id);
+    updatePointers((prev) => {
+      const cur = prev[key] ?? { pointer: 0, total };
+      const bumped = Math.max(cur.pointer, nextIndex);
+      return { ...prev, [key]: { pointer: Math.min(bumped, total), total } };
+    });
+  };
+
+  const safeBumpAtCompletion = () => {
+    if (!pointersLoaded) return;
+    if (currentUserIndex === null) return;
+    const u = localStories[currentUserIndex];
+    if (!u) return;
+
+    if (!advancedRef.current && progressValRef.current >= 0.98) {
+      advancedRef.current = true;
+      bumpPointerForward(u, currentStoryIndex + 1);
+    }
+  };
+
   const switchToStory = (nextIndex: number) => {
-    beginTransition(nextIndex > currentStoryIndex ? "forward" : "backward");
+    // In normal taps (skip/prev), we reset to 0 BEFORE switching.
+    // For auto-finish we use finishAndAdvance -> handleNextStoryCore (no reset here).
+    rProgress.value = 0;
+    progressValRef.current = 0;
     setCurrentStoryIndex(nextIndex);
     setMediaKey((k) => k + 1);
     bumpEpoch();
@@ -569,6 +580,7 @@ const Stories = ({
   };
 
   const handleNextStory = () => {
+    // Tap on right half: treat as manual skip (no “final hold”)
     if (currentUserIndex === null) return;
     const u = localStories[currentUserIndex];
     if (!u) return;
@@ -578,6 +590,7 @@ const Stories = ({
     if (currentStoryIndex < u.stories.length - 1) {
       switchToStory(currentStoryIndex + 1);
     } else {
+      // last story → small visual finish then next user
       finishAndAdvance();
     }
   };
@@ -592,12 +605,13 @@ const Stories = ({
   };
 
   const switchToUser = (nextUserIndex: number) => {
-    beginTransition("forward");
+    rProgress.value = 0;
+    progressValRef.current = 0;
+    mediaOpacity.value = 0;
     setCurrentUserIndex(nextUserIndex);
     setMediaKey((k) => k + 1);
     advancedRef.current = false;
     bumpEpoch();
-    mediaOpacity.value = 0;
   };
 
   const handleNextUser = () => {
@@ -606,9 +620,12 @@ const Stories = ({
     if (!atLast) {
       switchToUser(currentUserIndex + 1);
     } else {
-      onAllFinished?.();
-      onRequestClose?.();
-      setCurrentUserIndex(null);
+      // completely finished → brief “all past” feel then close
+      setTimeout(() => {
+        onAllFinished?.();
+        onRequestClose?.();
+        setCurrentUserIndex(null);
+      }, FINAL_HOLD_MS);
     }
   };
 
@@ -641,7 +658,7 @@ const Stories = ({
     );
   };
 
-  /** ---------- Progress strip ---------- */
+  /** ---------- Progress strip (left-anchored pixel width) ---------- */
   const ProgressSlot = ({
     state,
   }: {
@@ -674,9 +691,8 @@ const Stories = ({
       );
     }
 
-    // current slot: gate by rCurrentReady so it cannot show 100% before ready
     const fillStyle = useAnimatedStyle(() => ({
-      width: Math.max(0, slotW.value * (rCurrentReady.value * rProgress.value)),
+      width: Math.max(0, slotW.value * rProgress.value),
       height: "100%",
     }));
 
@@ -744,27 +760,28 @@ const Stories = ({
         const bottomGuard = height - (insets.bottom + BOTTOM_UI_HEIGHT);
         if (ay <= topGuard || ay >= bottomGuard) return;
 
-        if (ax >= width / 2) handleNextStory();
-        else handlePreviousStory();
+        if (ax >= width / 2) {
+          // manual skip: ensure clean switch
+          handleNextStory();
+        } else {
+          handlePreviousStory();
+        }
       });
 
     const combinedGesture = Gesture.Race(panGesture, tapGesture);
 
-    const localEpoch = storyEpochRef.current;
+    const currentEpoch = storyEpochRef.current;
 
     const onMediaReady = () => {
-      if (localEpoch !== storyEpochRef.current) return;
+      if (currentEpoch !== storyEpochRef.current) return;
+      // fade in current media
       mediaOpacity.value = withTiming(1, {
         duration: 180,
         easing: REEasing.out(REEasing.quad),
       });
-
-      // New current is ready: reset and allow progress to render
+      // ensure progress starts at 0 for fresh media
       rProgress.value = 0;
       progressValRef.current = 0;
-      rCurrentReady.value = 1;
-
-      endTransition();
 
       if (!isVideo) startProgressImage();
     };
@@ -784,16 +801,17 @@ const Stories = ({
                   startAtSeconds={story.startAtSeconds ?? 0}
                   segmentDuration={story.segmentDuration}
                   onDurationKnown={(dur) => {
-                    if (localEpoch !== storyEpochRef.current) return;
+                    if (currentEpoch !== storyEpochRef.current) return;
                     capVideoToSixty(currentUserIndex!, currentStoryIndex, dur);
                   }}
                   onProgressRatio={(r) => {
-                    if (localEpoch !== storyEpochRef.current) return;
+                    if (currentEpoch !== storyEpochRef.current) return;
                     rProgress.value = r;
                     progressValRef.current = r;
                   }}
                   onSegmentEnd={() => {
-                    if (localEpoch !== storyEpochRef.current) return;
+                    if (currentEpoch !== storyEpochRef.current) return;
+                    // use unified finish so bar shows full momentarily
                     finishAndAdvance();
                   }}
                   onReadyToPlay={onMediaReady}
@@ -809,7 +827,8 @@ const Stories = ({
                   }}
                   onLoadStart={() => {
                     resetAdvanceFlags();
-                    // keep rProgress as-is; new current is gated by rCurrentReady=0 anyway
+                    rProgress.value = 0;
+                    progressValRef.current = 0;
                   }}
                   onLoadEnd={onMediaReady}
                 />
@@ -849,22 +868,6 @@ const Stories = ({
                 let state: "past" | "current" | "future" = "future";
                 if (index < currentStoryIndex) state = "past";
                 else if (index === currentStoryIndex) state = "current";
-
-                // Freeze the old slot during transition
-                const isAdvancing =
-                  isTransitioningRef.current &&
-                  transitionDirRef.current === "forward";
-                const isReversing =
-                  isTransitioningRef.current &&
-                  transitionDirRef.current === "backward";
-
-                if (isAdvancing && index === prevStoryIndexRef.current) {
-                  state = "past";
-                }
-                if (isReversing && index === prevStoryIndexRef.current) {
-                  state = "future";
-                }
-
                 return (
                   <ProgressSlot
                     key={`${user.user_id}-${index}`}
@@ -981,14 +984,13 @@ const Stories = ({
             return (
               <TouchableOpacity
                 onPress={() => {
-                  beginTransition(
-                    index > (currentUserIndex ?? 0) ? "forward" : "backward"
-                  );
-                  setCurrentUserIndex(index);
-                  setMediaKey((k) => k + 1);
-                  advancedRef.current = false;
-                  bumpEpoch();
+                  rProgress.value = 0;
+                  progressValRef.current = 0;
                   mediaOpacity.value = 0;
+                  setCurrentUserIndex(index);
+                  advancedRef.current = false;
+                  setMediaKey((k) => k + 1);
+                  bumpEpoch();
                 }}
                 className="items-center">
                 <Image

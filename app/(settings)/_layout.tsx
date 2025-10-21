@@ -39,6 +39,12 @@ export default function SettingsLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="deletionRequestSuccess"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

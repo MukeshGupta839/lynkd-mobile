@@ -1,8 +1,12 @@
 // app/(settings)/AccountDeletion.tsx
 import ScreenHeaderBack from "@/components/ScreenHeaderBack"; // adjust path if needed
+import { AuthContext } from "@/context/AuthContext";
+import { apiCall } from "@/lib/api/apiService";
 import { MaterialIcons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useContext, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Platform,
@@ -16,19 +20,26 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
- * Pure UI screen:
+ * Account Deletion screen:
  * - Choose a reason (Picker)
  * - Optional additional feedback (multiline)
  * - Confirm email (text field)
  * - Confirm button (disabled until reason+email present)
+ * - Integrated with Firebase and backend API
  */
 const AccountDeletion: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const authContext = useContext(AuthContext);
+  const user = authContext?.user;
+  const firebaseUser = authContext?.firebaseUser;
+
   const [reason, setReason] = useState<string>("");
   const [reasonLabel, setReasonLabel] = useState<string>("Select a reason");
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [additionalInfo, setAdditionalInfo] = useState<string>("");
   const [email, setEmail] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
   const reasonOptions = [
     { key: "privacy", value: "Privacy concerns" },
@@ -43,11 +54,63 @@ const AccountDeletion: React.FC = () => {
     [reason, email]
   );
 
+  const performDelete = async () => {
+    if (!user || !firebaseUser) {
+      Alert.alert("Error", "User not authenticated. Please log in again.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      console.log("Account deletion confirmed");
+
+      // Send deletion request to backend
+      const response = await apiCall("/api/accountDeletionRequests/", "POST", {
+        emailID: email,
+        userID: user.id,
+        firebaseUID: firebaseUser.uid,
+        reason,
+        feedback: additionalInfo,
+      });
+
+      if (response.error) {
+        Alert.alert("Error", response.error);
+        return;
+      }
+
+      // Navigate to success screen
+      router.push("/(settings)/deletionRequestSuccess" as any);
+    } catch (error: any) {
+      console.error("Account deletion error:", error);
+      Alert.alert(
+        "Error",
+        "Failed to submit deletion request. Please try again later."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const onPressConfirm = () => {
     if (!canSubmit) {
       Alert.alert(
         "Missing info",
         "Please select a reason and enter your email."
+      );
+      return;
+    }
+
+    if (!user) {
+      Alert.alert("Error", "User not authenticated. Please log in again.");
+      return;
+    }
+
+    // Validate email matches user's account email
+    if (email.toLowerCase() !== user.email?.toLowerCase()) {
+      Alert.alert(
+        "Error",
+        "The email address you entered does not match your account email."
       );
       return;
     }
@@ -60,13 +123,7 @@ const AccountDeletion: React.FC = () => {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => {
-            // UI-only: pretend the request was sent
-            Alert.alert(
-              "Request Sent",
-              "Your deletion request has been submitted. We'll email you shortly."
-            );
-          },
+          onPress: performDelete,
         },
       ]
     );
@@ -233,14 +290,18 @@ const AccountDeletion: React.FC = () => {
         <TouchableOpacity
           className={[
             "mt-6 h-12 items-center justify-center rounded-full",
-            canSubmit ? "bg-zinc-900" : "bg-zinc-400",
+            canSubmit && !loading ? "bg-zinc-900" : "bg-zinc-400",
           ].join(" ")}
-          disabled={!canSubmit}
+          disabled={!canSubmit || loading}
           onPress={onPressConfirm}
         >
-          <Text className="text-white text-base font-semibold">
-            Confirm Deletion
-          </Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text className="text-white text-base font-semibold">
+              Confirm Deletion
+            </Text>
+          )}
         </TouchableOpacity>
 
         {/* Support */}

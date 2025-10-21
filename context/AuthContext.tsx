@@ -109,7 +109,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           navigationCallback();
         }
       } catch (error) {
-        console.error("Reset user state error:", error);
+        console.error(
+          "Reset user state error:",
+          error instanceof Error ? error.message : String(error)
+        );
         // Even if there's an error, ensure the state is cleared
         setFirebaseUser(null);
         setUser(null);
@@ -141,7 +144,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setupAuthListener();
         }
       } catch (error) {
-        console.error("Failed to load user from storage:", error);
+        console.error(
+          "Failed to load user from storage:",
+          error instanceof Error ? error.message : String(error)
+        );
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -182,7 +188,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 );
               }
             } catch (error) {
-              console.error("Error fetching user details from backend:", error);
+              console.error(
+                "Error fetching user details from backend:",
+                error instanceof Error ? error.message : String(error)
+              );
             }
           } else {
             // User is signed out
@@ -272,7 +281,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       // setLoading(false);
     } catch (error) {
-      console.error("Error fetching user details from backend:", error);
+      console.error(
+        "Error fetching user details from backend:",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   };
 

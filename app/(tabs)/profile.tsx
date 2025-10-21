@@ -1,3 +1,4 @@
+import { useAuth } from "@/hooks/useAuth";
 import { useContext } from "react";
 import ProfileScreen from "../../components/ProfileScreen";
 import { AuthContext } from "../../context/AuthContext";
@@ -10,7 +11,7 @@ const Profile = () => {
     throw new Error("Profile must be used within AuthProvider");
   }
 
-  const { user } = authContext;
+  const { user } = useAuth();
 
   // Fetch user details with real API integration
   const fetchUserDetails = async (userId: number, username?: string) => {
@@ -19,10 +20,10 @@ const Profile = () => {
 
       if (username) {
         // Fetch by username if provided
-        userResponse = await apiCall(`/api/users/username/${username}`, 'GET');
+        userResponse = await apiCall(`/api/users/username/${username}`, "GET");
       } else {
         // Fetch by userId
-        userResponse = await apiCall(`/api/users/${userId}`, 'GET');
+        userResponse = await apiCall(`/api/users/${userId}`, "GET");
       }
 
       if (userResponse.user) {
@@ -30,8 +31,11 @@ const Profile = () => {
 
         // Fetch additional data
         const [brandResponse, reelsResponse] = await Promise.all([
-          apiCall(`/api/affiliations/user/${userData.id}/affiliated-brands/`, 'GET'),
-          apiCall(`/api/posts/reels/user/${userData.id}?limit=100`, 'GET')
+          apiCall(
+            `/api/affiliations/user/${userData.id}/affiliated-brands/`,
+            "GET"
+          ),
+          apiCall(`/api/posts/reels/user/${userData.id}?limit=100`, "GET"),
         ]);
 
         return {
@@ -40,17 +44,18 @@ const Profile = () => {
           reelsCount: reelsResponse.data?.length || 0,
           followersCount: userData.followersCount || 0,
           followingCount: userData.followingCount || 0,
-          brandsAffiliated: brandResponse.data?.map((brand: any) => ({
-            name: brand.brand.brand_name,
-            logo: brand.brand.brandLogoURL,
-            id: brand.brand.id,
-          })) || [],
+          brandsAffiliated:
+            brandResponse.data?.map((brand: any) => ({
+              name: brand.brand.brand_name,
+              logo: brand.brand.brandLogoURL,
+              id: brand.brand.id,
+            })) || [],
         };
       }
 
-      throw new Error('User not found');
+      throw new Error("User not found");
     } catch (error) {
-      console.error('Error fetching user details:', error);
+      console.error("Error fetching user details:", error);
       throw error;
     }
   };
@@ -58,7 +63,7 @@ const Profile = () => {
   // Fetch user posts with real API integration
   const fetchUserPosts = async (userId: number) => {
     try {
-      const response = await apiCall(`/api/posts/user/${userId}`, 'GET');
+      const response = await apiCall(`/api/posts/user/${userId}`, "GET");
 
       if (response?.data) {
         const postsData = response.data.map((post: any) => {
@@ -82,30 +87,36 @@ const Profile = () => {
               productName: post.PostToPostAffliation?.product?.name,
               productImage: post.PostToPostAffliation?.product?.main_image,
               brandLogo: post.PostToPostAffliation?.brand?.brandLogoURL,
-              productDescription: post.PostToPostAffliation?.product?.description,
-              productRegularPrice: post.PostToPostAffliation?.product?.regular_price,
+              productDescription:
+                post.PostToPostAffliation?.product?.description,
+              productRegularPrice:
+                post.PostToPostAffliation?.product?.regular_price,
               productSalePrice: post.PostToPostAffliation?.product?.sale_price,
             },
             likes_count: post.likes_aggregate?.aggregate?.count || 0,
             comments_count: post.comments_aggregate?.aggregate?.count || 0,
             text_post: post.text_post,
-            post_hashtags: post.PostToTagsMultiple?.map((tag: any) => tag.tag.name) || [],
+            post_hashtags:
+              post.PostToTagsMultiple?.map((tag: any) => tag.tag.name) || [],
             type: post.text_post ? "text" : "image",
             imageUrl: post.media_url,
             text: post.text_post ? post.caption : undefined,
             timestamp: post.created_at,
-            ...post
+            ...post,
           };
         });
 
         // Sort by creation date (newest first)
-        postsData.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        postsData.sort(
+          (a: any, b: any) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
         return postsData;
       }
 
       return [];
     } catch (error) {
-      console.error('Error fetching posts:', error);
+      console.error("Error fetching posts:", error);
       return [];
     }
   };
@@ -113,20 +124,25 @@ const Profile = () => {
   // Fetch user reels with real API integration
   const fetchUserReels = async (userId: number) => {
     try {
-      const response = await apiCall(`/api/posts/reels/user/${userId}?limit=100`, 'GET');
+      const response = await apiCall(
+        `/api/posts/reels/user/${userId}?limit=100`,
+        "GET"
+      );
 
       if (response.data) {
         return response.data.map((reel: any) => ({
           id: reel.id,
           thumbnail_url: reel.thumbnail_url,
-          reels_views_aggregate: reel.reels_views_aggregate || { aggregate: { count: 0 } },
-          ...reel
+          reels_views_aggregate: reel.reels_views_aggregate || {
+            aggregate: { count: 0 },
+          },
+          ...reel,
         }));
       }
 
       return [];
     } catch (error) {
-      console.error('Error fetching reels:', error);
+      console.error("Error fetching reels:", error);
       return [];
     }
   };
@@ -134,7 +150,10 @@ const Profile = () => {
   // Fetch user products with real API integration
   const fetchUserProducts = async (userId: number) => {
     try {
-      const response = await apiCall(`/api/affiliations/creator/${userId}/affiliated-products`, 'GET');
+      const response = await apiCall(
+        `/api/affiliations/creator/${userId}/affiliated-products`,
+        "GET"
+      );
 
       if (response.data) {
         return response.data.map((product: any) => ({
@@ -146,13 +165,13 @@ const Profile = () => {
           sale_price: product.sale_price,
           regular_price: product.regular_price,
           description: product.description,
-          ...product
+          ...product,
         }));
       }
 
       return [];
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error("Error fetching products:", error);
       return [];
     }
   };
@@ -161,15 +180,18 @@ const Profile = () => {
   const handleFollow = async (userId: number) => {
     try {
       if (!user?.id) {
-        console.error('User not authenticated');
+        console.error("User not authenticated");
         return;
       }
 
-      const response = await apiCall(`/api/follows/follow/${user.id}/${userId}`, 'POST');
-      console.log('Follow response:', response);
+      const response = await apiCall(
+        `/api/follows/follow/${user.id}/${userId}`,
+        "POST"
+      );
+      console.log("Follow response:", response);
       return response;
     } catch (error) {
-      console.error('Error following user:', error);
+      console.error("Error following user:", error);
       throw error;
     }
   };
@@ -178,15 +200,18 @@ const Profile = () => {
   const handleUnfollow = async (userId: number) => {
     try {
       if (!user?.id) {
-        console.error('User not authenticated');
+        console.error("User not authenticated");
         return;
       }
 
-      const response = await apiCall(`/api/follows/unfollow/${user.id}/${userId}`, 'DELETE');
-      console.log('Unfollow response:', response);
+      const response = await apiCall(
+        `/api/follows/unfollow/${user.id}/${userId}`,
+        "DELETE"
+      );
+      console.log("Unfollow response:", response);
       return response;
     } catch (error) {
-      console.error('Error unfollowing user:', error);
+      console.error("Error unfollowing user:", error);
       throw error;
     }
   };
@@ -199,18 +224,21 @@ const Profile = () => {
         return null;
       }
 
-      const response = await apiCall(`/api/follows/isFollowing/${user.id}/${userId}`, 'GET');
-      console.log('Follow status response:', response);
+      const response = await apiCall(
+        `/api/follows/isFollowing/${user.id}/${userId}`,
+        "GET"
+      );
+      console.log("Follow status response:", response);
       return response.isFollowing; // Returns 'followed', 'pending', or false/null
     } catch (error) {
-      console.error('Error checking follow status:', error);
+      console.error("Error checking follow status:", error);
       return null;
     }
   };
 
   return (
     <ProfileScreen
-      currentUserId={user?.id || 1} // Pass current logged-in user ID from context
+      currentUserId={user?.id}
       fetchUserDetails={fetchUserDetails}
       fetchUserPosts={fetchUserPosts}
       fetchUserReels={fetchUserReels}

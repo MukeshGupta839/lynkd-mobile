@@ -20,6 +20,8 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import Octicons from "@expo/vector-icons/Octicons";
 
 // Components
+import { useAuth } from "@/hooks/useAuth";
+import { apiCall } from "@/lib/api/apiService";
 import BlockUserPopup from "../../components/BlockUserPopup";
 import PostOptionsBottomSheet from "../../components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "../../components/ReportPostBottomSheet";
@@ -45,19 +47,12 @@ interface Post {
 
 export default function ProfilePosts() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams();
   const postsParam = typeof params.posts === "string" ? params.posts : "";
   const focusParam =
     params.focusedIndexPost != null ? Number(params.focusedIndexPost) : null;
-
-  // Mock user data - replace with your actual user context
-  const currentUser = {
-    id: 1,
-    username: "current_user",
-    profile_picture: "https://randomuser.me/api/portraits/men/1.jpg",
-    is_creator: true,
-  };
 
   const [reportVisible, setReportVisible] = useState(false);
   const [blockUser, setBlockUser] = useState(false);
@@ -113,20 +108,39 @@ export default function ProfilePosts() {
 
   const toggleFollow = useCallback(
     async (userId: string) => {
+      if (!user?.id || !userId) return;
+
       const isFollowing = followedUsers.includes(userId);
+
+      // Optimistic update - instant UI response
+      setFollowedUsers((prev) =>
+        isFollowing ? prev.filter((id) => id !== userId) : [...prev, userId]
+      );
+
       try {
         Vibration.vibrate(100);
-        // Add your follow/unfollow API logic here
+        console.log(
+          isFollowing ? "✅ Unfollowing user:" : "✅ Following user:",
+          userId
+        );
 
-        // Update followedUsers state
-        setFollowedUsers((prev) =>
-          isFollowing ? prev.filter((id) => id !== userId) : [...prev, userId]
+        const endpoint = isFollowing
+          ? `/api/follows/unfollow/${user.id}/${userId}`
+          : `/api/follows/follow/${user.id}/${userId}`;
+
+        await apiCall(endpoint, isFollowing ? "DELETE" : "POST");
+        console.log(
+          isFollowing ? "✅ Unfollow successful" : "✅ Follow successful"
         );
       } catch (error) {
-        console.error(`Error toggling follow for user ${userId}:`, error);
+        console.error(`❌ Error toggling follow for user ${userId}:`, error);
+        // Rollback on error
+        setFollowedUsers((prev) =>
+          isFollowing ? [...prev, userId] : prev.filter((id) => id !== userId)
+        );
       }
     },
-    [followedUsers]
+    [followedUsers, user?.id]
   );
 
   const handleShare = useCallback(() => {
@@ -170,17 +184,29 @@ export default function ProfilePosts() {
     // Add your comment logic here
   }, [commentsClicked]);
 
-  const deletePost = useCallback(async (postId: string) => {
-    try {
-      // Add your delete API logic here
-      setPosts((prevPosts) =>
-        prevPosts.filter((post) => post.id !== Number(postId))
-      );
-      setPostOptionsVisible(false);
-    } catch (error) {
-      console.error("Error deleting post:", error);
-    }
-  }, []);
+  const deletePost = useCallback(
+    async (postId: string) => {
+      if (!user?.id) return;
+
+      try {
+        Vibration.vibrate(100);
+        console.log("🗑️ Deleting post:", postId);
+
+        await apiCall(`/api/posts/${postId}`, "DELETE");
+
+        // Remove from local state
+        setPosts((prevPosts) =>
+          prevPosts.filter((post) => post.id !== Number(postId))
+        );
+        setPostOptionsVisible(false);
+
+        console.log("✅ Post deleted successfully");
+      } catch (error) {
+        console.error("❌ Error deleting post:", error);
+      }
+    },
+    [user?.id]
+  );
 
   // Memoized callbacks to prevent re-renders
   const handleToggleFollow = useCallback(() => {
@@ -662,7 +688,7 @@ export default function ProfilePosts() {
         show={reportVisible}
         setShow={setReportVisible}
         postId={focusedPostID || ""}
-        userId={String(currentUser.id)}
+        userId={user?.id}
       />
 
       <BlockUserPopup
@@ -681,7 +707,7 @@ export default function ProfilePosts() {
         isFollowing={isUserFollowing}
         focusedPost={focusedPost}
         deleteAction={deletePost}
-        user={currentUser}
+        user={user}
       />
     </View>
   );

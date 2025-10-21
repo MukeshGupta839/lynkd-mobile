@@ -9,10 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "icon": "./assets/images/adaptive-icon.png",
+      "icon": "./assets/images/adaptive-icon2.png",
       "bundleIdentifier": "com.lynkd.socialcommerce",
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
+      "requireFullScreen": false,
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
         "ITSAppUsesNonExemptEncryption": false,
@@ -68,10 +69,11 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/splash.png",
+          "image": "./assets/splash3.png",
           "resizeMode": "contain",
           "backgroundColor": "#1a1a1a",
-          "imageWidth": 200
+          "imageWidth": 200,
+          "imageRoundedCorners": false
         }
       ],
       [

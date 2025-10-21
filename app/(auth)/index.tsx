@@ -1,5 +1,6 @@
 import OrDivider from "@/components/OrDivider";
 import { AuthContext } from "@/context/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { apiCall } from "@/lib/api/apiService";
 import useAuthTokenStore from "@/stores/authTokenStore";
 import { getAuth } from "@/utils/firebase";
@@ -26,6 +27,19 @@ import {
   TextInput,
 } from "react-native-paper";
 import GoogleLogo from "../../assets/svg/google-icon-logo.svg";
+
+// Helper to extract message and code safely from unknown error
+const extractErrorInfo = (err: unknown) => {
+  if (err instanceof Error) {
+    return { message: err.message, code: (err as any).code };
+  }
+  if (typeof err === "string") return { message: err, code: undefined };
+  if (typeof err === "object" && err !== null) {
+    const e: any = err as any;
+    return { message: e.message ?? String(e), code: e.code };
+  }
+  return { message: String(err), code: undefined };
+};
 
 // Configure Google Sign In
 GoogleSignin.configure({
@@ -684,37 +698,38 @@ export default function LoginScreen() {
       } else {
         throw new Error("User data not found.");
       }
-    } catch (error: any) {
-      console.error("Login failed:", error);
+    } catch (err) {
+      const { message, code } = extractErrorInfo(err);
+      console.error("Login failed:", message, code);
 
       // Check for network/backend errors
-      if (error.message && error.message.includes("Cannot connect to server")) {
+      if (message && message.includes("Cannot connect to server")) {
         setSocialLoginError(
           "Cannot reach the server. Please ensure:\n" +
             "1. Backend server is running on http://localhost:5000\n" +
             "2. You're connected to the internet\n" +
             "3. Firewall is not blocking the connection"
         );
-      } else if (error.message && error.message.includes("Network error")) {
+      } else if (message && message.includes("Network error")) {
         setSocialLoginError(
           "Network error: Cannot connect to backend server. " +
             "Please start your backend server and try again."
         );
-      } else if (error.code === "auth/user-not-found") {
+      } else if (code === "auth/user-not-found") {
         setEmailError("No account found with this email.");
       } else if (
-        error.code === "auth/wrong-password" ||
-        error.code === "auth/invalid-credential"
+        code === "auth/wrong-password" ||
+        code === "auth/invalid-credential"
       ) {
         setPasswordError("Incorrect password. Please try again.");
-      } else if (error.code === "auth/invalid-email") {
+      } else if (code === "auth/invalid-email") {
         setEmailError("Invalid email address.");
-      } else if (error.code === "auth/too-many-requests") {
+      } else if (code === "auth/too-many-requests") {
         setSocialLoginError(
           "Too many failed login attempts. Please try again later."
         );
       } else {
-        setSocialLoginError(error.message || "Login failed. Please try again.");
+        setSocialLoginError(message || "Login failed. Please try again.");
       }
     } finally {
       setDisableButton(false);
@@ -827,10 +842,11 @@ export default function LoginScreen() {
         setCompletedRegistration(true);
         router.push("/(tabs)");
       }
-    } catch (error: any) {
-      console.error("Google Sign-In Error:", error);
+    } catch (err) {
+      const { message } = extractErrorInfo(err);
+      console.error("Google Sign-In Error:", message);
       setSocialLoginError(
-        error.message || "Failed to sign in with Google. Please try again."
+        message || "Failed to sign in with Google. Please try again."
       );
     } finally {
       setDisableButton(false);
@@ -1001,14 +1017,15 @@ export default function LoginScreen() {
         setCompletedRegistration(true);
         router.push("/(tabs)");
       }
-    } catch (error: any) {
-      if (error.code === "ERR_REQUEST_CANCELED") {
+    } catch (err) {
+      const { message, code } = extractErrorInfo(err);
+      if (code === "ERR_REQUEST_CANCELED") {
         // User canceled the sign-in
         console.log("Apple Sign-In canceled by user");
       } else {
-        console.error("Apple Sign-In Error:", error);
+        console.error("Apple Sign-In Error:", message, code);
         setSocialLoginError(
-          error.message || "Failed to sign in with Apple. Please try again."
+          message || "Failed to sign in with Apple. Please try again."
         );
       }
     } finally {
@@ -1055,9 +1072,10 @@ export default function LoginScreen() {
           if (!currentUser.emailVerified) {
             await currentUser.sendEmailVerification();
           }
-        } catch (error: any) {
-          console.error("Error adding password:", error);
-          Alert.alert("Error", "Failed to add password. " + error.message);
+        } catch (err) {
+          const { message } = extractErrorInfo(err);
+          console.error("Error adding password:", message);
+          Alert.alert("Error", "Failed to add password. " + (message || ""));
         }
       }
 
@@ -1138,6 +1156,9 @@ export default function LoginScreen() {
   }, []);
 
   const validateEmail = (str: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
+  const auth = useAuth();
+
+  console.log("login screen Auth Context:", auth);
 
   return (
     <View
