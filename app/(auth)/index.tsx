@@ -27,6 +27,7 @@ import {
   TextInput,
 } from "react-native-paper";
 import GoogleLogo from "../../assets/svg/google-icon-logo.svg";
+const BackHandler = require("react-native").BackHandler;
 
 // Helper to extract message and code safely from unknown error
 const extractErrorInfo = (err: unknown) => {
@@ -119,7 +120,7 @@ const UsernameSetupContent = ({
               username === ""
                 ? "#bdbdbd"
                 : usernameError === "" ||
-                    usernameError === "Username is available."
+                  usernameError === "Username is available."
                   ? "green"
                   : "red"
             }
@@ -219,11 +220,10 @@ const UsernameSetupContent = ({
         <TouchableOpacity
           disabled={!clearToMove || disableButton || !!setupPasswordError}
           activeOpacity={0.8}
-          className={`h-13 px-4 items-center justify-center rounded-xl mt-6 ${
-            clearToMove && !disableButton && !setupPasswordError
+          className={`h-13 px-4 items-center justify-center rounded-xl mt-6 ${clearToMove && !disableButton && !setupPasswordError
               ? "bg-black"
               : "bg-gray-400"
-          } shadow-sm`}
+            } shadow-sm`}
           onPress={onSaveUsername}
         >
           {disableButton ? (
@@ -349,9 +349,8 @@ const FormContent = ({
         <TouchableOpacity
           disabled={disableButton}
           activeOpacity={0.8}
-          className={`h-13 px-4 items-center justify-center rounded-xl ${
-            disableButton ? "bg-gray-400" : "bg-black"
-          } shadow-sm`}
+          className={`h-13 px-4 items-center justify-center rounded-xl ${disableButton ? "bg-gray-400" : "bg-black"
+            } shadow-sm`}
           onPress={onEmailPasswordLogin}
         >
           {disableButton ? (
@@ -487,6 +486,41 @@ export default function LoginScreen() {
       console.error("Error redeeming referral code:", error);
     }
   };
+
+  useEffect(() => {
+    let backPressCount = 0;
+    let backPressTimer: NodeJS.Timeout | null = null;
+
+    const onBackPress = () => {
+      backPressCount += 1;
+      if (backPressCount === 1) {
+        // Prevent single back gesture (do nothing)
+        if (backPressTimer) clearTimeout(backPressTimer);
+        backPressTimer = setTimeout(() => {
+          backPressCount = 0;
+        }, 1500); // Reset after 1.5s
+        return true; // Block default behavior
+      } else if (backPressCount === 2) {
+        // Double back gesture: exit app
+        backPressCount = 0;
+        if (backPressTimer) clearTimeout(backPressTimer);
+        // Use BackHandler.exitApp() to close the app
+        // eslint-disable-next-line no-undef
+        if (typeof BackHandler !== "undefined" && BackHandler.exitApp) {
+          BackHandler.exitApp();
+        }
+        return true;
+      }
+      return true;
+    };
+    // Enable back handler for both Android and iOS
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => {
+      subscription?.remove();
+      if (backPressTimer) clearTimeout(backPressTimer);
+    };
+  }, []);
+
 
   // Effect for referral code validation with debounce
   useEffect(() => {
@@ -706,14 +740,14 @@ export default function LoginScreen() {
       if (message && message.includes("Cannot connect to server")) {
         setSocialLoginError(
           "Cannot reach the server. Please ensure:\n" +
-            "1. Backend server is running on http://localhost:5000\n" +
-            "2. You're connected to the internet\n" +
-            "3. Firewall is not blocking the connection"
+          "1. Backend server is running on http://localhost:5000\n" +
+          "2. You're connected to the internet\n" +
+          "3. Firewall is not blocking the connection"
         );
       } else if (message && message.includes("Network error")) {
         setSocialLoginError(
           "Network error: Cannot connect to backend server. " +
-            "Please start your backend server and try again."
+          "Please start your backend server and try again."
         );
       } else if (code === "auth/user-not-found") {
         setEmailError("No account found with this email.");
