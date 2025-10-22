@@ -1,15 +1,16 @@
 // PostCreate.tsx - Smart Mention Popover with Auto-positioning
 import { FacebookStyleImage } from "@/components/FacebookStyleImage";
 import { FacebookStyleVideo } from "@/components/FacebookStyleVideo";
-import Mention from "@/components/Mention";
+import Mention, { MentionUser as MentionUserType } from "@/components/Mention";
 import ProductModal from "@/components/PostCreation/ProductModal";
 import CreatePostImageViewer from "@/components/Product/CreatePostImageViewer";
 import CircularProgress from "@/components/ProgressBar/CircularProgress";
 import StatusModal from "@/components/StatusModal";
-import { TAGS, USERS } from "@/constants/PostCreation";
+import { TAGS } from "@/constants/PostCreation";
 import { AuthContext } from "@/context/AuthContext";
 import { useGradualAnimation } from "@/hooks/useGradualAnimation";
 import { apiCall } from "@/lib/api/apiService";
+import { useUploadStore } from "@/stores/useUploadStore";
 import { Entypo, Ionicons, Octicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
@@ -217,10 +218,13 @@ export default function PostCreate() {
   const [mentioning, setMentioning] = useState(false);
   // mention trigger ('@' or '#') to preserve which symbol the user typed
   const [mentionTrigger, setMentionTrigger] = useState<string | null>(null);
+  // Use the MentionUser type exported from the Mention component so shapes match
+  const [usersResults, setUsersResults] = useState<MentionUserType[]>([]);
   const [selection, setSelection] = useState<{ start: number; end: number }>({
     start: 0,
     end: 0,
   });
+  const [selectionStart, setSelectionStart] = useState(0);
   // keep your existing length-mode variables
   const LIMIT = 300;
   const WARN_AT = 290;
@@ -233,6 +237,8 @@ export default function PostCreate() {
       ? "#FF9500"
       : "#000";
   const hideRing = isRed && Math.abs(remaining) > 9; // your rule
+
+  console.log("usersResults", usersResults);
 
   // Derived for render
   const headerProgress = mode === "posting" ? postingProgress : pct;
@@ -289,6 +295,48 @@ export default function PostCreate() {
       if (id) clearInterval(id);
     };
   }, [mode]);
+
+  const fetchUsersbySearch = useCallback(
+    async (searchQuery: string) => {
+      try {
+        const response = await apiCall(
+          `/api/search/${user?.id}/users?search=${searchQuery}`,
+          "GET"
+        );
+        const data = await response.data;
+        // Normalize API payload to the MentionUser shape. Be defensive about missing fields.
+        const users: MentionUserType[] = (data || []).map((u: any) => ({
+          id: u.id ?? u._id ?? String(u.username || ""),
+          first_name: u.first_name ?? u.firstName ?? "",
+          last_name: u.last_name ?? u.lastName ?? "",
+          username: u.username ?? u.user_name ?? u.handle ?? "",
+          // pick likely image fields if present
+          image: u.profile_picture ?? u.image ?? u.avatar ?? undefined,
+          avatar: u.profile_picture ?? u.image ?? u.avatar ?? undefined,
+        }));
+        users.sort((a: MentionUserType, b: MentionUserType) => {
+          const query = searchQuery.toLowerCase();
+          const aUsername = a.username.toLowerCase();
+          const bUsername = b.username.toLowerCase();
+
+          if (aUsername === query) return -1;
+          if (bUsername === query) return 1;
+          if (aUsername.startsWith(query) && !bUsername.startsWith(query))
+            return -1;
+          if (bUsername.startsWith(query) && !aUsername.startsWith(query))
+            return 1;
+          if (aUsername.includes(query) && !bUsername.includes(query))
+            return -1;
+          if (bUsername.includes(query) && !aUsername.includes(query)) return 1;
+          return 0;
+        });
+        setUsersResults(users);
+      } catch (error) {
+        console.error("API request failed:", error);
+      }
+    },
+    [user?.id]
+  );
 
   // Improved keyboard handling with focus management
   useEffect(() => {
@@ -520,10 +568,49 @@ export default function PostCreate() {
     setCaretAnchor({ x: caretX, y: caretY });
   }, [mentioning, text, selection.start, inputLayout.w]);
 
+  const measureTextPosition = (event: {
+    nativeEvent: { selection: { start: number } };
+  }) => {
+    const { selection } = event.nativeEvent;
+    setSelectionStart(selection.start);
+    // keep it minimal — caret positioning best-effort
+    if (inputRef.current) {
+      inputRef.current.measureInWindow((x, y) => {
+        // approximate cursor location vertically
+        const lineHeight = 20;
+        const charsPerLine = 35;
+        const currentLine = Math.floor(selection.start / charsPerLine);
+        const verticalOffset = currentLine * lineHeight;
+        // setCaretAnchor could be used elsewhere; here we keep selection index only
+        setCaretAnchor({ x: x + 50, y: y + verticalOffset + 30 });
+      });
+    }
+  };
+
   // Mention parsing + selection tracking
-  const handleChangeText = useCallback((input: string) => {
-    setText(input);
-  }, []);
+  const handleChangeText = useCallback(
+    (input: string) => {
+      setText(input);
+      const words = input.split(" ");
+      const lastWord = words[words.length - 1];
+
+      if (lastWord.startsWith("@") && lastWord.length > 1) {
+        const query = lastWord.slice(1);
+        fetchUsersbySearch(query);
+        // Measure position after state update
+        if (inputRef.current) {
+          setTimeout(() => {
+            measureTextPosition({
+              nativeEvent: { selection: { start: selectionStart } },
+            });
+          }, 0);
+        }
+      } else {
+        // clear mention UI
+      }
+    },
+    [fetchUsersbySearch, selectionStart]
+  );
 
   // 2) parse after both text & selection are current
   useEffect(() => {
@@ -557,8 +644,19 @@ export default function PostCreate() {
 
   // Use includes so users show up even when typing part of the name, and
   // be case-insensitive. When mentionQuery is empty, this returns all users.
+  // Ensure TAGS are mapped into the MentionUserType shape so the Mention component
+  // can accept them without TS errors. Provide safe defaults for missing names.
+  const tagUsers: MentionUserType[] = TAGS.map((t: any) => ({
+    id: t.id ?? String(t.name),
+    username: t.name,
+    first_name: t.name ?? "",
+    last_name: "",
+    image: t.image ?? t.icon ?? undefined,
+    avatar: t.image ?? t.icon ?? undefined,
+  }));
+
   const filteredUsers = (
-    mentionTrigger === "#" ? TAGS.map((t) => ({ username: t.name })) : USERS
+    mentionTrigger === "#" ? tagUsers : usersResults
   ).filter((u) =>
     u.username.toLowerCase().includes(mentionQuery.toLowerCase())
   );
@@ -594,7 +692,23 @@ export default function PostCreate() {
     setMode("posting");
     setLoader(true);
 
+    // Get upload store actions
+    const { startUpload, updateProgress, completeUpload, failUpload } =
+      useUploadStore.getState();
+
     try {
+      // Determine post type based on media
+      const postType =
+        image.length > 0 && image[0]?.isVideo
+          ? "video"
+          : image.length > 0
+            ? "image"
+            : "text";
+
+      // Start upload and close screen
+      startUpload(postType);
+      router.back(); // Navigate back immediately after starting upload
+
       const formData = new FormData();
       formData.append("firebaseUID", firebaseUser?.uid || "");
       formData.append("userID", user?.id?.toString() || "");
@@ -640,10 +754,32 @@ export default function PostCreate() {
         formData.append("aspect_ratio", "");
       }
 
-      // Simulate upload progress
-      setPostingProgress(0.3);
+      // Helper function for realistic progress simulation
+      const simulateProgress = async (
+        start: number,
+        end: number,
+        duration: number
+      ) => {
+        const steps = 20; // Number of progress updates
+        const stepDuration = duration / steps;
+        const increment = (end - start) / steps;
 
-      const response = await apiCall(
+        for (let i = 0; i < steps; i++) {
+          const currentProgress = start + increment * (i + 1);
+          updateProgress(currentProgress);
+          setPostingProgress(currentProgress);
+          await new Promise((resolve) => setTimeout(resolve, stepDuration));
+        }
+      };
+
+      // Start with initial progress - Quick start (0-15%)
+      await simulateProgress(0, 0.15, 400);
+
+      // Steady upload progress (15-50%)
+      await simulateProgress(0.15, 0.5, 1200);
+
+      // Make the API call during the middle of progress
+      const uploadPromise = apiCall(
         "/api/posts/createAffiliated",
         "POST",
         formData,
@@ -652,10 +788,25 @@ export default function PostCreate() {
         }
       );
 
-      setPostingProgress(0.9);
+      // Continue progress while uploading (50-85%)
+      await simulateProgress(0.5, 0.85, 1500);
+
+      // Wait for the actual API response
+      const response = await uploadPromise;
+
+      console.log("response :", response);
+
+      // Slower progress as we approach completion (85-95%)
+      await simulateProgress(0.85, 0.95, 800);
 
       if (response.message === "Post and affiliation created successfully.") {
-        setPostingProgress(1);
+        // Stay at 95% briefly to show processing
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Final push to 100%
+        await simulateProgress(0.95, 1, 400);
+
+        completeUpload();
 
         // Clear form after successful post
         setTimeout(() => {
@@ -665,11 +816,11 @@ export default function PostCreate() {
           setLocation("");
           setSelectedMediaType(null);
           setAspectRatio(null);
-          router.back(); // Navigate back after successful post
         }, 500);
       }
     } catch (e) {
       console.error("error creating post:", e);
+      failUpload();
       // On failure, show error and reset
       setPostingProgress(0);
     } finally {
@@ -679,6 +830,8 @@ export default function PostCreate() {
       }, 600);
     }
   };
+
+  console.log("user:", user);
 
   return (
     <View
@@ -753,7 +906,9 @@ export default function PostCreate() {
               <View className="flex flex-row items-center px-3">
                 <Image
                   source={{
-                    uri: "https://media.gettyimages.com/id/2160799152/photo/hamburg-germany-cristiano-ronaldo-of-portugal-looks-dejected-following-the-teams-defeat-in.jpg?s=612x612&w=gi&k=20&c=ffUaAF9km23q47SkX57MtxQIy2no1KrCIeGpihNbR1s=",
+                    uri:
+                      user?.profile_picture ||
+                      "https://media.istockphoto.com/id/1223671392/vector/default-profile-picture-avatar-photo-placeholder-vector-illustration.jpg?s=612x612&w=0&k=20&c=s0aTdmT5aU6b8ot7VKm11DeID6NctRCpB755rA1BIP0=",
                   }}
                   className="w-10 h-10 rounded-full"
                   resizeMode="cover"
@@ -767,7 +922,9 @@ export default function PostCreate() {
                     className="text-sm font-opensans-semibold"
                     numberOfLines={1}
                   >
-                    Karthik Kumar
+                    {user?.first_name && user?.last_name
+                      ? `${user.first_name} ${user.last_name}`
+                      : user?.username}
                   </Text>
 
                   <Octicons
@@ -787,7 +944,9 @@ export default function PostCreate() {
                   <HighlightedText
                     value={text}
                     caretIndex={selection?.start ?? text.length}
-                    users={mentionTrigger === "#" ? filteredUsers : USERS}
+                    users={
+                      mentionTrigger === "#" ? filteredUsers : usersResults
+                    }
                     activeHasSuggestions={
                       mentioning && filteredUsers.length > 0
                     }

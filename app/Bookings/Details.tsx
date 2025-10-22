@@ -1,6 +1,6 @@
 // app/book/Details.tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -41,10 +41,13 @@ export default function Details() {
     return [...UPCOMING_EVENTS, ...POPULAR_EVENTS].find((e) => e.id === id);
   }, [id]);
 
-  if (!event) {
-    router.replace("/Bookings/BookingForm");
-    return null;
-  }
+  // If event is missing, navigate away — do this in an effect so hooks remain
+  // called in the same order on every render (avoid conditional hooks).
+  useEffect(() => {
+    if (!event) {
+      router.replace("/Bookings/BookingForm");
+    }
+  }, [event, router]);
 
   // ticket types and pricing
   const ticketTypes = useMemo(
@@ -95,23 +98,27 @@ export default function Details() {
     []
   );
 
+  // renderItem must be declared before any early returns so hooks are
+  // always called in the same order. Inside the callback we assert
+  // `event` is defined (the component returns early when it's missing).
   const renderItem = useCallback(
     ({ item }: { item: { key: string } }) => {
+      const ev = event!; // asserted: component does not render list when event is undefined
       switch (item.key) {
         case "hero":
           return (
             <View className="mx-3 mt-3 bg-white rounded-xl p-4 shadow-md">
               <View className="rounded-lg overflow-hidden bg-gray-200">
-                {event.image ? (
+                {ev.image ? (
                   <Image
-                    source={event.image}
+                    source={ev.image}
                     style={{
                       width: "100%",
                       height: heroHeight,
                       borderRadius: 8,
                     }}
                     resizeMode="cover"
-                    accessibilityLabel={`${event.title} image`}
+                    accessibilityLabel={`${ev.title} image`}
                   />
                 ) : (
                   <View
@@ -127,7 +134,7 @@ export default function Details() {
 
               <View className="mt-4">
                 <Text className="text-base font-semibold text-[#111827]">
-                  {event.title}
+                  {ev.title}
                 </Text>
                 <Text className="text-sm text-gray-500 mt-1">
                   Ticket ID: {ticketId}
@@ -152,7 +159,7 @@ export default function Details() {
               <View className="mt-4">
                 <Text className="text-sm text-gray-500">Detail Location</Text>
                 <Text className="mt-1 text-sm text-[#111827]">
-                  {event.location ?? "—"}
+                  {ev.location ?? "—"}
                 </Text>
               </View>
 
@@ -169,7 +176,7 @@ export default function Details() {
                 <View>
                   <Text className="text-sm text-gray-500">Date</Text>
                   <Text className="mt-1 text-sm text-[#111827]">
-                    {event.dateLabel ?? "-"}
+                    {ev.dateLabel ?? "-"}
                   </Text>
                 </View>
               </View>
@@ -213,6 +220,12 @@ export default function Details() {
     },
     [event, heroHeight, ticketId, name, qty, subtotal, fees, tax, total]
   );
+
+  // If event is missing, navigate away and avoid rendering — all hooks above
+  // are declared so hooks' order is consistent across renders.
+  if (!event) {
+    return null;
+  }
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-gray-50">

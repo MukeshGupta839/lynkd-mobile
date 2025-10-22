@@ -141,6 +141,8 @@ export interface PostCardProps {
   isGestureActive?: boolean;
   panGesture: GestureType;
   onPressComments?: (post: any) => void;
+  toggleLike?: (postId: string) => Promise<void> | void;
+  likedPostIDs?: string[];
 }
 
 /* ===========================
@@ -153,6 +155,8 @@ export const PostCard: React.FC<PostCardProps> = ({
   isGestureActive = false,
   panGesture,
   onPressComments,
+  toggleLike,
+  likedPostIDs,
 }) => {
   const router = useRouter();
   const navigating = useRef(false);
@@ -227,9 +231,9 @@ export const PostCard: React.FC<PostCardProps> = ({
     // 👇 this drives the blue badge in chat
     verified: Boolean(
       item?.is_creator ||
-      item?.verified ||
-      item?.user?.verified ||
-      item?.user?.isVerified
+        item?.verified ||
+        item?.user?.verified ||
+        item?.user?.isVerified
     ),
     // Optional extras (kept safely typed)
     likes: typeof item.likes_count === "number" ? item.likes_count : 0,
@@ -248,7 +252,8 @@ export const PostCard: React.FC<PostCardProps> = ({
     <TouchableOpacity
       activeOpacity={1}
       onLongPress={() => onLongPress?.(item)}
-      delayLongPress={500}>
+      delayLongPress={500}
+    >
       <View className="px-3 mt-2 bg-gray-100">
         <View
           style={{
@@ -258,17 +263,20 @@ export const PostCard: React.FC<PostCardProps> = ({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.12,
             shadowRadius: 8,
-          }}>
+          }}
+        >
           <View
             className="bg-white py-3 gap-2.5"
-            style={{ borderRadius: 16, overflow: "hidden" }}>
+            style={{ borderRadius: 16, overflow: "hidden" }}
+          >
             {/* Header */}
             <View className="flex-row px-3 items-center h-10">
               <GestureDetector gesture={openProfileTap}>
                 <TouchableOpacity
                   className="flex-row items-center flex-1 mr-2"
                   activeOpacity={0.7}
-                  disabled={isGestureActive}>
+                  disabled={isGestureActive}
+                >
                   <Image
                     source={{ uri: item.userProfilePic }}
                     className="w-10 h-10 rounded-full mr-2"
@@ -280,17 +288,17 @@ export const PostCard: React.FC<PostCardProps> = ({
                       </Text>
                       {Boolean(
                         item?.is_creator ||
-                        item?.verified ||
-                        item?.user?.verified ||
-                        item?.user?.isVerified
+                          item?.verified ||
+                          item?.user?.verified ||
+                          item?.user?.isVerified
                       ) && (
-                          <Octicons
-                            name="verified"
-                            size={14}
-                            color="#000"
-                            style={{ marginLeft: 4 }}
-                          />
-                        )}
+                        <Octicons
+                          name="verified"
+                          size={14}
+                          color="#000"
+                          style={{ marginLeft: 4 }}
+                        />
+                      )}
                     </View>
                     {item.location && item.postDate && (
                       <View className="flex-row items-center">
@@ -350,15 +358,16 @@ export const PostCard: React.FC<PostCardProps> = ({
                                   isGestureActive
                                     ? undefined
                                     : () =>
-                                      router.push({
-                                        pathname: "/(profiles)" as any,
-                                        params: {
-                                          username: part.slice(1),
-                                          user: 999999,
-                                        },
-                                      })
+                                        router.push({
+                                          pathname: "/(profiles)" as any,
+                                          params: {
+                                            username: part.slice(1),
+                                            user: 999999,
+                                          },
+                                        })
                                 }
-                                onLongPress={openPostOptions}>
+                                onLongPress={openPostOptions}
+                              >
                                 {part}
                               </Text>
                             );
@@ -373,13 +382,14 @@ export const PostCard: React.FC<PostCardProps> = ({
                                   isGestureActive
                                     ? undefined
                                     : () =>
-                                      router.push({
-                                        pathname:
-                                          "/(search)/searchPostsWithTags" as any,
-                                        params: { tag: part },
-                                      })
+                                        router.push({
+                                          pathname:
+                                            "/(search)/searchPostsWithTags" as any,
+                                          params: { tag: part },
+                                        })
                                 }
-                                onLongPress={openPostOptions}>
+                                onLongPress={openPostOptions}
+                              >
                                 {part}
                               </Text>
                             );
@@ -398,7 +408,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                     ? undefined
                                     : () => Linking.openURL(url)
                                 }
-                                onLongPress={openPostOptions}>
+                                onLongPress={openPostOptions}
+                              >
                                 {part}
                               </Text>
                             );
@@ -406,7 +417,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                           return (
                             <Text
                               key={`cap-plain-${index}`}
-                              className="text-gray-900">
+                              className="text-gray-900"
+                            >
                               {part}
                             </Text>
                           );
@@ -423,7 +435,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}>
+                        delayLongPress={500}
+                      >
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show more
                         </Text>
@@ -440,7 +453,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}>
+                        delayLongPress={500}
+                      >
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show less
                         </Text>
@@ -458,12 +472,13 @@ export const PostCard: React.FC<PostCardProps> = ({
                         isGestureActive
                           ? undefined
                           : () =>
-                            router.push({
-                              pathname:
-                                "/(search)/searchPostsWithTags" as any,
-                              params: { tag: "#" + tag },
-                            })
-                      }>
+                              router.push({
+                                pathname:
+                                  "/(search)/searchPostsWithTags" as any,
+                                params: { tag: "#" + tag },
+                              })
+                      }
+                    >
                       #{tag}
                       {i < neededHashtags.length - 1 ? <Text> </Text> : null}
                     </Text>
@@ -479,7 +494,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                   className="px-3"
                   onLongPress={() => onLongPress?.(item)}
                   delayLongPress={500}
-                  disabled={isGestureActive}>
+                  disabled={isGestureActive}
+                >
                   <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
                     <View
                       className="basis-1/4 self-stretch relative"
@@ -487,7 +503,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                         borderTopLeftRadius: 6,
                         borderBottomLeftRadius: 6,
                         overflow: "hidden",
-                      }}>
+                      }}
+                    >
                       <Image
                         source={{ uri: item.affiliation.productImage }}
                         style={{ position: "absolute", inset: 0 as any }}
@@ -513,7 +530,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                         </View>
                         <TouchableOpacity
                           className="self-start"
-                          disabled={isGestureActive}>
+                          disabled={isGestureActive}
+                        >
                           <MaterialIcons
                             name="add-shopping-cart"
                             size={24}
@@ -541,10 +559,24 @@ export const PostCard: React.FC<PostCardProps> = ({
             {/* Actions */}
             <View className="flex-row items-center justify-between px-3">
               <View className="flex-row items-center gap-x-4">
+                {/* Like button: call parent toggleLike if provided and reflect likedPostIDs */}
                 <TouchableOpacity
                   className="flex-row items-center"
-                  disabled={isGestureActive}>
-                  <Ionicons name="heart-outline" size={20} color="#000" />
+                  disabled={isGestureActive}
+                  onPress={
+                    isGestureActive
+                      ? undefined
+                      : () => {
+                          // prefer parent handler if provided
+                          if (toggleLike) toggleLike(String(item.id));
+                        }
+                  }
+                >
+                  {likedPostIDs && likedPostIDs.includes(String(item.id)) ? (
+                    <Ionicons name="heart" size={20} color="#E0245E" />
+                  ) : (
+                    <Ionicons name="heart-outline" size={20} color="#000" />
+                  )}
                   <Text className="ml-1 text-sm font-medium">
                     {item.likes_count}
                   </Text>
@@ -554,7 +586,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                   disabled={isGestureActive}
                   onPress={
                     isGestureActive ? undefined : () => onPressComments?.(item)
-                  }>
+                  }
+                >
                   <Ionicons name="chatbubble-outline" size={18} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.comments_count}
@@ -562,7 +595,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                 </TouchableOpacity>
                 <TouchableOpacity
                   disabled={isGestureActive}
-                  onPress={() => setShareOpen(true)}>
+                  onPress={() => setShareOpen(true)}
+                >
                   <Ionicons name="arrow-redo-outline" size={20} color="#000" />
                 </TouchableOpacity>
               </View>

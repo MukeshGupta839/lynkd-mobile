@@ -41,7 +41,9 @@ import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
 // ✅ Added: Share bottom sheet (for Send button)
 import ShareSectionBottomSheet from "@/components/ShareSectionBottomSheet";
 import { useAuth } from "@/hooks/useAuth";
-import { clearReelsCache, fetchReelsApi, RawReel } from "@/lib/api/api";
+import { RawReel } from "@/lib/api/api";
+import { useReelsStore } from "@/stores/useReelsStore";
+import { useUploadStore } from "@/stores/useUploadStore";
 // ✅ Added: import apiCall for like and comment API calls
 import { apiCall } from "@/lib/api/apiService";
 
@@ -68,73 +70,6 @@ type Post = {
   productCount?: string;
 };
 
-// Remote video URLs with different aspect ratios
-const SAMPLE_REMOTE_VIDEOS = [
-  // 16:9 landscape
-  {
-    url: "https://cdn.pixabay.com/video/2022/07/24/125314-733046618_tiny.mp4",
-    aspectRatio: "16:9",
-  },
-  // 9:16 vertical/portrait
-  {
-    url: "https://cdn.pixabay.com/video/2022/11/07/138173-768820177_large.mp4",
-    aspectRatio: "9:16",
-  },
-  // 1:1 square
-  {
-    url: "https://cdn.pixabay.com/video/2023/11/19/189692-886572510_tiny.mp4",
-    aspectRatio: "1:1",
-  },
-  // 4:5 portrait (Instagram style)
-  {
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-    aspectRatio: "4:5",
-  },
-  // 9:16 vertical
-  {
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    aspectRatio: "9:16",
-  },
-  // 16:9 landscape - replaced broken Chromecast URL
-  {
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
-    aspectRatio: "16:9",
-  },
-  // 9:16 vertical
-  {
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
-    aspectRatio: "9:16",
-  },
-  // 1:1 square
-  {
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-    aspectRatio: "1:1",
-  },
-];
-
-const DUMMY_POSTS: Post[] = Array.from({ length: 8 }).map((_, i) => {
-  const videoData = SAMPLE_REMOTE_VIDEOS[i % SAMPLE_REMOTE_VIDEOS.length];
-  const user = CREATION_USERS[i % CREATION_USERS.length];
-  const id = i + 1;
-  return {
-    id,
-    media_url: videoData.url,
-    thumbnail_url: `https://via.placeholder.com/800x1200.png?text=thumb+${id}`,
-    photoURL: user?.avatar ?? "https://via.placeholder.com/100.png",
-    username: user?.username ?? `user_${id}`,
-    user_id: Number(user?.id ?? id),
-    verified: i % 3 === 0,
-    caption: `This is a sample caption for reel #${id}. Video aspect ratio: ${videoData.aspectRatio}. Additional details and hashtags #bird #dj #video #bb #hero #dog #wired #god #cricket #greatleader #srikanth #beauty #LYNKD.`,
-    likes: Math.floor(Math.random() * 200),
-    commentsCount: Math.floor(Math.random() * 20),
-    shareUrl: `https://example.com/reel/${id}`,
-    liked: false,
-    following: false,
-    isProduct: id === 2 || id === 5,
-    productCount: id === 2 ? "23k" : id === 5 ? "1.2k" : undefined,
-  };
-});
-
 const AnimatedFlatList = Reanimated.createAnimatedComponent(
   FlatList
 ) as unknown as typeof FlatList;
@@ -157,7 +92,6 @@ const PostItem: React.FC<{
   isFavorited: boolean;
   onToggleFollow: (uid?: number) => void;
   isFollowing: boolean;
-  setPostsState?: React.Dispatch<React.SetStateAction<RawReel[]>>;
   onOverlayPress: () => void;
   centerVisible: boolean;
   isPlaying: boolean;
@@ -176,7 +110,6 @@ const PostItem: React.FC<{
     isFavorited,
     onToggleFollow,
     isFollowing,
-    setPostsState,
     onOverlayPress,
     centerVisible,
     isPlaying,
@@ -584,16 +517,25 @@ const VideoFeed: React.FC = () => {
   const router = useRouter();
   const { user } = useAuth();
   const flatListRef = useRef<FlatList<RawReel> | null>(null);
-  const [posts, setPosts] = useState<RawReel[]>([]);
+
+  // ✅ Use Zustand store for reels state management
+  const {
+    reels: posts,
+    isInitialLoading: loading,
+    error: reelsError,
+    hasMore,
+    cursor,
+    fetchReels,
+    loadMoreReels,
+    refreshReels,
+    updateReel,
+  } = useReelsStore();
+
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [followedUsers, setFollowedUsers] = useState<number[]>([]);
   const [showPostOptionsFor, setShowPostOptionsFor] = useState<RawReel | null>(
     null
   );
-  const [loading, setLoading] = useState<boolean>(false);
-  const [cursor, setCursor] = useState<number>(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [activeTag, setActiveTag] = useState("Trending");
 
   const focused = useIsFocused();
 
@@ -791,18 +733,13 @@ const VideoFeed: React.FC = () => {
         isPostLiked ? prev.filter((id) => id !== postId) : [...prev, postId]
       );
 
-      // Update posts state with new like status
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? {
-                ...p,
-                liked: !isPostLiked,
-                likes: (p.likes ?? 0) + (isPostLiked ? -1 : 1),
-              }
-            : p
-        )
-      );
+      // ✅ Update posts state with new like status using Zustand
+      updateReel(postId, {
+        liked: !isPostLiked,
+        likes:
+          (posts.find((p) => p.id === postId)?.likes ?? 0) +
+          (isPostLiked ? -1 : 1),
+      });
     } catch (error) {
       console.error("Error toggling like:", error);
     }
@@ -1035,11 +972,11 @@ const VideoFeed: React.FC = () => {
               `🎥 Video ${currentIndex} is playing - triggering aggressive preload of next videos`
             );
 
-            // Trigger aggressive preloading of next videos
+            // ✅ PRIORITY: Preload NEXT video immediately and completely
             const nextIndex = currentIndex + 1;
             const nextNextIndex = currentIndex + 2;
 
-            // Preload next video completely
+            // Preload next video completely - THIS IS CRITICAL FOR INSTANT PLAYBACK
             if (nextIndex < posts.length) {
               const nextPost = posts[nextIndex];
               if (
@@ -1052,17 +989,20 @@ const VideoFeed: React.FC = () => {
                 ) {
                   preloadedPlayersRef.current.set(nextIndex, "loading");
                   console.log(
-                    `📥 Starting full download of video ${nextIndex} while video ${currentIndex} plays`
+                    `📥 🚨 PRIORITY: Full download of next video ${nextIndex} while video ${currentIndex} plays`
                   );
 
+                  // Full download - no byte range limit
                   fetch(nextPost.media_url, { method: "GET" })
                     .then(() => {
                       preloadedPlayersRef.current.set(
                         nextIndex,
                         "fully-loaded"
                       );
+                      // ✅ Mark as loaded immediately so no spinner shows
+                      loadedSetRef.current.add(nextIndex);
                       console.log(
-                        `✅ Fully loaded video ${nextIndex} during playback`
+                        `✅ ⚡ Next video ${nextIndex} FULLY LOADED and marked - ready for instant playback!`
                       );
 
                       // Also preload thumbnail
@@ -1072,16 +1012,17 @@ const VideoFeed: React.FC = () => {
                     })
                     .catch((err) => {
                       console.log(
-                        `❌ Failed to preload video ${nextIndex}:`,
+                        `❌ Failed to preload next video ${nextIndex}:`,
                         err
                       );
                       preloadedPlayersRef.current.delete(nextIndex);
+                      loadedSetRef.current.delete(nextIndex);
                     });
                 }
               }
             }
 
-            // Preload next 2-3 videos partially for smooth scrolling
+            // Preload next 2-4 videos partially for smooth scrolling
             const nextVideosToPreload = [
               nextNextIndex,
               currentIndex + 3,
@@ -1096,9 +1037,10 @@ const VideoFeed: React.FC = () => {
                 ) {
                   preloadedPlayersRef.current.set(idx, "loading");
 
+                  // Partial download for videos further ahead
                   fetch(nextPost.media_url, {
                     method: "GET",
-                    headers: { Range: "bytes=0-307200" }, // 300KB for better cache
+                    headers: { Range: "bytes=0-512000" }, // 500KB for better cache
                   })
                     .then(() => {
                       preloadedPlayersRef.current.set(idx, "loaded");
@@ -1107,6 +1049,11 @@ const VideoFeed: React.FC = () => {
                     .catch(() => {
                       preloadedPlayersRef.current.delete(idx);
                     });
+
+                  // Prefetch thumbnail
+                  if (nextPost.thumbnail_url) {
+                    Image.prefetch(nextPost.thumbnail_url).catch(() => {});
+                  }
                 }
               }
             }
@@ -1120,16 +1067,34 @@ const VideoFeed: React.FC = () => {
           ) {
             const progress = status.positionMillis / status.durationMillis;
 
-            // When video is 30% played, ensure next video is fully loaded
-            if (progress > 0.3 && progress < 0.4) {
+            // ✅ When video is 20% played, double-check next video is fully loaded
+            if (progress > 0.2 && progress < 0.25) {
               const nextIndex = currentIndex + 1;
               if (
                 nextIndex < posts.length &&
-                preloadedPlayersRef.current.get(nextIndex) !== "fully-loaded"
+                !loadedSetRef.current.has(nextIndex)
               ) {
                 console.log(
-                  `🎯 Video ${currentIndex} at 30% - ensuring next video fully loaded`
+                  `⚠️ Video ${currentIndex} at 20% but next video ${nextIndex} not loaded yet - triggering NOW!`
                 );
+                const nextPost = posts[nextIndex];
+                if (nextPost?.media_url) {
+                  preloadedPlayersRef.current.set(nextIndex, "loading");
+                  fetch(nextPost.media_url, { method: "GET" })
+                    .then(() => {
+                      preloadedPlayersRef.current.set(
+                        nextIndex,
+                        "fully-loaded"
+                      );
+                      loadedSetRef.current.add(nextIndex);
+                      console.log(
+                        `✅ Emergency load complete for video ${nextIndex}`
+                      );
+                    })
+                    .catch((err) => {
+                      console.log(`❌ Emergency load failed:`, err);
+                    });
+                }
               }
             }
           }
@@ -1139,9 +1104,11 @@ const VideoFeed: React.FC = () => {
       }
     };
 
-    // Start monitoring when video is likely playing
+    // ✅ Start monitoring immediately when video starts playing
     if (isPlayingState && !mediaLoading) {
-      playbackMonitor = setInterval(monitorPlaybackAndPreload, 1000); // Check every second
+      playbackMonitor = setInterval(monitorPlaybackAndPreload, 500); // Check every 500ms
+      // Also run once immediately
+      monitorPlaybackAndPreload();
     }
 
     return () => {
@@ -1335,6 +1302,10 @@ const VideoFeed: React.FC = () => {
     let pollCount = 0;
     const MAX_POLL_COUNT = 150; // 15 seconds max (100ms * 150)
 
+    // ✅ Check if video is prefetched for faster polling
+    const isPrefetched = preloadedPlayersRef.current.has(currentIndex);
+    const POLL_INTERVAL = isPrefetched ? 20 : 50; // 20ms for prefetched, 50ms for new videos
+
     const startPolling = () => {
       if (pollTimer) return;
       pollTimer = setInterval(async () => {
@@ -1360,13 +1331,20 @@ const VideoFeed: React.FC = () => {
 
           if (typeof p.getStatusAsync === "function") {
             const status: any = await p.getStatusAsync();
-            console.log(`📊 Video ${currentIndex} status:`, {
-              isLoaded: status?.isLoaded,
-              isBuffering: status?.isBuffering,
-              isPlaying: status?.isPlaying,
-              error: status?.error,
-              uri: status?.uri,
-            });
+
+            // ✅ Only log every 10th poll to reduce console spam
+            if (pollCount % 10 === 0 || pollCount < 3) {
+              console.log(
+                `📊 Video ${currentIndex} status (poll ${pollCount}):`,
+                {
+                  isLoaded: status?.isLoaded,
+                  isBuffering: status?.isBuffering,
+                  isPlaying: status?.isPlaying,
+                  error: status?.error,
+                  prefetched: isPrefetched,
+                }
+              );
+            }
 
             // Check if video is loaded and doesn't have an error
             const readyToRender = status?.isLoaded && !status?.error;
@@ -1377,7 +1355,7 @@ const VideoFeed: React.FC = () => {
                 loadedSetRef.current.add(currentIndex);
                 setLoadedVersion((v) => v + 1);
                 console.log(
-                  `✅ Video ${currentIndex} loaded successfully after ${pollCount} polls`
+                  `✅ Video ${currentIndex} loaded successfully after ${pollCount} polls (${pollCount * POLL_INTERVAL}ms)`
                 );
               }
 
@@ -1440,20 +1418,18 @@ const VideoFeed: React.FC = () => {
                 fetch(videoUrl, { method: "HEAD" })
                   .then((response) => {
                     if (response.ok) {
-                      console.log("✅ Video URL is valid");
+                      console.log("✅ Video URL validated, marking as loaded");
                       if (!loadedSetRef.current.has(currentIndex)) {
                         loadedSetRef.current.add(currentIndex);
                         setLoadedVersion((v) => v + 1);
-                        console.log(
-                          "✅ Video marked as loaded (fallback):",
-                          currentIndex
-                        );
                       }
                       setMediaLoading(false);
                       setShowLoadingSpinner(false);
+
                       const pausedForIndex =
                         pausedMapRef.current.get(currentIndex) ?? false;
                       manualPausedRef.current = pausedForIndex;
+
                       if (!pausedForIndex) {
                         safePlay().then(() => {
                           setIsPlayingState(true);
@@ -1465,8 +1441,8 @@ const VideoFeed: React.FC = () => {
                       }
                     } else {
                       console.error(
-                        `❌ Video URL returned ${response.status}:`,
-                        videoUrl
+                        "❌ Video URL validation failed:",
+                        response.status
                       );
                       videoErrorsRef.current.set(currentIndex, true);
                       setHasVideoError(true);
@@ -1502,13 +1478,15 @@ const VideoFeed: React.FC = () => {
           }
         } catch (error) {
           // ignore but log for debugging
-          console.log("Poll error:", error);
+          if (pollCount % 20 === 0) {
+            console.log("Poll error:", error);
+          }
         }
-      }, 50); // Reduced from 100ms to 50ms for faster detection
+      }, POLL_INTERVAL); // ✅ Use dynamic interval based on prefetch status
     };
 
     setMediaLoading(true);
-    const startDelay = setTimeout(() => startPolling(), 10); // Reduced from 30ms to 10ms
+    const startDelay = setTimeout(() => startPolling(), isPrefetched ? 5 : 10); // ✅ Faster start for prefetched
 
     return () => {
       cancelled = true;
@@ -1561,7 +1539,19 @@ const VideoFeed: React.FC = () => {
   // when index changes, set currentMedia and clear transient manual pause for new index
   useEffect(() => {
     const next = posts[currentIndex];
-    if (!next) return;
+
+    // ✅ CRITICAL FIX: If posts array doesn't have this index, don't update
+    // This prevents showing wrong video/user during refresh
+    if (!next) {
+      console.log(`⚠️ No post at index ${currentIndex}, skipping media update`);
+      return;
+    }
+
+    // ✅ CRITICAL FIX: Verify the post data is valid before updating
+    if (!next.media_url || typeof next.media_url !== "string") {
+      console.log(`⚠️ Invalid media_url at index ${currentIndex}, skipping`);
+      return;
+    }
 
     // don't recreate player on posts change — only update currentMedia when index changes
     manualPausedRef.current = pausedMapRef.current.get(currentIndex) ?? false;
@@ -1589,30 +1579,46 @@ const VideoFeed: React.FC = () => {
       playbackPreloadTriggeredRef.current.delete(idx)
     );
 
-    // Check if already loaded (cached/preloaded)
+    // ✅ Check if video was prefetched/preloaded
     const isAlreadyLoaded = loadedSetRef.current.has(currentIndex);
+    const isPrefetched = preloadedPlayersRef.current.has(currentIndex);
 
-    // Always set loading to true first to show thumbnail immediately and hide previous video
-    setMediaLoading(true);
-    setShowLoadingSpinner(false);
-
-    // Update media immediately for faster response
+    // ✅ CRITICAL FIX: Update media immediately and validate it matches the post
+    console.log(`🎬 Updating currentMedia to index ${currentIndex}:`, {
+      id: next.id,
+      username: next.username,
+      media_url: next.media_url?.substring(0, 50) + "...",
+    });
     setCurrentMedia(next);
 
-    if (isAlreadyLoaded) {
-      // Video already loaded, transition almost instantly for Instagram-like smoothness
-      setTimeout(() => {
-        setMediaLoading(false);
-        setShowLoadingSpinner(false);
-      }, 10); // Minimal delay for instant feel
+    // ✅ If video is prefetched, mark it as loaded immediately to skip loading state
+    if (isPrefetched && !isAlreadyLoaded) {
+      console.log(
+        `⚡ Video ${currentIndex} was prefetched - marking as loaded immediately`
+      );
+      loadedSetRef.current.add(currentIndex);
+      setMediaLoading(false);
+      setShowLoadingSpinner(false);
+    } else if (isAlreadyLoaded) {
+      // Video already loaded before, transition instantly
+      console.log(
+        `⚡ Video ${currentIndex} already loaded - instant transition`
+      );
+      setMediaLoading(false);
+      setShowLoadingSpinner(false);
     } else {
-      // Show loading spinner after 300ms if still loading (network issue)
+      // First time loading this video
+      console.log(`📥 Loading video ${currentIndex} for first time`);
+      setMediaLoading(true);
+      setShowLoadingSpinner(false);
+
+      // ✅ Show spinner only after 150ms (reduced from 300ms) if still loading
       loadingTimeoutRef.current = setTimeout(() => {
         if (!loadedSetRef.current.has(currentIndex)) {
           console.log(`⏳ Showing spinner for video ${currentIndex}`);
           setShowLoadingSpinner(true);
         }
-      }, 300); // Reduced from 500ms for faster feedback
+      }, 150);
     }
 
     return () => {
@@ -1620,7 +1626,7 @@ const VideoFeed: React.FC = () => {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [currentIndex]); // intentionally not depending on `posts`
+  }, [currentIndex, posts]); // ✅ Now properly depends on both currentIndex AND posts
 
   // Handle screen focus/blur - pause when screen is not focused
   useEffect(() => {
@@ -1769,9 +1775,9 @@ const VideoFeed: React.FC = () => {
 
   // Load more reels when approaching the end
   const onEndReached = () => {
-    if (!loading && hasMore) {
+    if (!loading && hasMore && user?.id) {
       console.log("🔄 Loading more reels...");
-      fetchReels(cursor);
+      loadMoreReels(String(user.id));
     }
   };
 
@@ -1826,70 +1832,24 @@ const VideoFeed: React.FC = () => {
     return unsubscribe;
   }, [navigation, focused]);
 
-  // Fetch reels function - defined before use
-  const fetchReels = async (currentCursor = 0) => {
-    try {
-      setLoading(true);
-      console.log(`🎯 Fetching reels at cursor ${currentCursor}...`);
-      const res = await fetchReelsApi(user.id, cursor);
-      console.log("reel res:", res);
-
-      console.log("cursor:", cursor, currentCursor);
-
-      if (res && res.data && Array.isArray(res.data)) {
-        console.log(`✅ Fetched ${res.data.length} reels from API`);
-
-        // Filter out posts with invalid or empty video URLs
-        const newPosts = res.data.filter((post) => {
-          const hasValidUrl =
-            post.media_url &&
-            typeof post.media_url === "string" &&
-            post.media_url.trim().length > 0 &&
-            (post.media_url.startsWith("http://") ||
-              post.media_url.startsWith("https://"));
-
-          if (!hasValidUrl) {
-            console.warn(
-              `⚠️ Skipping post ${post.id} - invalid video URL:`,
-              post.media_url
-            );
-          }
-          return hasValidUrl;
-        });
-
-        if (newPosts.length < res.data.length) {
-          console.warn(
-            `⚠️ Filtered out ${res.data.length - newPosts.length} posts with invalid URLs`
-          );
-        }
-
-        // Append new posts or replace based on cursor (page)
-        if (currentCursor === 0) {
-          console.log(`📝 Setting ${newPosts.length} posts (initial load)`);
-          setPosts(newPosts);
-        } else {
-          console.log(`📝 Appending ${newPosts.length} posts`);
-          setPosts((prev) => [...prev, ...newPosts]);
-        }
-
-        // Update cursor for next page
-        setHasMore(res.hasMore);
-        setCursor(res.nextCursor);
-      }
-    } catch (e) {
-      console.error("❌ Fetch reels error:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  console.log("posts: ", posts);
 
   // Refresh handler - clear all caches and fetch fresh data
   const onRefresh = React.useCallback(async () => {
+    if (!user?.id) return;
+
     setRefreshing(true);
 
     // Pause video during refresh to prevent UI issues
     await safePause();
     setIsPlayingState(false);
+
+    // ✅ CRITICAL FIX: Reset currentIndex and currentMedia BEFORE clearing data
+    // This prevents mismatch between old index/media and new data
+    setCurrentIndex(0);
+    setCurrentMedia(null);
+    setHasVideoError(false);
+    setMediaLoading(true);
 
     // Reset scroll position to 0 (both FlatList and reanimated value)
     scrollY.value = 0;
@@ -1913,47 +1873,87 @@ const VideoFeed: React.FC = () => {
     batchLoadTriggeredRef.current.clear();
     pausedMapRef.current.clear();
 
-    // Clear API cache
-    await clearReelsCache(user.id);
-
-    // Reset states
-    setCurrentIndex(0);
-    setCurrentMedia(null);
-    // setCursor(0);
-    setPosts([]);
-    setHasVideoError(false);
-    setMediaLoading(true);
-
-    // Fetch fresh data from beginning
-    await fetchReels();
+    // ✅ Use Zustand refresh action
+    await refreshReels(String(user.id));
 
     setRefreshing(false);
     console.log("✅ Refresh complete");
-  }, [fetchReels, safePause, scrollY]);
+  }, [refreshReels, safePause, scrollY, user?.id]);
 
-  // Fetch reels on component mount
+  // Watch for upload completion to refresh reels
+  const { shouldRefreshReels, clearRefreshTriggers } = useUploadStore();
   useEffect(() => {
-    console.log("🚀 Component mounted - fetching initial reels");
-    fetchReels();
-  }, []);
+    if (shouldRefreshReels) {
+      console.log("🔄 Upload complete - refreshing reels");
+      onRefresh();
+      clearRefreshTriggers();
+    }
+  }, [shouldRefreshReels, clearRefreshTriggers, onRefresh]);
 
-  // Aggressive preloading: Load next batch when within 5 posts of the end
+  // ✅ Fetch reels on component mount only if not already loaded
+  useEffect(() => {
+    console.log(
+      "📊 Fetch check - user?.id:",
+      user?.id,
+      "posts.length:",
+      posts.length,
+      "loading:",
+      loading
+    );
+
+    if (user?.id && posts.length === 0 && !loading) {
+      console.log(
+        "🚀 Component mounted - fetching initial reels for user:",
+        user.id
+      );
+      fetchReels(String(user.id), 0).catch((error) => {
+        console.error("❌ Error fetching initial reels:", error);
+      });
+    } else if (!user?.id) {
+      console.log("⚠️ No user ID available yet, waiting for auth...");
+    } else if (posts.length > 0) {
+      console.log("✅ Posts already loaded, skipping fetch");
+    } else if (loading) {
+      console.log("⏳ Already loading, skipping fetch");
+    }
+  }, [user?.id, posts.length, loading, fetchReels]);
+
+  // ✅ Aggressive preloading: Load next batch when within 5 posts of the end
   useEffect(() => {
     const postsRemaining = posts.length - currentIndex;
     const shouldPreload = postsRemaining <= 5 && postsRemaining > 0;
 
-    if (shouldPreload && !loading && hasMore) {
+    if (shouldPreload && !loading && hasMore && user?.id) {
       console.log(
         `🚀 Preloading next batch (${postsRemaining} posts remaining, currently at ${currentIndex}/${posts.length})`
       );
-      fetchReels(cursor);
+      loadMoreReels(String(user.id));
     }
-  }, [currentIndex, posts.length, loading, hasMore, cursor]);
+  }, [currentIndex, posts.length, loading, hasMore, user?.id, loadMoreReels]);
 
   // Initialize currentMedia when posts are loaded
   useEffect(() => {
     if (posts.length > 0 && !currentMedia && currentIndex === 0) {
       console.log("📹 Initializing first video:", posts[0].media_url);
+      setCurrentMedia(posts[0]);
+      setMediaLoading(true);
+    }
+
+    // ✅ CRITICAL FIX: Reset currentMedia if posts become empty (during refresh)
+    // This prevents showing stale data from previous posts array
+    if (posts.length === 0 && currentMedia) {
+      console.log("🧹 Clearing stale currentMedia - posts array is empty");
+      setCurrentMedia(null);
+      setMediaLoading(true);
+    }
+
+    // ✅ CRITICAL FIX: Validate currentIndex is within bounds
+    // If currentIndex is out of bounds, reset to 0
+    if (posts.length > 0 && currentIndex >= posts.length) {
+      console.log(
+        `⚠️ currentIndex ${currentIndex} out of bounds (posts.length: ${posts.length}), resetting to 0`
+      );
+      setCurrentIndex(0);
       setCurrentMedia(posts[0]);
       setMediaLoading(true);
     }
@@ -1974,6 +1974,19 @@ const VideoFeed: React.FC = () => {
         <Text style={{ color: "#ffffff", marginTop: 16, fontSize: 16 }}>
           Loading reels...
         </Text>
+        {reelsError && (
+          <Text
+            style={{
+              color: "#ff3b30",
+              marginTop: 8,
+              fontSize: 14,
+              paddingHorizontal: 20,
+              textAlign: "center",
+            }}
+          >
+            Error: {reelsError}
+          </Text>
+        )}
       </View>
     );
   }
@@ -1992,6 +2005,38 @@ const VideoFeed: React.FC = () => {
         <Text style={{ color: "#ffffff", fontSize: 16 }}>
           No reels available
         </Text>
+        {reelsError && (
+          <Text
+            style={{
+              color: "#ff3b30",
+              marginTop: 8,
+              fontSize: 14,
+              paddingHorizontal: 20,
+              textAlign: "center",
+            }}
+          >
+            Error: {reelsError}
+          </Text>
+        )}
+        <TouchableOpacity
+          onPress={() => {
+            if (user?.id) {
+              console.log("🔄 Retrying fetch...");
+              fetchReels(String(user.id), 0);
+            }
+          }}
+          style={{
+            marginTop: 20,
+            paddingHorizontal: 20,
+            paddingVertical: 10,
+            backgroundColor: "#4D70D1",
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: "#ffffff", fontSize: 14, fontWeight: "600" }}>
+            Retry
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -2009,7 +2054,7 @@ const VideoFeed: React.FC = () => {
             <VideoView
               player={playerRef.current ?? (player as any)}
               style={videoStyle}
-              contentFit="cover"
+              contentFit="contain"
               nativeControls={false}
               allowsPictureInPicture={false}
               allowsFullscreen={false}
@@ -2172,7 +2217,7 @@ const VideoFeed: React.FC = () => {
         onEndReached={onEndReached}
         onEndReachedThreshold={0.3}
         // Aggressive rendering for smooth preloading
-        initialNumToRender={3}
+        initialNumToRender={12}
         maxToRenderPerBatch={5}
         windowSize={11}
         removeClippedSubviews={false}
@@ -2210,13 +2255,13 @@ const VideoFeed: React.FC = () => {
                         ? prev.filter((x) => x !== uid)
                         : [...prev, uid]
                     );
-                    setPosts((prev) =>
-                      prev.map((p) =>
-                        p.user_id === uid
-                          ? { ...p, following: !isFollowing }
-                          : p
-                      )
-                    );
+
+                    // ✅ Update follow status for all reels by this user
+                    posts.forEach((p) => {
+                      if (p.user_id === uid) {
+                        updateReel(p.id, { following: !isFollowing });
+                      }
+                    });
 
                     // API call
                     await apiCall(endpoint, isFollowing ? "DELETE" : "POST");
@@ -2233,17 +2278,18 @@ const VideoFeed: React.FC = () => {
                         ? prev.filter((x) => x !== uid)
                         : [...prev, uid]
                     );
-                    setPosts((prev) =>
-                      prev.map((p) =>
-                        p.user_id === uid
-                          ? { ...p, following: !(p.following ?? false) }
-                          : p
-                      )
-                    );
+
+                    // ✅ Rollback follow status
+                    posts.forEach((p) => {
+                      if (p.user_id === uid) {
+                        updateReel(p.id, {
+                          following: !(p.following ?? false),
+                        });
+                      }
+                    });
                   }
                 }}
                 isFollowing={!!item.following}
-                setPostsState={setPosts}
                 onOverlayPress={onOverlayPress}
                 centerVisible={centerVisible && active}
                 isPlaying={isPlayingState && active}
@@ -2325,14 +2371,12 @@ const VideoFeed: React.FC = () => {
               // Fetch fresh comments from server
               await fetchCommentsOfAPost(commentsPost.id);
 
-              // Update comment count in posts state
-              setPosts((prev) =>
-                prev.map((p) =>
-                  p.id === commentsPost.id
-                    ? { ...p, commentsCount: (p.commentsCount || 0) + 1 }
-                    : p
-                )
-              );
+              // ✅ Update comment count using Zustand
+              updateReel(commentsPost.id, {
+                commentsCount:
+                  (posts.find((p) => p.id === commentsPost.id)?.commentsCount ||
+                    0) + 1,
+              });
             } catch (error) {
               console.error("❌ Error adding comment:", error);
               // Remove optimistic comment on error
@@ -2369,14 +2413,12 @@ const VideoFeed: React.FC = () => {
                 : [...prev, Number(showPostOptionsFor.user_id)]
             );
 
-            // Update posts state with new follow status
-            setPosts((prev) =>
-              prev.map((p) =>
-                p.user_id === showPostOptionsFor.user_id
-                  ? { ...p, following: !isFollowing }
-                  : p
-              )
-            );
+            // ✅ Update posts state with new follow status using Zustand
+            posts.forEach((p) => {
+              if (p.user_id === showPostOptionsFor.user_id) {
+                updateReel(p.id, { following: !isFollowing });
+              }
+            });
 
             console.log(
               `✅ ${isFollowing ? "Unfollowed" : "Followed"} user:`,
@@ -2403,8 +2445,9 @@ const VideoFeed: React.FC = () => {
               "DELETE"
             );
 
-            // Remove the reel from the posts array
-            setPosts((prev) => prev.filter((p) => p.id !== Number(postId)));
+            // ✅ Remove the reel from state (Zustand will filter it out)
+            const newPosts = posts.filter((p) => p.id !== Number(postId));
+            useReelsStore.setState({ reels: newPosts });
             setShowPostOptionsFor(null);
 
             console.log(`✅ Reel ${postId} deleted successfully`);

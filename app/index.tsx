@@ -1,8 +1,10 @@
 import { AuthContext } from "@/context/AuthContext";
+import { useReelsStore } from "@/stores/useReelsStore";
 import { useRouter } from "expo-router";
 import { useContext, useEffect, useRef, useState } from "react";
 import { Animated, Easing, View } from "react-native";
 import Logo from "../assets/splash3.png";
+
 export default function Index() {
   const bounceAnimation = useRef(new Animated.Value(0)).current;
   const [minLoadingTime, setMinLoadingTime] = useState(true);
@@ -10,6 +12,15 @@ export default function Index() {
   const router = useRouter();
 
   const authContext = useContext(AuthContext);
+  const prefetchReels = useReelsStore((state) => state.prefetchReels);
+
+  // Prefetch reels when user is authenticated
+  useEffect(() => {
+    if (authContext?.user?.id && !authContext?.loading) {
+      console.log("🎬 Starting reels prefetch during splash...");
+      prefetchReels(String(authContext.user.id));
+    }
+  }, [authContext?.user?.id, authContext?.loading, prefetchReels]);
 
   // Preload the destination route when auth context is loaded
   useEffect(() => {

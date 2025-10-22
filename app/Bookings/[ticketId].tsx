@@ -59,20 +59,22 @@ export default function BookingTicketDetail() {
             Ticket not found
           </Text>
           <Text className="text-sm text-gray-500 text-center mb-4">
-            We couldn't locate the event for this ticket. Try My Tickets.
+            We couldn&apos;t locate the event for this ticket. Try My Tickets.
           </Text>
 
           <View className="flex-row space-x-3">
             <TouchableOpacity
               onPress={goToMyTickets}
               accessibilityLabel="Go to My Tickets"
-              className="px-3 py-2 rounded-lg bg-violet-600">
+              className="px-3 py-2 rounded-lg bg-violet-600"
+            >
               <Text className="text-white font-semibold">Go to My Tickets</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.back()}
               accessibilityLabel="Go back"
-              className="px-3 py-2 rounded-lg border border-gray-200">
+              className="px-3 py-2 rounded-lg border border-gray-200"
+            >
               <Text className="text-gray-700">Go back</Text>
             </TouchableOpacity>
           </View>

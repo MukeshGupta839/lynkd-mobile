@@ -21,8 +21,11 @@
       "env": { "EXPO_NO_CAPABILITY_SYNC": "1" }
     },
     "production": {
+      "distribution": "store",
       "autoIncrement": true,
       "ios": {
+        "image": "latest",
+        "resourceClass": "m-medium",
         "env": {
           "RCT_NEW_ARCH_ENABLED": "1",
           "EXPO_NO_CAPABILITY_SYNC": "1"
@@ -31,6 +34,11 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "mukesh@lynkd.app",
+        "ascAppId": "6740008236"
+      }
+    }
   }
 }

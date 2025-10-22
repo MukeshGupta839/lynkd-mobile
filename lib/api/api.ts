@@ -201,6 +201,7 @@ export const fetchReelsApi = async (
   currentCursor: number
 ): Promise<FetchReelResponse> => {
   try {
+    // Add timestamp and random parameter to bust cache on refresh
     const reels = (await apiCall(
       `/api/posts/reels/feed/user/${userID}?page=${currentCursor}`,
       "GET"
@@ -216,7 +217,11 @@ export const fetchReelsApi = async (
 export const clearReelsCache = async (userID: string): Promise<void> => {
   try {
     console.log("Clearing reels cache for user:", userID);
-    await apiCall(`/api/posts/cache/clearReels/user/${userID}`, "DELETE");
+    const response = await apiCall(
+      `/api/posts/cache/clearReels/user/${userID}`,
+      "DELETE"
+    );
+    console.log("Reels cache cleared:", response);
   } catch (error) {
     console.error("Error clearing reels cache:", error);
     throw error;

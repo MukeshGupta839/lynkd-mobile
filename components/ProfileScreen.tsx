@@ -5,6 +5,7 @@ import {
   Dimensions,
   Image,
   Linking,
+  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -670,6 +671,7 @@ const ProfileScreen = ({
                   width: videoWidth,
                   height: videoHeight,
                 }}
+                onPress={() => router.navigate("/(tabs)/posts")}
               >
                 <Image
                   source={{ uri: video.thumbnail_url }}
@@ -809,7 +811,11 @@ const ProfileScreen = ({
         bounces={false}
         overScrollMode="never"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingBottom:
+            Platform.OS === "ios" ? insets.bottom + 20 : insets.bottom + 30, // Tab bar height + extra space
+        }}
         nestedScrollEnabled={true}
       >
         {/* Header with Banner - Fixed height */}

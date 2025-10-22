@@ -3,6 +3,7 @@ import CameraPost from "@/components/CameraPost";
 import Chats from "@/components/chat/Chat";
 import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
 import CompleteProfilePopup from "@/components/CompleteProfilePopup";
+import { FloatingUploadButton } from "@/components/FloatingUploadButton";
 import FeedSkeletonPlaceholder from "@/components/Placeholder/FeedSkeletonPlaceholder";
 
 import { PostCard } from "@/components/PostCard";
@@ -21,11 +22,10 @@ import {
 } from "@/lib/api/api";
 import { apiCall } from "@/lib/api/apiService";
 import { cameraActiveSV, tabBarHiddenSV } from "@/lib/tabBarVisibility";
+import { useUploadStore } from "@/stores/useUploadStore";
 import { Post } from "@/types";
-import { FontAwesome6 } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { BlurView } from "expo-blur";
 import { Camera } from "expo-camera";
 import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
@@ -36,7 +36,6 @@ import {
   Dimensions,
   FlatList,
   Platform,
-  Pressable,
   RefreshControl,
   Text,
   TouchableOpacity,
@@ -49,7 +48,6 @@ import Reanimated, {
   Extrapolation,
   interpolate,
   useAnimatedStyle,
-  useDerivedValue,
   useSharedValue,
   withSpring,
   withTiming,
@@ -78,7 +76,7 @@ const NotificationBell = ({
         <View
           className="absolute -top-1 -right-1 bg-black rounded-full h-6 w-6 px-1
                      items-center justify-center border border-white"
-        // If your Tailwind doesn't support min-w, use style={{ minWidth: 16 }}
+          // If your Tailwind doesn't support min-w, use style={{ minWidth: 16 }}
         >
           <Text className="text-white text-[10px] font-bold">
             {count > 99 ? "99+" : count}
@@ -162,7 +160,7 @@ export default function ConsumerHomeUI() {
 
   useEffect(() => {
     let backPressCount = 0;
-    let backPressTimer: NodeJS.Timeout | null = null;
+    let backPressTimer: ReturnType<typeof setTimeout> | null = null;
 
     const onBackPress = () => {
       backPressCount += 1;
@@ -178,7 +176,6 @@ export default function ConsumerHomeUI() {
         backPressCount = 0;
         if (backPressTimer) clearTimeout(backPressTimer);
         // Use BackHandler.exitApp() to close the app
-        // eslint-disable-next-line no-undef
         if (typeof BackHandler !== "undefined" && BackHandler.exitApp) {
           BackHandler.exitApp();
         }
@@ -187,7 +184,10 @@ export default function ConsumerHomeUI() {
       return true;
     };
     // Enable back handler for both Android and iOS
-    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress
+    );
     return () => {
       subscription?.remove();
       if (backPressTimer) clearTimeout(backPressTimer);
@@ -667,23 +667,27 @@ export default function ConsumerHomeUI() {
 
   const toggleLike = useCallback(
     async (postId: string) => {
-      const isLiked = likedPostIDs.includes(postId);
+      const pid = String(postId);
+      const isLiked = likedPostIDs.map(String).includes(pid);
+
       // add vibration
       Vibration.vibrate(100);
       try {
-        // Update likedPostIDs state
+        // Update likedPostIDs state (normalize everything to strings)
         setLikedPostIDs((prev) =>
-          isLiked ? prev.filter((id) => id !== postId) : [...prev, postId]
+          isLiked
+            ? prev.filter((id) => String(id) !== pid)
+            : [...prev.map(String), pid]
         );
 
-        // Update posts state first - use the current post's likes_count directly
+        // Update posts state first - compare ids as strings
         setPosts((prevPosts) =>
           prevPosts.map((post) =>
-            post.id === postId
+            String(post.id) === pid
               ? {
-                ...post,
-                likes_count: post.likes_count + (isLiked ? -1 : 1),
-              }
+                  ...post,
+                  likes_count: post.likes_count + (isLiked ? -1 : 1),
+                }
               : post
           )
         );
@@ -696,15 +700,17 @@ export default function ConsumerHomeUI() {
         console.error(`Error toggling like for post ${postId}:`, error);
         // Revert the changes on error
         setLikedPostIDs((prev) =>
-          isLiked ? [...prev, postId] : prev.filter((id) => id !== postId)
+          isLiked
+            ? [...prev.map(String), pid]
+            : prev.filter((id) => String(id) !== pid)
         );
         setPosts((prevPosts) =>
           prevPosts.map((post) =>
-            post.id === postId
+            String(post.id) === pid
               ? {
-                ...post,
-                likes_count: post.likes_count + (isLiked ? 1 : -1),
-              }
+                  ...post,
+                  likes_count: post.likes_count + (isLiked ? 1 : -1),
+                }
               : post
           )
         );
@@ -792,13 +798,23 @@ export default function ConsumerHomeUI() {
     fetchUserLikedPostsData();
   }, [fetchPosts, fetchUserLikedPostsData]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     if (!user?.id) return;
     await clearPostsCache(user.id);
     fetchPosts();
     await fetchUserLikedPostsData();
     await fetchUserFollowings(user.id);
-  };
+  }, [user?.id, fetchPosts, fetchUserLikedPostsData]);
+
+  // Watch for upload completion to refresh feed
+  const { shouldRefreshFeed, clearRefreshTriggers } = useUploadStore();
+  useEffect(() => {
+    if (shouldRefreshFeed) {
+      console.log("🔄 Upload complete - refreshing feed");
+      onRefresh();
+      clearRefreshTriggers();
+    }
+  }, [shouldRefreshFeed, clearRefreshTriggers, onRefresh]);
 
   const fetchMorePostsAPI = async () => {
     if (isFetchingNextPage) return; // Prevent multiple simultaneous fetches
@@ -996,11 +1012,11 @@ export default function ConsumerHomeUI() {
               style={{ backgroundColor: "#F3F4F8" }}
               ListHeaderComponent={
                 user &&
-                  (!user.username ||
-                    !user.profile_picture ||
-                    !user.bio ||
-                    !user.first_name ||
-                    !user.last_name) ? (
+                (!user.username ||
+                  !user.profile_picture ||
+                  !user.bio ||
+                  !user.first_name ||
+                  !user.last_name) ? (
                   <CompleteProfilePopup user={user} />
                 ) : null
               }
@@ -1108,78 +1124,9 @@ export default function ConsumerHomeUI() {
           }}
         >
           {/* Animated container to move the button up/down when tab bar hides/shows */}
-          <FloatingPostButton
-            insets={insets}
-            onPressFab={() => router.push("/(compose)/post-create")}
-          />
+          <FloatingUploadButton insets={insets} />
         </Reanimated.View>
       </Reanimated.View>
     </GestureDetector>
-  );
-}
-
-// Floating post button component placed in this file so change stays limited to (tabs)/index.tsx
-function FloatingPostButton({
-  insets,
-  onPressFab,
-}: {
-  insets: { bottom: number };
-  onPressFab?: () => void;
-}) {
-  const { bottom } = insets;
-
-  // derive a reanimated value directly from the global mutable shared values
-  const shouldHide = useDerivedValue(() => {
-    // hide when either the tab bar is hidden OR the camera underlay is active
-    return !!tabBarHiddenSV.value || !!cameraActiveSV.value;
-  });
-
-  // Mirror the CustomTabBar constants so movement is identical
-  const BUTTON_LIFT = Platform.OS === "ios" ? 15 : 35;
-  const ANIM_DURATION = 180;
-
-  const animatedStyle = useAnimatedStyle(() => {
-    // when shouldHide -> translate down off-screen and fade out
-    const translateY = shouldHide.value
-      ? withTiming(BUTTON_LIFT + (bottom || 0) + 24, {
-        duration: ANIM_DURATION,
-      })
-      : withTiming(-(BUTTON_LIFT + (bottom || 0)), { duration: ANIM_DURATION });
-    const opacity = shouldHide.value
-      ? withTiming(0, { duration: ANIM_DURATION })
-      : withTiming(1, { duration: ANIM_DURATION });
-    return {
-      transform: [{ translateY }],
-      opacity,
-      // align on the right, keep center alignment for inner content
-      alignItems: "flex-end",
-    } as any;
-  });
-
-  return (
-    <Reanimated.View style={animatedStyle}>
-      <View
-        className="items-end pr-4"
-        style={{ paddingBottom: insets.bottom }}
-        pointerEvents="box-none"
-      >
-        <Pressable
-          onPress={() => onPressFab?.()}
-          className="w-14 h-14 rounded-full overflow-hidden items-center justify-center shadow-lg"
-        >
-          <BlurView
-            intensity={60}
-            tint="dark"
-            experimentalBlurMethod="dimezisBlurView"
-            className="absolute inset-0"
-          />
-
-          {/* subtle glass tint + border like Figma */}
-          <View className="absolute inset-0 rounded-full bg-white/20" />
-
-          <FontAwesome6 name="plus" size={28} color="#000" />
-        </Pressable>
-      </View>
-    </Reanimated.View>
   );
 }

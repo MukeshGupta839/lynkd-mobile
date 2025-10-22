@@ -14,6 +14,9 @@ export type MentionUser = {
   id?: string;
   avatar?: string;
   username: string;
+  image?: string;
+  first_name: string;
+  last_name: string;
 };
 
 interface Props {
@@ -37,6 +40,7 @@ export default function Mention({
   setSelection,
   inputRef,
 }: Props) {
+  console.log("users: ", users);
   return (
     <Animated.View
       className="bg-white z-10 border border-gray-200 rounded-full overflow-hidden justify-center"
@@ -62,7 +66,7 @@ export default function Mention({
           {users.map((user) => (
             <TouchableOpacity
               key={user.id ?? user.username}
-              className="items-center flex-row gap-1 px-1"
+              className="items-center justify-center flex-row gap-1 px-1"
               onPressIn={() => {
                 // ensure the TextInput never loses focus as the tap starts
                 inputRef.current?.focus();
@@ -90,20 +94,27 @@ export default function Mention({
                 }, 100);
               }}
             >
-              {user.avatar && (
+              {user.image && (
                 <Image
-                  source={{ uri: user.avatar }}
+                  source={{ uri: user.image }}
                   className="w-10 h-10 rounded-full border-2 border-white"
                 />
               )}
 
-              <Text
-                className="text-sm text-[#333] font-medium"
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {mentionTrigger === "#" ? `#${user.username}` : user.username}
-              </Text>
+              <View className="flex">
+                {user.first_name || user.last_name ? (
+                  <Text className="text-xs text-[#333] font-worksans-300">{`${user.first_name} ${user.last_name}`}</Text>
+                ) : null}
+                <Text
+                  className="text-xs text-[#333] font-worksans-300"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {mentionTrigger === "#"
+                    ? `#${user.username}`
+                    : `@${user.username}`}
+                </Text>
+              </View>
             </TouchableOpacity>
           ))}
         </View>
