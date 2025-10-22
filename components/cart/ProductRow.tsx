@@ -50,20 +50,21 @@ function ProductRowImpl({
   onRemove,
   onAddToCart,
 }: Props) {
+  const hasItem = !!item;
+
   useEffect(() => {
-    if (!item) console.warn("ProductRow: missing item", { variant });
-  }, [item, variant]);
+    if (!hasItem) console.warn("ProductRow: missing item", { variant });
+  }, [hasItem, variant]);
 
-  if (!item) return null;
-
-  const name = item.name ?? "";
-  const price = Number(item.price ?? 0);
-  const mrp = Number((item as any).mrp ?? 0);
-  const image = item.image;
-  const quantity = Number((item as any).quantity ?? 1);
-  const reviews = Number((item as any).reviews ?? 0);
+  // ✅ Safe defaults so hooks below are unconditional
+  const name = item?.name ?? "";
+  const price = Number(item?.price ?? 0);
+  const mrp = Number((item as any)?.mrp ?? 0);
+  const image = item?.image;
+  const quantity = Number((item as any)?.quantity ?? 1);
+  const reviews = Number((item as any)?.reviews ?? 0);
   const rating =
-    typeof (item as any).rating === "number" ? (item as any).rating : 4.5;
+    typeof (item as any)?.rating === "number" ? (item as any).rating : 4.5;
 
   /**
    * Logic:
@@ -103,6 +104,11 @@ function ProductRowImpl({
   const imageBasisClass = variant === "cart" ? "basis-[33%]" : "basis-[16%]";
   const imageAspectClass =
     variant === "cart" ? "aspect-[0.92]" : "aspect-[0.78]";
+
+  // 🧱 If item is missing, render nothing (after hooks ran) to keep hook order stable
+  if (!hasItem) {
+    return null;
+  }
 
   return (
     <View className="w-full bg-white rounded-2xl mt-3 overflow-hidden">

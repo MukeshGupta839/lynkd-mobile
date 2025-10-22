@@ -3,7 +3,9 @@ import { Dimensions, Image, TouchableOpacity, View } from "react-native";
 import {
   Gesture,
   GestureDetector,
+  GestureStateChangeEvent,
   GestureType,
+  TapGestureHandlerEventPayload,
 } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import { ImageViewer } from "./ImageViewer";
@@ -16,23 +18,28 @@ const imageDimensionsCache = new Map<
   { width: number; height: number }
 >();
 
+type Props = {
+  uri: string;
+  style?: any;
+  onLongPress?: () => void;
+  isGestureActive?: boolean;
+  panGesture?: GestureType;
+  /** NEW: when true, this component does not handle any taps/long-press, and does not open its own viewer */
+  disableInteractions?: boolean;
+};
+
 export const FacebookStyleImage = ({
   uri,
   style,
   onLongPress,
   isGestureActive = false,
   panGesture,
-}: {
-  uri: string;
-  style?: any;
-  onLongPress?: () => void;
-  isGestureActive?: boolean;
-  panGesture?: GestureType;
-}) => {
+  disableInteractions = false,
+}: Props) => {
   const [imageSize, setImageSize] = useState<{
     width: number;
     height: number;
-  } | null>(() => imageDimensionsCache.get(uri) || null); // Check cache on mount
+  } | null>(() => imageDimensionsCache.get(uri) || null);
   const [showViewer, setShowViewer] = useState(false);
   const containerWidth = windowWidth - 24; // Account for padding
 
@@ -45,55 +52,76 @@ export const FacebookStyleImage = ({
     const MIN_RATIO = 0.8; // Portrait limit (4:5 = 0.8)
 
     let clampedRatio = originalRatio;
-
-    if (originalRatio > MAX_RATIO) {
-      clampedRatio = MAX_RATIO; // Too wide, clamp to landscape limit
-    } else if (originalRatio < MIN_RATIO) {
-      clampedRatio = MIN_RATIO; // Too tall, clamp to portrait limit
-    }
+    if (originalRatio > MAX_RATIO) clampedRatio = MAX_RATIO;
+    else if (originalRatio < MIN_RATIO) clampedRatio = MIN_RATIO;
 
     return containerWidth / clampedRatio;
   };
 
   useEffect(() => {
-    // Skip if already in cache
-    if (imageDimensionsCache.has(uri)) {
-      return;
-    }
+    if (imageDimensionsCache.has(uri)) return;
 
     Image.getSize(
       uri,
       (width, height) => {
         const dimensions = { width, height };
-        imageDimensionsCache.set(uri, dimensions); // Cache the dimensions
+        imageDimensionsCache.set(uri, dimensions);
         setImageSize(dimensions);
       },
-      (error) => {
-        console.error("Failed to get image size:", error);
+      (_error) => {
         const fallback = { width: containerWidth, height: containerWidth };
-        imageDimensionsCache.set(uri, fallback); // Cache fallback too
-        setImageSize(fallback); // Fallback to square
+        imageDimensionsCache.set(uri, fallback);
+        setImageSize(fallback); // fallback to square
       }
     );
   }, [uri, containerWidth]);
 
-  const makeTapThatYieldsToPan = (onEnd: () => void) => {
-    let g = Gesture.Tap().maxDuration(220).maxDeltaX(10).maxDeltaY(10);
+  // Calculate clampedHeight - use a default aspect ratio while loading
+  const clampedHeight = imageSize
+    ? getClampedHeight(imageSize.width, imageSize.height)
+    : containerWidth / 1.2; // Default to a reasonable 1.2:1 ratio while loading
 
-    // only attach the external-fail requirement if a panGesture was provided
+  // ---------- PURE DISPLAY MODE (parent controls all gestures) ----------
+  if (disableInteractions) {
+    return (
+      <View
+        // Let parent GestureDetector receive touches
+        pointerEvents="none"
+        style={[{ width: containerWidth, height: clampedHeight }, style]}
+        className="overflow-hidden bg-[#f0f0f0] w-full rounded-2xl">
+        <Image
+          source={{ uri }}
+          style={{ width: "100%", height: "100%" }}
+          resizeMode="cover"
+        />
+      </View>
+    );
+  }
+
+  // ---------- INTERACTIVE MODE (standalone use) ----------
+  // If you still use this component elsewhere by itself, it can open its own viewer.
+
+  const makeTapThatYieldsToPan = (onEnd: () => void) => {
+    // Single-tap to open viewer (no double-tap logic here; leave that to parent if needed)
+    const DOUBLE_DELAY_PAD = 40;
+    let g = Gesture.Tap()
+      .numberOfTaps(1)
+      .maxDelay(260 + DOUBLE_DELAY_PAD);
+
     if (panGesture) {
-      // cast to any to satisfy the library typing when conditionally applying the call
-      g = (g as any).requireExternalGestureToFail(panGesture);
+      // allow taps to recognize alongside parent pans
+      g = g.simultaneousWithExternalGesture(panGesture);
     }
 
-    return g.onEnd((_e, success) => {
-      "worklet";
-      if (success) {
-        // hop to JS before calling anything that touches React/router
-        // runOnJS(onEnd)();
-        scheduleOnRN(onEnd);
+    return g.onEnd(
+      (
+        _e: GestureStateChangeEvent<TapGestureHandlerEventPayload>,
+        success: boolean
+      ) => {
+        "worklet";
+        if (success) scheduleOnRN(onEnd);
       }
-    });
+    );
   };
 
   const openImageTap = makeTapThatYieldsToPan(() => {
@@ -101,26 +129,20 @@ export const FacebookStyleImage = ({
     setShowViewer(true);
   });
 
-  // Calculate clampedHeight - use a default aspect ratio while loading
-  const clampedHeight = imageSize
-    ? getClampedHeight(imageSize.width, imageSize.height)
-    : containerWidth / 1.2; // Default to a reasonable 1.2:1 ratio while loading
-
   if (!imageSize) {
     return (
       <View
         style={[
           {
             width: containerWidth,
-            height: clampedHeight, // Use calculated height instead of fixed 200
+            height: clampedHeight,
             backgroundColor: "#f0f0f0",
             justifyContent: "center",
             alignItems: "center",
           },
           style,
         ]}
-        className="rounded-2xl animate-pulse"
-      >
+        className="rounded-2xl animate-pulse">
         <View className="mt-4">
           <View className="w-full bg-gray-300 rounded-xl flex-1" />
         </View>
@@ -132,23 +154,16 @@ export const FacebookStyleImage = ({
     <>
       <GestureDetector gesture={openImageTap}>
         <TouchableOpacity
-          // onPress={isGestureActive ? undefined : () => setShowViewer(true)}
           onLongPress={onLongPress}
           delayLongPress={500}
           activeOpacity={0.95}
           className="overflow-hidden bg-[#f0f0f0] w-full"
           disabled={isGestureActive}
-          style={[
-            {
-              height: clampedHeight,
-            },
-            style,
-          ]}
-        >
+          style={[{ height: clampedHeight }, style]}>
           <Image
             source={{ uri }}
             className="w-full h-full"
-            resizeMode="cover" // This creates the Facebook "crop" effect
+            resizeMode="cover"
           />
         </TouchableOpacity>
       </GestureDetector>

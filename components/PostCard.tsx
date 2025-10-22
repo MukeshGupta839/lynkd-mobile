@@ -6,7 +6,13 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Image,
   Linking,
@@ -26,7 +32,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import ShareSectionBottomSheet from "./ShareSectionBottomSheet";
 
 /* ===========================
-   Media renderer
+   Media renderer (single opens; double toggles like via JS debounce + hard lock)
    =========================== */
 const PostMedia = ({
   media,
@@ -35,6 +41,7 @@ const PostMedia = ({
   onLongPress,
   isGestureActive = false,
   panGesture,
+  onDoubleLike, // <-- toggle like/unlike
 }: {
   media?: string | { type: "images"; uris: string[] };
   isVisible: boolean;
@@ -42,83 +49,198 @@ const PostMedia = ({
   onLongPress?: () => void;
   isGestureActive?: boolean;
   panGesture: GestureType;
+  onDoubleLike: () => void;
 }) => {
   const [showMultiViewer, setShowMultiViewer] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  const handlePressImage = useCallback(
-    (index: number) => {
+  // ---------- URI normalization (avoids viewer crash on Android) ----------
+  const extractImagePath = (image: string) => {
+    const parts = image?.split?.("posts-images/") ?? [];
+    return parts.length > 1 ? parts[1] : image;
+  };
+  const buildUri = useCallback((u: string | undefined) => {
+    if (!u) return "";
+    return Platform.OS === "ios"
+      ? u
+      : `https://ik.imagekit.io/cs3lxv36v/lynkd-posts/${extractImagePath(u)}`;
+  }, []);
+  const normalizeUris = useCallback(
+    (arr?: string[]) => (arr ?? []).map(buildUri).filter(Boolean),
+    [buildUri]
+  );
+
+  // ---------- Tap logic: JS debounce + hard "double-tap lock" ----------
+  const lastTapRef = useRef<number>(0);
+  type Timer = ReturnType<typeof setTimeout>;
+  const singleTimerRef = useRef<Timer | null>(null);
+  const DOUBLE_DELAY = 260; // ms
+
+  // When a double tap is detected, we lock out *any* open for a short time.
+  const doubleTapLockRef = useRef(false);
+  const armDoubleTapLock = useCallback(() => {
+    doubleTapLockRef.current = true;
+    setTimeout(() => {
+      doubleTapLockRef.current = false;
+    }, 360); // > DOUBLE_DELAY window
+  }, []);
+
+  // Open viewer safely
+  const openViewer = useCallback(
+    (index: number, images: string[]) => {
       if (isGestureActive) return;
-      setSelectedImageIndex(index);
+      if (doubleTapLockRef.current) return; // ⛔ hard lock: do not open after a double
+      if (!images?.length) return;
+      setSelectedImageIndex(Math.min(Math.max(index, 0), images.length - 1));
       setShowMultiViewer(true);
     },
     [isGestureActive]
   );
 
+  // Handle a tap (JS): if second tap within DOUBLE_DELAY -> toggle like + lock; else schedule open
+  const handleTap = useCallback(
+    (singleOpen: () => void, toggleLike: () => void) => {
+      const now = Date.now();
+      const delta = now - (lastTapRef.current || 0);
+      lastTapRef.current = now;
+
+      if (singleTimerRef.current) {
+        clearTimeout(singleTimerRef.current);
+        singleTimerRef.current = null;
+      }
+
+      if (delta < DOUBLE_DELAY) {
+        // DOUBLE TAP → toggle like + lock out opening
+        toggleLike();
+        armDoubleTapLock();
+        return;
+      }
+
+      // SINGLE TAP → open after delay (gives chance for 2nd tap to cancel)
+      singleTimerRef.current = setTimeout(() => {
+        singleTimerRef.current = null;
+        if (!doubleTapLockRef.current) singleOpen();
+      }, DOUBLE_DELAY + 10);
+    },
+    [armDoubleTapLock]
+  );
+
+  // fresh Tap gesture factory (so we don't mutate an already-used gesture)
+  const makeTapGesture = useCallback(
+    (onTap: () => void) =>
+      Gesture.Tap()
+        .numberOfTaps(1)
+        .maxDelay(DOUBLE_DELAY + 40)
+        .simultaneousWithExternalGesture(panGesture)
+        .onEnd((_e: unknown, success: boolean) => {
+          "worklet";
+          if (success) scheduleOnRN(onTap);
+        }),
+    [panGesture]
+  );
+
+  // helper: wrap children with a new detector each time
+  const wrapWithTap = useCallback(
+    (children: React.ReactNode, onTap: () => void) => (
+      <GestureDetector gesture={makeTapGesture(onTap)}>
+        <View>{children}</View>
+      </GestureDetector>
+    ),
+    [makeTapGesture]
+  );
+
+  // ---------- Render variants ----------
   if (!media) return null;
-  // Extract Image path from aws for image kit
-  const extractImagePath = (image: string) => {
-    const parts = image.split("posts-images/");
-    return parts.length > 1 ? parts[1] : image;
-  };
 
-  console.log("postImage :", media);
-
+  // Single image via string
   if (typeof media === "string") {
-    return (
-      <View>
-        <FacebookStyleImage
-          uri={
-            Platform.OS === "ios"
-              ? media
-              : media
-                ? `https://ik.imagekit.io/cs3lxv36v/lynkd-posts/${extractImagePath(media)}`
-                : media
-          }
-          style={{ marginBottom: 0 }}
-          onLongPress={onLongPress}
-          isGestureActive={isGestureActive}
-          panGesture={panGesture}
-        />
-      </View>
-    );
-  }
+    const uri = buildUri(media);
+    const images = [uri].filter(Boolean);
 
-  if (media.type === "images" && media.uris?.length === 1) {
-    return (
-      <View>
-        <FacebookStyleImage
-          uri={
-            Platform.OS === "ios"
-              ? media.uris[0]
-              : media.uris[0]
-                ? `https://ik.imagekit.io/cs3lxv36v/lynkd-posts/${extractImagePath(media.uris[0])}`
-                : media.uris[0]
-          }
-          style={{ marginBottom: 0 }}
-          onLongPress={onLongPress}
-          isGestureActive={isGestureActive}
-          panGesture={panGesture}
-        />
-      </View>
-    );
-  }
+    const onTap = () =>
+      handleTap(
+        () => openViewer(0, images),
+        () => onDoubleLike()
+      );
 
-  if (media.type === "images" && media.uris?.length > 1) {
     return (
-      <View>
-        <MultiImageCollage
-          images={media.uris}
-          onPressImage={handlePressImage}
-          onLongPress={onLongPress}
-        />
+      <>
+        {wrapWithTap(
+          <FacebookStyleImage
+            uri={uri}
+            style={{ marginBottom: 0 }}
+            // IMPORTANT: parent controls taps; child must not have its own taps
+            disableInteractions
+          />,
+          onTap
+        )}
         <MultiImageViewer
-          images={media.uris}
+          images={images}
           visible={showMultiViewer}
           initialIndex={selectedImageIndex}
           onClose={() => setShowMultiViewer(false)}
         />
-      </View>
+      </>
+    );
+  }
+
+  // Single image in array
+  if (media.type === "images" && media.uris?.length === 1) {
+    const uri = buildUri(media.uris[0]);
+    const images = [uri].filter(Boolean);
+
+    const onTap = () =>
+      handleTap(
+        () => openViewer(0, images),
+        () => onDoubleLike()
+      );
+
+    return (
+      <>
+        {wrapWithTap(
+          <FacebookStyleImage
+            uri={uri}
+            style={{ marginBottom: 0 }}
+            disableInteractions
+          />,
+          onTap
+        )}
+        <MultiImageViewer
+          images={images}
+          visible={showMultiViewer}
+          initialIndex={selectedImageIndex}
+          onClose={() => setShowMultiViewer(false)}
+        />
+      </>
+    );
+  }
+
+  // Multiple images
+  if (media.type === "images" && media.uris?.length > 1) {
+    const images = normalizeUris(media.uris);
+
+    const onTap = () =>
+      handleTap(
+        () => openViewer(0, images),
+        () => onDoubleLike()
+      );
+
+    return (
+      <GestureDetector gesture={makeTapGesture(onTap)}>
+        <View>
+          <MultiImageCollage
+            images={images} // normalized URLs
+            onPressImage={(i) => openViewer(i, images)} // single press on tile
+            disableInteractions
+          />
+          <MultiImageViewer
+            images={images}
+            visible={showMultiViewer}
+            initialIndex={selectedImageIndex}
+            onClose={() => setShowMultiViewer(false)}
+          />
+        </View>
+      </GestureDetector>
     );
   }
 
@@ -163,14 +285,21 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [showFullCaption, setShowFullCaption] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
+  // like state (heart + count)
+  const [liked, setLiked] = useState<boolean>(Boolean(item?.liked));
+  const [likeCount, setLikeCount] = useState<number>(
+    typeof item?.likes_count === "number" ? item.likes_count : 0
+  );
+
   const openPostOptions = React.useCallback(() => {
     Vibration.vibrate(100);
     onLongPress?.(item);
   }, [item, onLongPress]);
 
   useEffect(() => {
-    // console.log(`PostCard ${item.id} isGestureActive:`, isGestureActive);
-  }, [isGestureActive, item.id]);
+    setLiked(Boolean(item?.liked));
+    setLikeCount(typeof item?.likes_count === "number" ? item.likes_count : 0);
+  }, [item?.liked, item?.likes_count]);
 
   const handleUserPressSafe = () => {
     if (isGestureActive) return;
@@ -205,8 +334,8 @@ export const PostCard: React.FC<PostCardProps> = ({
       .maxDuration(220)
       .maxDeltaX(10)
       .maxDeltaY(10)
-      .requireExternalGestureToFail(panGesture)
-      .onEnd((_e, success) => {
+      .simultaneousWithExternalGesture(panGesture)
+      .onEnd((_e: unknown, success: boolean) => {
         "worklet";
         if (success) scheduleOnRN(onEnd);
       });
@@ -228,17 +357,14 @@ export const PostCard: React.FC<PostCardProps> = ({
     author: item.username || "user",
     caption: item.caption || "",
     author_avatar: item.userProfilePic || "",
-    // 👇 this drives the blue badge in chat
     verified: Boolean(
       item?.is_creator ||
         item?.verified ||
         item?.user?.verified ||
         item?.user?.isVerified
     ),
-    // Optional extras (kept safely typed)
     likes: typeof item.likes_count === "number" ? item.likes_count : 0,
     comments: typeof item.comments_count === "number" ? item.comments_count : 0,
-    // If you have video:
     videoUrl: typeof item.videoUrl === "string" ? item.videoUrl : undefined,
     thumb:
       typeof item.thumbUrl === "string"
@@ -247,6 +373,24 @@ export const PostCard: React.FC<PostCardProps> = ({
           ? previewImage
           : undefined,
   };
+
+  const hasCaptionOrTags = useMemo(
+    () =>
+      Boolean(
+        (item.caption && String(item.caption).trim().length > 0) ||
+          (Array.isArray(item.post_hashtags) && item.post_hashtags.length > 0)
+      ),
+    [item.caption, item.post_hashtags]
+  );
+
+  // like handlers
+  const toggleLike = useCallback(() => {
+    setLiked((prev) => {
+      const next = !prev;
+      setLikeCount((c) => (next ? c + 1 : Math.max(0, c - 1)));
+      return next;
+    });
+  }, []);
 
   return (
     <TouchableOpacity
@@ -321,7 +465,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               {item.affiliated && item.affiliation && <View />}
             </View>
 
-            {/* Media */}
+            {/* Media (single=viewer, double=toggle like via JS debounce + lock) */}
             <PostMedia
               media={item.postImage}
               isVisible={isVisible}
@@ -329,6 +473,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               onLongPress={() => onLongPress?.(item)}
               isGestureActive={isGestureActive}
               panGesture={panGesture}
+              onDoubleLike={toggleLike} // <<<<<< key: toggle on double tap
             />
 
             {/* Caption */}
@@ -463,6 +608,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   </View>
                 ) : null;
               })()}
+
               {item?.post_hashtags?.length ? (
                 <Text className="text-blue-600 mt-1 px-3">
                   {neededHashtags.map((tag: string, i: number) => (
@@ -557,45 +703,43 @@ export const PostCard: React.FC<PostCardProps> = ({
             )}
 
             {/* Actions */}
-            <View className="flex-row items-center justify-between px-3">
-              <View className="flex-row items-center gap-x-4">
-                {/* Like button: call parent toggleLike if provided and reflect likedPostIDs */}
+            <View className="px-3">
+              <View className="flex-row items-center gap-x-2">
+                {/* Like */}
                 <TouchableOpacity
                   className="flex-row items-center"
                   disabled={isGestureActive}
-                  onPress={
-                    isGestureActive
-                      ? undefined
-                      : () => {
-                          // prefer parent handler if provided
-                          if (toggleLike) toggleLike(String(item.id));
-                        }
-                  }
+                  onPress={toggleLike}
+                  activeOpacity={0.8}
                 >
-                  {likedPostIDs && likedPostIDs.includes(String(item.id)) ? (
-                    <Ionicons name="heart" size={20} color="#E0245E" />
-                  ) : (
-                    <Ionicons name="heart-outline" size={20} color="#000" />
-                  )}
-                  <Text className="ml-1 text-sm font-medium">
-                    {item.likes_count}
-                  </Text>
+                  <Ionicons
+                    name={liked ? "heart" : "heart-outline"}
+                    size={20}
+                    color={liked ? "#ff3b30" : "#000"}
+                  />
+                  <Text className="ml-1 text-sm font-medium">{likeCount}</Text>
                 </TouchableOpacity>
+
+                {/* Comment */}
                 <TouchableOpacity
                   className="flex-row items-center"
                   disabled={isGestureActive}
                   onPress={
                     isGestureActive ? undefined : () => onPressComments?.(item)
                   }
+                  activeOpacity={0.8}
                 >
                   <Ionicons name="chatbubble-outline" size={18} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.comments_count}
                   </Text>
                 </TouchableOpacity>
+
+                {/* Share */}
                 <TouchableOpacity
                   disabled={isGestureActive}
                   onPress={() => setShareOpen(true)}
+                  activeOpacity={0.8}
                 >
                   <Ionicons name="arrow-redo-outline" size={20} color="#000" />
                 </TouchableOpacity>
@@ -605,7 +749,7 @@ export const PostCard: React.FC<PostCardProps> = ({
         </View>
       </View>
 
-      {/* Share sheet (handles sending & registry). We pass a complete preview. */}
+      {/* Share sheet */}
       <ShareSectionBottomSheet
         show={shareOpen}
         setShow={setShareOpen}

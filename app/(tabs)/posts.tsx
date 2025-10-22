@@ -214,8 +214,7 @@ const PostItem: React.FC<{
                     },
                   })
                 }
-                onLongPress={onOpenPostOptions}
-              >
+                onLongPress={onOpenPostOptions}>
                 {part}
               </Text>
             );
@@ -235,8 +234,7 @@ const PostItem: React.FC<{
                     params: { tag },
                   })
                 }
-                onLongPress={onOpenPostOptions}
-              >
+                onLongPress={onOpenPostOptions}>
                 {part}
               </Text>
             );
@@ -252,8 +250,7 @@ const PostItem: React.FC<{
                 style={{ textDecorationLine: "underline" }}
                 suppressHighlighting
                 onPress={() => Linking.openURL(url)}
-                onLongPress={onOpenPostOptions}
-              >
+                onLongPress={onOpenPostOptions}>
                 {part}
               </Text>
             );
@@ -291,8 +288,7 @@ const PostItem: React.FC<{
         {centerVisible && active && (
           <View
             className="absolute inset-0 items-center justify-center"
-            style={{ zIndex: 30 }}
-          >
+            style={{ zIndex: 30 }}>
             <TouchableOpacity onPress={onCenterToggle} activeOpacity={0.9}>
               <View
                 style={{
@@ -302,8 +298,7 @@ const PostItem: React.FC<{
                   alignItems: "center",
                   justifyContent: "center",
                   backgroundColor: "rgba(0,0,0,0.32)",
-                }}
-              >
+                }}>
                 <Ionicons
                   name={isPlaying ? "pause" : "play"}
                   size={32}
@@ -317,15 +312,13 @@ const PostItem: React.FC<{
         {/* right action column (icons) */}
         <View
           className="absolute right-3 bottom-1/4 items-center"
-          style={{ zIndex: 30 }}
-        >
+          style={{ zIndex: 30 }}>
           {item.isProduct && (
             <>
               <TouchableOpacity
                 className="w-12 h-12 rounded-full items-center justify-center mb-1 bg-white/20"
                 onPress={() => {}}
-                activeOpacity={0.8}
-              >
+                activeOpacity={0.8}>
                 <Ionicons name="bag-outline" size={20} color="#fff" />
               </TouchableOpacity>
               <Text className="text-white text-xs mt-2">
@@ -337,8 +330,7 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={() => onToggleLike()}
-            activeOpacity={0.8}
-          >
+            activeOpacity={0.8}>
             <Ionicons
               name={item.liked || isFavorited ? "heart" : "heart-outline"}
               size={20}
@@ -351,8 +343,7 @@ const PostItem: React.FC<{
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             // ✅ Changed: open the comments sheet
             onPress={onOpenComments}
-            activeOpacity={0.8}
-          >
+            activeOpacity={0.8}>
             <Ionicons name="chatbubble-outline" size={18} color="#fff" />
           </TouchableOpacity>
           <Text className="text-white text-xs mt-2">
@@ -362,8 +353,7 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={onShare}
-            activeOpacity={0.8}
-          >
+            activeOpacity={0.8}>
             <Send width={20} height={20} />
           </TouchableOpacity>
           <Text className="text-white text-xs mt-2">Share</Text>
@@ -371,8 +361,7 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={() => onOpenPostOptions()}
-            activeOpacity={0.8}
-          >
+            activeOpacity={0.8}>
             <Ionicons name="ellipsis-horizontal" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -383,16 +372,14 @@ const PostItem: React.FC<{
           style={{
             bottom: BOTTOM_NAV_HEIGHT + 10,
             zIndex: 40,
-          }}
-        >
+          }}>
           <TouchableOpacity
             onPress={() => {
               onToggleFollow(item.user_id);
               setLocalFollowing((s) => !s);
             }}
             activeOpacity={0.95}
-            className="absolute right-3 top-2 z-10 rounded-full px-3 py-1 border border-white/70 bg-white/8"
-          >
+            className="absolute right-3 top-2 z-10 rounded-full px-3 py-1 border border-white/70 bg-white/8">
             <Text className="text-white font-semibold">
               {localFollowing ? "Following" : "Follow"}
             </Text>
@@ -426,13 +413,11 @@ const PostItem: React.FC<{
               <View className="flex-row items-center">
                 <TouchableOpacity
                   onPress={() => onOpenProfile(item.user_id)}
-                  activeOpacity={0.7}
-                >
+                  activeOpacity={0.7}>
                   <StyledText
                     className="text-white font-bold text-base mr-2"
                     numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
+                    ellipsizeMode="tail">
                     {item.username}
                   </StyledText>
                 </TouchableOpacity>
@@ -458,20 +443,17 @@ const PostItem: React.FC<{
           </View>
 
           <Reanimated.View
-            style={[{ overflow: "hidden" }, captionAnimatedStyle]}
-          >
+            style={[{ overflow: "hidden" }, captionAnimatedStyle]}>
             <Text
               numberOfLines={captionOpen ? undefined : 1}
               ellipsizeMode="tail"
-              className="text-white text-base mt-2 leading-7"
-            >
+              className="text-white text-base mt-2 leading-7">
               {captionOpen ? (
                 <>
                   {renderCaptionParts(item.caption ?? "")}
                   <Text
                     onPress={() => setCaptionOpen(false)}
-                    style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}
-                  >
+                    style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>
                     {"  "}Show less
                   </Text>
                 </>
@@ -481,8 +463,7 @@ const PostItem: React.FC<{
                   {needsTruncate ? (
                     <Text
                       onPress={() => setCaptionOpen(true)}
-                      style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}
-                    >
+                      style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>
                       {" "}
                       ... more
                     </Text>
@@ -1968,8 +1949,7 @@ const VideoFeed: React.FC = () => {
           backgroundColor: "black",
           justifyContent: "center",
           alignItems: "center",
-        }}
-      >
+        }}>
         <ActivityIndicator size="large" color="#ffffff" />
         <Text style={{ color: "#ffffff", marginTop: 16, fontSize: 16 }}>
           Loading reels...
@@ -2000,8 +1980,7 @@ const VideoFeed: React.FC = () => {
           backgroundColor: "black",
           justifyContent: "center",
           alignItems: "center",
-        }}
-      >
+        }}>
         <Text style={{ color: "#ffffff", fontSize: 16 }}>
           No reels available
         </Text>
@@ -2049,8 +2028,7 @@ const VideoFeed: React.FC = () => {
         <Reanimated.View pointerEvents="none" style={overlayStyle}>
           <View
             pointerEvents="none"
-            style={{ width, height, backgroundColor: "#000000" }}
-          >
+            style={{ width, height, backgroundColor: "#000000" }}>
             <VideoView
               player={playerRef.current ?? (player as any)}
               style={videoStyle}
@@ -2109,15 +2087,13 @@ const VideoFeed: React.FC = () => {
                   alignItems: "center",
                   // Show spinner with slight delay or immediately based on showLoadingSpinner
                   opacity: showLoadingSpinner ? 1 : 0.7,
-                }}
-              >
+                }}>
                 <View
                   style={{
                     backgroundColor: "rgba(0,0,0,0.4)",
                     borderRadius: 50,
                     padding: 16,
-                  }}
-                >
+                  }}>
                   <ActivityIndicator size="large" color="#ffffff" />
                 </View>
               </View>
@@ -2140,16 +2116,14 @@ const VideoFeed: React.FC = () => {
                   zIndex: 200,
                 },
                 { top: overlayTop.value },
-              ]}
-            >
+              ]}>
               <View
                 style={{
                   backgroundColor: "rgba(255,0,0,0.3)",
                   borderRadius: 50,
                   padding: 20,
                   alignItems: "center",
-                }}
-              >
+                }}>
                 <Ionicons name="alert-circle" size={48} color="#ff3b30" />
                 <Text
                   style={{
@@ -2157,8 +2131,7 @@ const VideoFeed: React.FC = () => {
                     marginTop: 12,
                     fontSize: 16,
                     fontWeight: "600",
-                  }}
-                >
+                  }}>
                   Failed to load video
                 </Text>
                 <Text
@@ -2167,8 +2140,7 @@ const VideoFeed: React.FC = () => {
                     marginTop: 4,
                     fontSize: 14,
                     opacity: 0.8,
-                  }}
-                >
+                  }}>
                   Swipe to next video
                 </Text>
               </View>
@@ -2190,8 +2162,7 @@ const VideoFeed: React.FC = () => {
             zIndex: 999,
             justifyContent: "center",
             alignItems: "center",
-          }}
-        >
+          }}>
           <Reanimated.View
             entering={FadeIn.duration(200).springify()}
             exiting={FadeOut.duration(300)}
@@ -2200,8 +2171,7 @@ const VideoFeed: React.FC = () => {
               height: width * 0.6,
               justifyContent: "center",
               alignItems: "center",
-            }}
-          >
+            }}>
             <Ionicons name="heart" size={width * 0.35} color="#ff3b30" />
           </Reanimated.View>
         </View>

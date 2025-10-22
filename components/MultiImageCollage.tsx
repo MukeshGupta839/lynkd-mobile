@@ -19,6 +19,7 @@ type TileProps = {
   onPress?: () => void;
   onLongPress?: () => void;
   overlayCount?: number; // show +N if provided and > 0
+  disableInteractions?: boolean; // NEW
 };
 
 const Tile = ({
@@ -29,45 +30,71 @@ const Tile = ({
   onPress,
   onLongPress,
   overlayCount,
-}: TileProps) => (
-  <TouchableOpacity
-    activeOpacity={0.9}
-    onPress={onPress}
-    onLongPress={onLongPress}
-    delayLongPress={500}
-    style={{ width: w, height: h, borderRadius: radius, overflow: "hidden" }}
-  >
-    <Image
-      source={{ uri }}
-      style={{ width: "100%", height: "100%" }}
-      resizeMode="cover"
-    />
-    {!!overlayCount && overlayCount > 0 && (
+  disableInteractions = false,
+}: TileProps) => {
+  const content = (
+    <>
+      <Image
+        source={{ uri }}
+        style={{ width: "100%", height: "100%" }}
+        resizeMode="cover"
+      />
+      {!!overlayCount && overlayCount > 0 && (
+        <View
+          style={{
+            position: "absolute",
+            inset: 0 as any,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+          <Text style={{ color: "white", fontWeight: "700", fontSize: 22 }}>
+            +{overlayCount}
+          </Text>
+        </View>
+      )}
+    </>
+  );
+
+  if (disableInteractions) {
+    // Pure display — let parent handle all gestures
+    return (
       <View
+        pointerEvents="none"
         style={{
-          position: "absolute",
-          inset: 0 as any,
-          backgroundColor: "rgba(0,0,0,0.45)",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Text style={{ color: "white", fontWeight: "700", fontSize: 22 }}>
-          +{overlayCount}
-        </Text>
+          width: w,
+          height: h,
+          borderRadius: radius,
+          overflow: "hidden",
+        }}>
+        {content}
       </View>
-    )}
-  </TouchableOpacity>
-);
+    );
+  }
+
+  // Interactive tile (standalone use)
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={500}
+      style={{ width: w, height: h, borderRadius: radius, overflow: "hidden" }}>
+      {content}
+    </TouchableOpacity>
+  );
+};
 
 export const MultiImageCollage = ({
   images,
   onPressImage,
   onLongPress,
+  disableInteractions = false, // NEW
 }: {
   images: string[];
   onPressImage?: (index: number) => void;
   onLongPress?: () => void;
+  disableInteractions?: boolean; // NEW
 }) => {
   if (!images?.length) return null;
 
@@ -79,19 +106,14 @@ export const MultiImageCollage = ({
   // 1 image → full bleed
   if (images.length === 1) {
     return (
-      <View
-        style={{
-          width: W,
-          height: H,
-          overflow: "hidden",
-        }}
-      >
+      <View style={{ width: W, height: H, overflow: "hidden" }}>
         <Tile
           uri={images[0]}
           w={W}
           h={H}
           onPress={() => onPressImage?.(0)}
           onLongPress={onLongPress}
+          disableInteractions={disableInteractions}
         />
       </View>
     );
@@ -99,7 +121,7 @@ export const MultiImageCollage = ({
 
   // 2 images → two rows (vertical stack)
   if (images.length === 2) {
-    const rowH = Math.floor((H - GAP) / 2);
+    const rowH2 = Math.floor((H - GAP) / 2);
     return (
       <View
         style={{
@@ -107,22 +129,23 @@ export const MultiImageCollage = ({
           height: H,
           overflow: "hidden",
           flexDirection: "column",
-        }}
-      >
+        }}>
         <Tile
           uri={images[0]}
           w={W}
-          h={rowH}
+          h={rowH2}
           onPress={() => onPressImage?.(0)}
           onLongPress={onLongPress}
+          disableInteractions={disableInteractions}
         />
         <View style={{ height: GAP }} />
         <Tile
           uri={images[1]}
           w={W}
-          h={rowH}
+          h={rowH2}
           onPress={() => onPressImage?.(1)}
           onLongPress={onLongPress}
+          disableInteractions={disableInteractions}
         />
       </View>
     );
@@ -133,13 +156,7 @@ export const MultiImageCollage = ({
   const extra = images.length - 3;
 
   return (
-    <View
-      style={{
-        width: W,
-        height: H,
-        overflow: "hidden",
-      }}
-    >
+    <View style={{ width: W, height: H, overflow: "hidden" }}>
       {/* Top hero */}
       <Tile
         uri={images[0]}
@@ -147,6 +164,7 @@ export const MultiImageCollage = ({
         h={heroH}
         onPress={() => onPressImage?.(0)}
         onLongPress={onLongPress}
+        disableInteractions={disableInteractions}
       />
 
       {/* gap between rows */}
@@ -160,6 +178,7 @@ export const MultiImageCollage = ({
           h={rowH}
           onPress={() => onPressImage?.(1)}
           onLongPress={onLongPress}
+          disableInteractions={disableInteractions}
         />
         <View style={{ width: GAP }} />
         <Tile
@@ -169,6 +188,7 @@ export const MultiImageCollage = ({
           onPress={() => onPressImage?.(2)}
           onLongPress={onLongPress}
           overlayCount={extra > 0 ? extra : 0}
+          disableInteractions={disableInteractions}
         />
       </View>
     </View>

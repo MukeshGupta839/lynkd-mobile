@@ -66,7 +66,7 @@ export type ShareUser = {
   id: string | number;
   username: string;
   profile_picture?: string;
-  is_creator?: boolean;
+  is_creator?: boolean; // treated as "verified"
 };
 
 type Props = {
@@ -136,59 +136,74 @@ const filterUsers = (users: ShareUser[] = [], search: string) =>
         u.username.toLowerCase().includes(search.toLowerCase())
       );
 
-/** Grid cell */
-const GridUser = memo<{
+/** Grid cell (named + displayName to satisfy react/display-name) */
+function GridUserComponent({
+  user,
+  selected,
+  onPress,
+}: {
   user: ShareUser;
   selected: boolean;
   onPress: (u: ShareUser) => void;
-}>(({ user, selected, onPress }) => (
-  <TouchableOpacity
-    className="w-1/3 items-center mb-6"
-    style={{ paddingHorizontal: 10 }}
-    activeOpacity={0.9}
-    onPress={() => onPress(user)}
-  >
-    <View className="relative">
-      <Image
-        source={{ uri: user.profile_picture }}
-        className="w-20 h-20 rounded-full"
-      />
-      {user?.is_creator && (
-        <View className="absolute bottom-1 right-1 bg-[#0095F6] rounded-full p-[2px]">
-          <Octicons name="verified" size={14} color="#ffffff" />
-        </View>
-      )}
-      {selected && (
-        <>
-          <View className="absolute inset-0 bg-black/30 rounded-full" />
-          <View className="absolute bottom-0 right-0 bg-[#0095F6] w-6 h-6 rounded-full items-center justify-center">
-            <Ionicons name="checkmark" size={16} color="#fff" />
-          </View>
-        </>
-      )}
-    </View>
-    <Text
-      numberOfLines={1}
-      className="max-w-[92px] text-sm text-gray-900 text-center mt-1"
+}) {
+  return (
+    <TouchableOpacity
+      className="w-1/3 items-center mb-6"
+      style={{ paddingHorizontal: 10 }}
+      activeOpacity={0.9}
+      onPress={() => onPress(user)}
     >
-      {user.username}
-    </Text>
-  </TouchableOpacity>
-));
-GridUser.displayName = "GridUser";
+      <View className="relative">
+        <Image
+          source={{ uri: user.profile_picture }}
+          className="w-20 h-20 rounded-full"
+        />
+        {selected && (
+          <>
+            <View className="absolute inset-0 bg-black/30 rounded-full" />
+            <View className="absolute bottom-0 right-0 bg-[#0095F6] w-6 h-6 rounded-full items-center justify-center">
+              <Ionicons name="checkmark" size={16} color="#fff" />
+            </View>
+          </>
+        )}
+      </View>
 
-const ShareSectionBottomSheetComponent = ({
+      {/* Username + verified EXACTLY like PostCard (size 14, color #000, ml-4) */}
+      <View className="flex-row items-center justify-center mt-1 max-w-[92px]">
+        <Text
+          numberOfLines={1}
+          className="text-sm text-gray-900 text-center"
+          style={{ maxWidth: 92 }}
+        >
+          {user.username}
+        </Text>
+        {user?.is_creator && (
+          <Octicons
+            name="verified"
+            size={14}
+            color="#000"
+            style={{ marginLeft: 4 }}
+          />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+GridUserComponent.displayName = "GridUser";
+const GridUser = memo(GridUserComponent);
+
+function ShareSectionBottomSheetComponent({
   show = false,
   setShow,
   users = [],
   postId,
-  postPreview, // ✅ we will normalize verified from here
+  postPreview, // ✅ will be normalized
   onSelectUser,
   onShareImage,
   initialHeightPct = 0.35,
   maxHeightPct = 0.95,
   maxSelect = 5,
-}: Props) => {
+}: Props) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -247,12 +262,15 @@ const ShareSectionBottomSheetComponent = ({
   // ✅ Default to the same USERS used by chat.ts (keeps everything in sync)
   const baseUsers = useMemo<ShareUser[]>(() => {
     if (users.length) return users;
-    return USERS.map((u) => ({
-      id: u.id,
-      username: u.username,
-      profile_picture: u.profile_picture,
-      is_creator: u.role === "Creator",
-    }));
+    if (USERS?.length) {
+      return USERS.map((u) => ({
+        id: u.id,
+        username: u.username,
+        profile_picture: u.profile_picture,
+        is_creator: u.role === "Creator",
+      }));
+    }
+    return DUMMY_USERS;
   }, [users]);
 
   const filteredUsers = useMemo(
@@ -328,19 +346,6 @@ const ShareSectionBottomSheetComponent = ({
   // 🔒 simple re-entrancy guard to avoid double-taps
   const isSendingRef = useRef(false);
 
-  // ✅ helper: normalize any incoming verified-ish flags to a proper boolean
-  // Accept Partial<PostPreview> because callers may pass a partial preview
-  const normalizeVerified = (p?: Partial<PostPreview>) =>
-    Boolean(
-      p &&
-        ((p as any).verified ??
-          (p as any).isVerified ??
-          (p as any).author_verified ??
-          (p as any).user?.verified ??
-          (p as any).user?.isVerified ??
-          (p as any).is_creator)
-    );
-
   // ✅ The sheet is the ONLY place that sends.
   const handleSend = useCallback(() => {
     if (isSendingRef.current) return; // guard double-tap
@@ -354,47 +359,25 @@ const ShareSectionBottomSheetComponent = ({
     isSendingRef.current = true;
 
     try {
-      // ✅ Ensure preview is registered so chat/inbox can render it next time
-      if (postPreview?.id) {
-        const normalizedVerified = normalizeVerified(postPreview);
+      // Build a normalized preview we can safely pass to stores
+      const normalized = normalizePreview(postPreview);
 
-        registerPost({
-          id: String(postPreview.id),
-          image: postPreview.image || "",
-          author: postPreview.author || "",
-          caption: postPreview.caption,
-          author_avatar: postPreview.author_avatar,
-          videoUrl: postPreview.videoUrl,
-          thumb: postPreview.thumb || postPreview.image,
-          verified: normalizedVerified, // ✅ FIXED
-        });
+      // ✅ Ensure preview is registered so chat/inbox can render it next time
+      if (normalized) {
+        registerPost(normalized);
       }
 
       // 1) Insert the post into each selected DM (thread store)
       selectedUsers.forEach((u) => {
-        // also pass a preview with normalized verified so UI shows instantly
-        const normalizedPreview = postPreview
-          ? normalizePreview({
-              ...postPreview,
-              verified: normalizeVerified(postPreview),
-            })
-          : undefined;
-
-        sendPostToChat(String(u.id), String(postId), normalizedPreview);
+        // pass a fully normalized preview or undefined
+        sendPostToChat(String(u.id), String(postId), normalized);
       });
 
-      // 2) Update inbox preview/badges (also normalized)
-      const normalizedForInbox = postPreview
-        ? normalizePreview({
-            ...postPreview,
-            verified: normalizeVerified(postPreview),
-          })
-        : undefined;
-
+      // 2) Update inbox preview/badges
       sharePostToUsers(
         String(postId),
         selectedUsers.map((u) => String(u.id)),
-        normalizedForInbox
+        normalized
       );
 
       // 3) Close sheet
@@ -414,7 +397,6 @@ const ShareSectionBottomSheetComponent = ({
         },
       });
     } finally {
-      // slight delay so rapid back-and-forth doesn't re-enter
       setTimeout(() => {
         isSendingRef.current = false;
       }, 400);
@@ -676,7 +658,9 @@ const ShareSectionBottomSheetComponent = ({
       </TouchableOpacity>
     </Modal>
   );
-};
+}
+ShareSectionBottomSheetComponent.displayName =
+  "ShareSectionBottomSheetComponent";
 
 const ShareSectionBottomSheet = memo(ShareSectionBottomSheetComponent);
 ShareSectionBottomSheet.displayName = "ShareSectionBottomSheet";

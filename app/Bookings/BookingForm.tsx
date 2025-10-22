@@ -1,7 +1,7 @@
 // app/book/[id].tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -76,7 +76,6 @@ export default function BookTicketScreen() {
   const thumbH = Math.round(screenWidth * 0.11);
 
   // responsive offer card width:
-  // prefer about 45% of screen width, but clamp between 140 and 200
   const offerCardWidth = Math.max(
     140,
     Math.min(200, Math.floor(screenWidth * 0.45))
@@ -86,6 +85,11 @@ export default function BookTicketScreen() {
   const event = useMemo<EventT | undefined>(() => {
     return [...UPCOMING_EVENTS, ...POPULAR_EVENTS].find((e) => e.id === id);
   }, [id]);
+
+  // 🔁 redirect via effect; do NOT early-return before hooks
+  useEffect(() => {
+    if (!event) router.replace("/bookings");
+  }, [event, router]);
 
   // ticket types (sample)
   const ticketTypes: TicketType[] = useMemo(
@@ -149,10 +153,11 @@ export default function BookTicketScreen() {
   const [couponInput, setCouponInput] = useState("");
   const [couponMsg, setCouponMsg] = useState<string | null>(null);
 
-  if (!event) {
-    router.replace("/bookings");
-    return null;
-  }
+  // safe derived fields for unconditional hooks/JSX
+  const title = event?.title ?? "";
+  const image = event?.image;
+  const dateLabel = event?.dateLabel ?? "";
+  const location = event?.location ?? "";
 
   // utilities
   const parsePrice = useCallback((priceStr: string) => {
@@ -211,16 +216,11 @@ export default function BookTicketScreen() {
   const handleApplyCouponInput = useCallback(() => {
     setCouponMsg(null);
     const code = couponInput.trim().toUpperCase();
-    if (!code) {
-      setCouponMsg("Enter a coupon code");
-      return;
-    }
-    const found = offers.find((o) => o.code.toUpperCase() === code);
-    if (!found) {
-      setCouponMsg("Coupon not found");
-      return;
-    }
-    // apply it
+    const found = code
+      ? offers.find((o) => o.code.toUpperCase() === code)
+      : null;
+    if (!code) return setCouponMsg("Enter a coupon code");
+    if (!found) return setCouponMsg("Coupon not found");
     setAppliedOfferId(found.id);
     setCouponMsg(`Applied ${found.code}`);
   }, [couponInput, offers]);
@@ -299,7 +299,6 @@ export default function BookTicketScreen() {
                     {item.price}
                   </Text>
                 )}
-
                 {item.fee ? (
                   <Text className="text-sm text-gray-400 ml-2">{item.fee}</Text>
                 ) : null}
@@ -383,8 +382,12 @@ export default function BookTicketScreen() {
     [appliedOfferId, handleApplyOffer, offerCardWidth]
   );
 
-  // small helper for fixed format
-  const formatFixed = (n: number) => `$${n.toFixed(2)}`;
+  // small helper for fixed format (kept outside hooks intentionally)
+
+  // Render a minimal shell while redirecting to keep hooks order stable
+  if (!event) {
+    return <SafeAreaView edges={[]} className="flex-1 bg-gray-50" />;
+  }
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
@@ -396,26 +399,22 @@ export default function BookTicketScreen() {
           <View
             className="rounded-lg overflow-hidden"
             style={{ width: thumbW, height: thumbH }}>
-            {event.image ? (
+            {image ? (
               <Image
-                source={event.image}
+                source={image}
                 className="w-full h-full"
                 resizeMode="cover"
-                accessibilityLabel={`${event.title} banner`}
+                accessibilityLabel={`${title} banner`}
               />
             ) : null}
           </View>
 
           <View className="ml-3 flex-1">
             <Text className="font-semibold text-base text-[#111827]">
-              {event.title}
+              {title}
             </Text>
-            <Text className="text-sm text-gray-400 mt-1">
-              {event.dateLabel ?? ""}
-            </Text>
-            <Text className="text-sm text-gray-400">
-              {event.location ?? ""}
-            </Text>
+            <Text className="text-sm text-gray-400 mt-1">{dateLabel}</Text>
+            <Text className="text-sm text-gray-400">{location}</Text>
           </View>
         </View>
 
@@ -540,7 +539,7 @@ export default function BookTicketScreen() {
         />
       </View>
 
-      {/* Bottom Continue bar (unchanged) */}
+      {/* Bottom Continue bar */}
       <BottomNavBar
         variant="buttonOnly"
         ctaLabel="Continue"

@@ -2,7 +2,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -22,12 +22,21 @@ export default function BookingsEventDetail() {
     return [...UPCOMING_EVENTS, ...POPULAR_EVENTS].find((e) => e.id === id);
   }, [id]);
 
-  if (!event) {
-    router.replace("/bookings");
-    return null;
-  }
+  // Navigate away when event missing, but do NOT early-return before hooks.
+  useEffect(() => {
+    if (!event) {
+      router.replace("/bookings");
+    }
+  }, [event, router]);
 
-  const { title, image, price, dateLabel, location, category, isLive } = event;
+  // Safe derived fields (so hooks below can be defined unconditionally)
+  const title = event?.title ?? "";
+  const image = event?.image;
+  const price = event?.price;
+  const dateLabel = event?.dateLabel;
+  const location = event?.location;
+  const category = event?.category;
+  const isLive = event?.isLive;
 
   const liveCategories = ["club", "music", "sport"];
   const isLiveApplicable = !!(
@@ -36,7 +45,7 @@ export default function BookingsEventDetail() {
     liveCategories.includes(category)
   );
 
-  // ---------- Handlers ----------
+  // ---------- Handlers (unconditional hooks) ----------
   const handleGoBack = useCallback(() => router.back(), [router]);
 
   const handleShare = useCallback(() => {
@@ -147,6 +156,11 @@ export default function BookingsEventDetail() {
   );
 
   // ---------- UI ----------
+  // If event doesn't exist yet (during redirect), render a minimal shell to keep hooks order stable
+  if (!event) {
+    return <SafeAreaView edges={[]} className="flex-1 bg-gray-50" />;
+  }
+
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-gray-50">
       <FlatList
@@ -158,7 +172,6 @@ export default function BookingsEventDetail() {
         overScrollMode="never"
         contentContainerStyle={{ paddingBottom: 160 }}
         ListHeaderComponent={
-          // Hero section is now part of scroll
           <View className="w-full">
             <View className="w-full aspect-[11/9] relative">
               {image ? (
