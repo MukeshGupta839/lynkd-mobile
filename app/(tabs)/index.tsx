@@ -56,6 +56,7 @@ import Reanimated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
+const BackHandler = require("react-native").BackHandler;
 
 // ----- PostCard Component is now imported from @/components/PostCard -----
 
@@ -77,7 +78,7 @@ const NotificationBell = ({
         <View
           className="absolute -top-1 -right-1 bg-black rounded-full h-6 w-6 px-1
                      items-center justify-center border border-white"
-          // If your Tailwind doesn't support min-w, use style={{ minWidth: 16 }}
+        // If your Tailwind doesn't support min-w, use style={{ minWidth: 16 }}
         >
           <Text className="text-white text-[10px] font-bold">
             {count > 99 ? "99+" : count}
@@ -158,6 +159,40 @@ export default function ConsumerHomeUI() {
     setTabBarHidden(false);
     tabBarHiddenSV.value = false;
   };
+
+  useEffect(() => {
+    let backPressCount = 0;
+    let backPressTimer: NodeJS.Timeout | null = null;
+
+    const onBackPress = () => {
+      backPressCount += 1;
+      if (backPressCount === 1) {
+        // Prevent single back gesture (do nothing)
+        if (backPressTimer) clearTimeout(backPressTimer);
+        backPressTimer = setTimeout(() => {
+          backPressCount = 0;
+        }, 1500); // Reset after 1.5s
+        return true; // Block default behavior
+      } else if (backPressCount === 2) {
+        // Double back gesture: exit app
+        backPressCount = 0;
+        if (backPressTimer) clearTimeout(backPressTimer);
+        // Use BackHandler.exitApp() to close the app
+        // eslint-disable-next-line no-undef
+        if (typeof BackHandler !== "undefined" && BackHandler.exitApp) {
+          BackHandler.exitApp();
+        }
+        return true;
+      }
+      return true;
+    };
+    // Enable back handler for both Android and iOS
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => {
+      subscription?.remove();
+      if (backPressTimer) clearTimeout(backPressTimer);
+    };
+  }, []);
 
   useEffect(() => {
     const requestPermissions = async () => {
@@ -646,9 +681,9 @@ export default function ConsumerHomeUI() {
           prevPosts.map((post) =>
             post.id === postId
               ? {
-                  ...post,
-                  likes_count: post.likes_count + (isLiked ? -1 : 1),
-                }
+                ...post,
+                likes_count: post.likes_count + (isLiked ? -1 : 1),
+              }
               : post
           )
         );
@@ -667,9 +702,9 @@ export default function ConsumerHomeUI() {
           prevPosts.map((post) =>
             post.id === postId
               ? {
-                  ...post,
-                  likes_count: post.likes_count + (isLiked ? 1 : -1),
-                }
+                ...post,
+                likes_count: post.likes_count + (isLiked ? 1 : -1),
+              }
               : post
           )
         );
@@ -961,11 +996,11 @@ export default function ConsumerHomeUI() {
               style={{ backgroundColor: "#F3F4F8" }}
               ListHeaderComponent={
                 user &&
-                (!user.username ||
-                  !user.profile_picture ||
-                  !user.bio ||
-                  !user.first_name ||
-                  !user.last_name) ? (
+                  (!user.username ||
+                    !user.profile_picture ||
+                    !user.bio ||
+                    !user.first_name ||
+                    !user.last_name) ? (
                   <CompleteProfilePopup user={user} />
                 ) : null
               }
@@ -1107,8 +1142,8 @@ function FloatingPostButton({
     // when shouldHide -> translate down off-screen and fade out
     const translateY = shouldHide.value
       ? withTiming(BUTTON_LIFT + (bottom || 0) + 24, {
-          duration: ANIM_DURATION,
-        })
+        duration: ANIM_DURATION,
+      })
       : withTiming(-(BUTTON_LIFT + (bottom || 0)), { duration: ANIM_DURATION });
     const opacity = shouldHide.value
       ? withTiming(0, { duration: ANIM_DURATION })

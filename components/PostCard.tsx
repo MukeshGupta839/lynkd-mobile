@@ -301,7 +301,7 @@ export const PostCard: React.FC<PostCardProps> = ({
     if (isGestureActive) return;
     router.push({
       pathname: "/(profiles)" as any,
-      params: { user: item.user_id as number, username: item.username },
+      params: { user: item.user_id as number },
     });
   };
 
@@ -355,9 +355,9 @@ export const PostCard: React.FC<PostCardProps> = ({
     author_avatar: item.userProfilePic || "",
     verified: Boolean(
       item?.is_creator ||
-        item?.verified ||
-        item?.user?.verified ||
-        item?.user?.isVerified
+      item?.verified ||
+      item?.user?.verified ||
+      item?.user?.isVerified
     ),
     likes: typeof item.likes_count === "number" ? item.likes_count : 0,
     comments: typeof item.comments_count === "number" ? item.comments_count : 0,
@@ -424,17 +424,17 @@ export const PostCard: React.FC<PostCardProps> = ({
                       </Text>
                       {Boolean(
                         item?.is_creator ||
-                          item?.verified ||
-                          item?.user?.verified ||
-                          item?.user?.isVerified
+                        item?.verified ||
+                        item?.user?.verified ||
+                        item?.user?.isVerified
                       ) && (
-                        <Octicons
-                          name="verified"
-                          size={14}
-                          color="#000"
-                          style={{ marginLeft: 4 }}
-                        />
-                      )}
+                          <Octicons
+                            name="verified"
+                            size={14}
+                            color="#000"
+                            style={{ marginLeft: 4 }}
+                          />
+                        )}
                     </View>
                     {item.location && item.postDate && (
                       <View className="flex-row items-center">
@@ -495,13 +495,13 @@ export const PostCard: React.FC<PostCardProps> = ({
                                   isGestureActive
                                     ? undefined
                                     : () =>
-                                        router.push({
-                                          pathname: "/(profiles)" as any,
-                                          params: {
-                                            username: part.slice(1),
-                                            user: 999999,
-                                          },
-                                        })
+                                      router.push({
+                                        pathname: "/(profiles)" as any,
+                                        params: {
+                                          username: part.slice(1),
+                                          user: 999999,
+                                        },
+                                      })
                                 }
                                 onLongPress={openPostOptions}>
                                 {part}
@@ -518,11 +518,11 @@ export const PostCard: React.FC<PostCardProps> = ({
                                   isGestureActive
                                     ? undefined
                                     : () =>
-                                        router.push({
-                                          pathname:
-                                            "/(search)/searchPostsWithTags" as any,
-                                          params: { tag: part },
-                                        })
+                                      router.push({
+                                        pathname:
+                                          "/(search)/searchPostsWithTags" as any,
+                                        params: { tag: part },
+                                      })
                                 }
                                 onLongPress={openPostOptions}>
                                 {part}
@@ -604,11 +604,11 @@ export const PostCard: React.FC<PostCardProps> = ({
                         isGestureActive
                           ? undefined
                           : () =>
-                              router.push({
-                                pathname:
-                                  "/(search)/searchPostsWithTags" as any,
-                                params: { tag: "#" + tag },
-                              })
+                            router.push({
+                              pathname:
+                                "/(search)/searchPostsWithTags" as any,
+                              params: { tag: "#" + tag },
+                            })
                       }>
                       #{tag}
                       {i < neededHashtags.length - 1 ? <Text> </Text> : null}
