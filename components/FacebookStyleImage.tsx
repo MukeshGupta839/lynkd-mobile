@@ -41,7 +41,7 @@ export const FacebookStyleImage = ({
     height: number;
   } | null>(() => imageDimensionsCache.get(uri) || null);
   const [showViewer, setShowViewer] = useState(false);
-  const containerWidth = windowWidth - 24; // Account for padding
+  const containerWidth = windowWidth; // Account for padding
 
   // Facebook-style aspect ratio constraints
   const getClampedHeight = (originalWidth: number, originalHeight: number) => {
@@ -88,7 +88,8 @@ export const FacebookStyleImage = ({
         // Let parent GestureDetector receive touches
         pointerEvents="none"
         style={[{ width: containerWidth, height: clampedHeight }, style]}
-        className="overflow-hidden bg-[#f0f0f0] w-full rounded-2xl">
+        className="overflow-hidden bg-[#f0f0f0] w-full"
+      >
         <Image
           source={{ uri }}
           style={{ width: "100%", height: "100%" }}
@@ -142,7 +143,8 @@ export const FacebookStyleImage = ({
           },
           style,
         ]}
-        className="rounded-2xl animate-pulse">
+        className="rounded-2xl animate-pulse"
+      >
         <View className="mt-4">
           <View className="w-full bg-gray-300 rounded-xl flex-1" />
         </View>
@@ -159,7 +161,8 @@ export const FacebookStyleImage = ({
           activeOpacity={0.95}
           className="overflow-hidden bg-[#f0f0f0] w-full"
           disabled={isGestureActive}
-          style={[{ height: clampedHeight }, style]}>
+          style={[{ height: clampedHeight }, style]}
+        >
           <Image
             source={{ uri }}
             className="w-full h-full"

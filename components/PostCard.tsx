@@ -2,17 +2,13 @@
 import { FacebookStyleImage } from "@/components/FacebookStyleImage";
 import { MultiImageCollage } from "@/components/MultiImageCollage";
 import { MultiImageViewer } from "@/components/MultiImageViewer";
+import { AuthContext } from "@/context/AuthContext";
+import { apiCall } from "@/lib/api/apiService";
 import { MaterialIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useContext, useRef, useState } from "react";
 import {
   Image,
   Linking,
@@ -168,7 +164,6 @@ const PostMedia = ({
         {wrapWithTap(
           <FacebookStyleImage
             uri={uri}
-            style={{ marginBottom: 0 }}
             // IMPORTANT: parent controls taps; child must not have its own taps
             disableInteractions
           />,
@@ -263,8 +258,10 @@ export interface PostCardProps {
   isGestureActive?: boolean;
   panGesture: GestureType;
   onPressComments?: (post: any) => void;
-  toggleLike?: (postId: string) => Promise<void> | void;
   likedPostIDs?: string[];
+  onToggleLike?: (postId: string) => void;
+  toggleLike?: (postId: string) => void; // Backward compatibility
+  onUpdatePost?: (postId: string, updates: any) => void;
 }
 
 /* ===========================
@@ -277,29 +274,32 @@ export const PostCard: React.FC<PostCardProps> = ({
   isGestureActive = false,
   panGesture,
   onPressComments,
-  toggleLike,
-  likedPostIDs,
+  likedPostIDs = [],
+  onToggleLike,
+  toggleLike: toggleLikeProp, // Support both prop names
+  onUpdatePost,
 }) => {
   const router = useRouter();
   const navigating = useRef(false);
   const [showFullCaption, setShowFullCaption] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const authContext = useContext(AuthContext);
+  const user = authContext?.user;
 
-  // like state (heart + count)
-  const [liked, setLiked] = useState<boolean>(Boolean(item?.liked));
-  const [likeCount, setLikeCount] = useState<number>(
-    typeof item?.likes_count === "number" ? item.likes_count : 0
-  );
+  // Derive like state from props or item
+  const postId = String(item.id);
+  const isLikedFromProps = likedPostIDs.map(String).includes(postId);
+  const liked = isLikedFromProps || Boolean(item?.liked);
+  const likeCount =
+    typeof item?.likes_count === "number" ? item.likes_count : 0;
+
+  // Use whichever toggle function is provided
+  const toggleLikeHandler = onToggleLike || toggleLikeProp;
 
   const openPostOptions = React.useCallback(() => {
     Vibration.vibrate(100);
     onLongPress?.(item);
   }, [item, onLongPress]);
-
-  useEffect(() => {
-    setLiked(Boolean(item?.liked));
-    setLikeCount(typeof item?.likes_count === "number" ? item.likes_count : 0);
-  }, [item?.liked, item?.likes_count]);
 
   const handleUserPressSafe = () => {
     if (isGestureActive) return;
@@ -374,23 +374,66 @@ export const PostCard: React.FC<PostCardProps> = ({
           : undefined,
   };
 
-  const hasCaptionOrTags = useMemo(
-    () =>
-      Boolean(
-        (item.caption && String(item.caption).trim().length > 0) ||
-          (Array.isArray(item.post_hashtags) && item.post_hashtags.length > 0)
-      ),
-    [item.caption, item.post_hashtags]
-  );
+  // like handlers with API integration
+  const toggleLike = useCallback(async () => {
+    if (!user?.id) {
+      console.warn("User not authenticated");
+      return;
+    }
 
-  // like handlers
-  const toggleLike = useCallback(() => {
-    setLiked((prev) => {
-      const next = !prev;
-      setLikeCount((c) => (next ? c + 1 : Math.max(0, c - 1)));
-      return next;
-    });
-  }, []);
+    const pid = String(item.id);
+    // Check if post is currently liked from the derived state
+    const isCurrentlyLiked =
+      likedPostIDs.map(String).includes(pid) || Boolean(item?.liked);
+
+    // Add vibration feedback
+    Vibration.vibrate(100);
+
+    // If parent provides handlers, use them (for home feed integration)
+    if (toggleLikeHandler) {
+      toggleLikeHandler(pid);
+      return;
+    }
+
+    // Otherwise, handle locally with API call
+    try {
+      // Optimistically update local state
+      const newLikeCount = likeCount + (isCurrentlyLiked ? -1 : 1);
+
+      // Update parent if callback provided
+      if (onUpdatePost) {
+        onUpdatePost(pid, {
+          liked: !isCurrentlyLiked,
+          likes_count: newLikeCount,
+        });
+      }
+
+      // Make API call
+      const endpoint = isCurrentlyLiked
+        ? `/api/likes/${pid}/${user.id}/unlike`
+        : `/api/likes/${pid}/${user.id}/like`;
+
+      await apiCall(endpoint, "POST");
+    } catch (error) {
+      console.error(`Error toggling like for post ${pid}:`, error);
+
+      // Revert on error if callback provided
+      if (onUpdatePost) {
+        onUpdatePost(pid, {
+          liked: isCurrentlyLiked,
+          likes_count: likeCount,
+        });
+      }
+    }
+  }, [
+    item.id,
+    item.liked,
+    user?.id,
+    likedPostIDs,
+    likeCount,
+    toggleLikeHandler,
+    onUpdatePost,
+  ]);
 
   return (
     <TouchableOpacity
@@ -410,7 +453,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           }}
         >
           <View
-            className="bg-white py-3 gap-2.5"
+            className="bg-white py-3 gap-1.5"
             style={{ borderRadius: 16, overflow: "hidden" }}
           >
             {/* Header */}
@@ -504,10 +547,9 @@ export const PostCard: React.FC<PostCardProps> = ({
                                     ? undefined
                                     : () =>
                                         router.push({
-                                          pathname: "/(profiles)" as any,
+                                          pathname: "/(profiles)/" as any,
                                           params: {
                                             username: part.slice(1),
-                                            user: 999999,
                                           },
                                         })
                                 }
@@ -529,7 +571,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                                     : () =>
                                         router.push({
                                           pathname:
-                                            "/(search)/searchPostsWithTags" as any,
+                                            "/(search)/tagPostSearch" as any,
                                           params: { tag: part },
                                         })
                                 }
@@ -619,8 +661,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                           ? undefined
                           : () =>
                               router.push({
-                                pathname:
-                                  "/(search)/searchPostsWithTags" as any,
+                                pathname: "/(search)/tagPostSearch" as any,
                                 params: { tag: "#" + tag },
                               })
                       }
