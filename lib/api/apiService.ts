@@ -29,8 +29,46 @@ type HttpMethod =
   | "OPTIONS"
   | string;
 
+// Rate limiting configuration
+const REQUEST_QUEUE: (() => Promise<void>)[] = [];
+const MIN_REQUEST_INTERVAL = 100; // Minimum 100ms between requests
+let lastRequestTime = 0;
+let isProcessingQueue = false;
+
+// Process the request queue with rate limiting
+const processQueue = async () => {
+  if (isProcessingQueue || REQUEST_QUEUE.length === 0) return;
+
+  isProcessingQueue = true;
+
+  while (REQUEST_QUEUE.length > 0) {
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest)
+      );
+    }
+
+    const request = REQUEST_QUEUE.shift();
+    if (request) {
+      lastRequestTime = Date.now();
+      await request();
+    }
+  }
+
+  isProcessingQueue = false;
+};
+
+// Retry configuration for 429 errors
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second initial delay
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * Generic API helper.
+ * Generic API helper with rate limiting and retry logic.
  * @param endpoint - Path part of the URL (should start with `/` or will be prefixed)
  * @param method - HTTP method
  * @param data - Request body (can be FormData for multipart)
@@ -41,6 +79,28 @@ export const apiCall = async (
   method: HttpMethod = "GET",
   data?: any,
   headers?: Record<string, string>
+): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    const executeRequest = async () => {
+      try {
+        const result = await apiCallInternal(endpoint, method, data, headers);
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    REQUEST_QUEUE.push(executeRequest);
+    processQueue();
+  });
+};
+
+const apiCallInternal = async (
+  endpoint: string,
+  method: HttpMethod = "GET",
+  data?: any,
+  headers?: Record<string, string>,
+  retryCount = 0
 ): Promise<any> => {
   // get auth token from secure storage
   const authToken = await SecureStore.getItemAsync("authToken");
@@ -84,6 +144,16 @@ export const apiCall = async (
   } catch (err: any) {
     // Improve error logging when axios provides details
     if (isAxiosError(err)) {
+      // Handle 429 Rate Limit with exponential backoff retry
+      if (err.response?.status === 429 && retryCount < MAX_RETRIES) {
+        const delay = RETRY_DELAY * Math.pow(2, retryCount);
+        console.warn(
+          `Rate limited (429). Retrying in ${delay}ms... (Attempt ${retryCount + 1}/${MAX_RETRIES})`
+        );
+        await sleep(delay);
+        return apiCallInternal(endpoint, method, data, headers, retryCount + 1);
+      }
+
       console.error(
         "API request failed:",
         err.message,

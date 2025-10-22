@@ -1,11 +1,36 @@
 import { clearReelsCache, fetchReelsApi, RawReel } from "@/lib/api/api";
+import { apiCall } from "@/lib/api/apiService";
 import { create } from "zustand";
+
+export interface ReelComment {
+  id: number;
+  userId: number;
+  user_id?: number;
+  comment: string;
+  content?: string;
+  username: string;
+  userImage: string;
+  time: string;
+  likes: number;
+  created_at?: string;
+  createdAt?: string;
+  user?: {
+    username: string;
+    profile_picture?: string;
+    photoURL?: string;
+  };
+}
 
 interface ReelsState {
   // Data
   reels: RawReel[];
   cursor: number;
   hasMore: boolean;
+
+  // Likes & Comments data
+  likedPostIDs: number[];
+  postComments: Record<number, ReelComment[]>; // Map postId to comments
+  commentsLoading: Record<number, boolean>; // Track loading state per post
 
   // Loading states
   isInitialLoading: boolean;
@@ -33,6 +58,16 @@ interface ReelsState {
   // Update individual reel (for likes, comments, etc.)
   updateReel: (reelId: number, updates: Partial<RawReel>) => void;
 
+  // Likes & Comments actions
+  fetchUserLikedPosts: (userId: string) => Promise<void>;
+  toggleLike: (postId: number, userId: string) => Promise<void>;
+  fetchCommentsOfAPost: (postId: number) => Promise<ReelComment[]>;
+  addComment: (
+    postId: number,
+    userId: string,
+    content: string
+  ) => Promise<void>;
+
   // Reset store
   reset: () => void;
 }
@@ -47,6 +82,9 @@ const INITIAL_STATE = {
   error: null,
   lastFetchTime: null,
   prefetchedCount: 0,
+  likedPostIDs: [],
+  postComments: {},
+  commentsLoading: {},
 };
 
 export const useReelsStore = create<ReelsState>((set, get) => ({
@@ -252,6 +290,138 @@ export const useReelsStore = create<ReelsState>((set, get) => ({
         reel.id === reelId ? { ...reel, ...updates } : reel
       ),
     }));
+  },
+
+  // Fetch user's liked posts
+  fetchUserLikedPosts: async (userId: string) => {
+    try {
+      const response = await apiCall(
+        `/api/reelLikes/${userId}/likedPosts`,
+        "GET"
+      );
+      set({ likedPostIDs: response.likedPosts || [] });
+      console.log("✅ Fetched liked posts:", response.likedPosts?.length || 0);
+    } catch (error) {
+      console.error("❌ Error fetching liked posts:", error);
+    }
+  },
+
+  // Toggle like/unlike on a reel
+  toggleLike: async (postId: number, userId: string) => {
+    try {
+      const { likedPostIDs } = get();
+      const isPostLiked = likedPostIDs.includes(postId);
+
+      const endpoint = isPostLiked
+        ? `/api/reelLikes/${postId}/${userId}/unlike`
+        : `/api/reelLikes/${postId}/${userId}/like`;
+
+      await apiCall(endpoint, "POST");
+
+      // ✅ OPTIMIZED: Only update likedPostIDs array
+      // Don't update the reel object to prevent unnecessary re-renders
+      // The PostItem calculates isFavorited using useMemo based on likedPostIDs
+      set((state) => ({
+        likedPostIDs: isPostLiked
+          ? state.likedPostIDs.filter((id) => id !== postId)
+          : [...state.likedPostIDs, postId],
+      }));
+
+      console.log(`✅ ${isPostLiked ? "Unliked" : "Liked"} post ${postId}`);
+    } catch (error) {
+      console.error("❌ Error toggling like:", error);
+      throw error;
+    }
+  },
+
+  // Fetch comments for a specific post
+  fetchCommentsOfAPost: async (postId: number): Promise<ReelComment[]> => {
+    try {
+      // Set loading state for this post
+      set((state) => ({
+        commentsLoading: { ...state.commentsLoading, [postId]: true },
+      }));
+
+      const response = await apiCall(`/api/reelComments/post/${postId}`, "GET");
+      console.log("Comments API Response:", response.comments);
+
+      // Helper function to format comment timestamp
+      const formatCommentTime = (timestamp: string) => {
+        if (!timestamp) return "Just now";
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return "Just now";
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
+      };
+
+      // Map API response to expected comment format
+      const mappedComments: ReelComment[] = (response.comments || []).map(
+        (c: any) => ({
+          id: c.id,
+          userId: c.user_id || c.userId,
+          comment: c.content || c.comment,
+          username: c.user?.username || c.username || "Unknown",
+          userImage:
+            c.user?.profile_picture ||
+            c.user?.photoURL ||
+            c.userImage ||
+            "https://via.placeholder.com/150",
+          time: formatCommentTime(c.created_at || c.createdAt || c.time),
+          likes: c.likes || 0,
+        })
+      );
+
+      console.log("Mapped comments:", mappedComments);
+
+      // Update store with comments
+      set((state) => ({
+        postComments: { ...state.postComments, [postId]: mappedComments },
+        commentsLoading: { ...state.commentsLoading, [postId]: false },
+      }));
+
+      return mappedComments;
+    } catch (error) {
+      console.error("❌ Error fetching comments:", error);
+      set((state) => ({
+        commentsLoading: { ...state.commentsLoading, [postId]: false },
+      }));
+      return [];
+    }
+  },
+
+  // Add a comment to a post
+  addComment: async (postId: number, userId: string, content: string) => {
+    try {
+      const response = await apiCall(`/api/reelComments/`, "POST", {
+        postID: postId,
+        content: content,
+        userID: userId,
+      });
+
+      console.log("✅ Comment added:", response.comment);
+
+      // Refetch comments to update the list
+      await get().fetchCommentsOfAPost(postId);
+
+      // Update the reel's comment count
+      const currentReel = get().reels.find((r) => r.id === postId);
+      if (currentReel) {
+        get().updateReel(postId, {
+          commentsCount: (currentReel.commentsCount ?? 0) + 1,
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error adding comment:", error);
+      throw error;
+    }
   },
 
   // Reset store to initial state

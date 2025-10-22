@@ -1,3 +1,4 @@
+import { onAuthStateChanged } from "@react-native-firebase/auth";
 import * as SecureStore from "expo-secure-store";
 import {
   createContext,
@@ -157,12 +158,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let localUnsub: (() => void) | undefined;
       (async () => {
         const auth = await getAuth();
-        if (!auth || !auth.onAuthStateChanged) {
+        if (!auth) {
           console.warn("Firebase Auth not available; skipping auth listener.");
           return;
         }
 
-        localUnsub = auth.onAuthStateChanged(async (firebaseAuthUser: any) => {
+        // Use the new modular API
+        localUnsub = onAuthStateChanged(auth, async (firebaseAuthUser: any) => {
           if (!isMounted) return;
 
           if (firebaseAuthUser) {

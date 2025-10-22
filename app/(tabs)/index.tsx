@@ -21,7 +21,12 @@ import {
   fetchUserLikedPosts,
 } from "@/lib/api/api";
 import { apiCall } from "@/lib/api/apiService";
-import { cameraActiveSV, tabBarHiddenSV } from "@/lib/tabBarVisibility";
+import {
+  cameraActiveSV,
+  registerTabPressHandler,
+  tabBarHiddenSV,
+  unregisterTabPressHandler,
+} from "@/lib/tabBarVisibility";
 import { useUploadStore } from "@/stores/useUploadStore";
 import { Post } from "@/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -33,6 +38,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  BackHandler,
   Dimensions,
   FlatList,
   Platform,
@@ -54,7 +60,6 @@ import Reanimated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
-const BackHandler = require("react-native").BackHandler;
 
 // ----- PostCard Component is now imported from @/components/PostCard -----
 
@@ -131,32 +136,44 @@ export default function ConsumerHomeUI() {
   const TAB_BAR_HIDE_THRESHOLD = 50; // pixels to scroll down before hiding tab bar
   const TAB_BAR_SHOW_THRESHOLD = 30; // pixels to scroll up before showing tab bar
   // Header animation functions
-  const hideHeader = () => {
+  const hideHeader = useCallback(() => {
     setHeaderHidden(true);
     currentHeaderTranslateValue.current = -TOP_BAR_HEIGHT;
-    headerTranslateY.value = withTiming(-TOP_BAR_HEIGHT, {
-      duration: 200,
+    // Defer shared value update to avoid render-time warning
+    requestAnimationFrame(() => {
+      headerTranslateY.value = withTiming(-TOP_BAR_HEIGHT, {
+        duration: 200,
+      });
     });
-  };
+  }, [TOP_BAR_HEIGHT, headerTranslateY]);
 
-  const showHeader = () => {
+  const showHeader = useCallback(() => {
     setHeaderHidden(false);
     currentHeaderTranslateValue.current = 0;
-    headerTranslateY.value = withTiming(0, {
-      duration: 200,
+    // Defer shared value update to avoid render-time warning
+    requestAnimationFrame(() => {
+      headerTranslateY.value = withTiming(0, {
+        duration: 200,
+      });
     });
-  };
+  }, [headerTranslateY]);
 
-  // Tab bar animation functions
-  const hideTabBar = () => {
+  // Tab bar animation functions - use callbacks to avoid setting shared values during render
+  const hideTabBar = useCallback(() => {
     setTabBarHidden(true);
-    tabBarHiddenSV.value = true;
-  };
+    // Defer shared value update to avoid render-time warning
+    requestAnimationFrame(() => {
+      tabBarHiddenSV.value = true;
+    });
+  }, []);
 
-  const showTabBar = () => {
+  const showTabBar = useCallback(() => {
     setTabBarHidden(false);
-    tabBarHiddenSV.value = false;
-  };
+    // Defer shared value update to avoid render-time warning
+    requestAnimationFrame(() => {
+      tabBarHiddenSV.value = false;
+    });
+  }, []);
 
   useEffect(() => {
     let backPressCount = 0;
@@ -221,11 +238,18 @@ export default function ConsumerHomeUI() {
     showTabBar();
 
     // Reset translateX to center when home tab is opened/focused
-    translateX.value = 0;
+    // Use setTimeout to ensure this runs after render
+    const timer = setTimeout(() => {
+      translateX.value = 0;
+    }, 0);
 
     // Cleanup: show tab bar when component unmounts
     return () => {
-      tabBarHiddenSV.value = false;
+      clearTimeout(timer);
+      // Defer shared value update to avoid render-time warning
+      requestAnimationFrame(() => {
+        tabBarHiddenSV.value = false;
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -254,7 +278,10 @@ export default function ConsumerHomeUI() {
         }
       } else {
         const newTranslateValue = -currentY;
-        headerTranslateY.value = newTranslateValue;
+        // Defer shared value update to avoid render-time warning
+        requestAnimationFrame(() => {
+          headerTranslateY.value = newTranslateValue;
+        });
         currentHeaderTranslateValue.current = newTranslateValue;
         const isNowHiddenBySync = newTranslateValue <= -TOP_BAR_HEIGHT + 0.1;
         if (headerHidden !== isNowHiddenBySync) {
@@ -651,13 +678,16 @@ export default function ConsumerHomeUI() {
     }
   });
 
-  const snapToCenter = () => {
-    translateX.value = withSpring(0, { damping: 15, stiffness: 160 });
-    tabBarHiddenSV.value = false;
+  const snapToCenter = useCallback(() => {
+    // Defer shared value updates to avoid render-time warning
+    requestAnimationFrame(() => {
+      translateX.value = withSpring(0, { damping: 15, stiffness: 160 });
+      tabBarHiddenSV.value = false;
+      cameraActiveSV.value = false;
+    });
     // ensure camera is deactivated when snapping back to feed
     setCameraActive(false);
-    cameraActiveSV.value = false;
-  };
+  }, [translateX]);
 
   const headerAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -805,6 +835,44 @@ export default function ConsumerHomeUI() {
     await fetchUserLikedPostsData();
     await fetchUserFollowings(user.id);
   }, [user?.id, fetchPosts, fetchUserLikedPostsData]);
+
+  // Register tab press handlers for scroll to top and refresh
+  useEffect(() => {
+    const scrollToTop = () => {
+      // Show header when scrolling to top
+      showHeader();
+      showTabBar();
+      // On iOS, scroll to negative offset to account for content inset
+      const targetOffset = Platform.OS === "ios" ? -TOP_BAR_HEIGHT : 0;
+      flatListRef.current?.scrollToOffset({
+        offset: targetOffset,
+        animated: true,
+      });
+    };
+
+    const refresh = () => {
+      // Show header when refreshing
+      showHeader();
+      showTabBar();
+      // Set refreshing to true to show the loading indicator
+      setRefreshing(true);
+      // On iOS, scroll to negative offset to account for content inset
+      const targetOffset = Platform.OS === "ios" ? -TOP_BAR_HEIGHT : 0;
+      flatListRef.current?.scrollToOffset({
+        offset: targetOffset,
+        animated: true,
+      });
+      setTimeout(() => {
+        onRefresh();
+      }, 100);
+    };
+
+    registerTabPressHandler("index", { scrollToTop, refresh });
+
+    return () => {
+      unregisterTabPressHandler("index");
+    };
+  }, [onRefresh, TOP_BAR_HEIGHT, showHeader, showTabBar]);
 
   // Watch for upload completion to refresh feed
   const { shouldRefreshFeed, clearRefreshTriggers } = useUploadStore();
@@ -975,6 +1043,51 @@ export default function ConsumerHomeUI() {
                 </View>
               </View>
             </Reanimated.View>
+
+            {/* ✅ Refresh Loading Indicator Overlay - Shows prominently during refresh */}
+            {/* {refreshing && (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: TOP_BAR_HEIGHT + 20,
+                  zIndex: 1000,
+                  alignItems: "center",
+                }}
+              >
+                <Reanimated.View
+                  entering={FadeIn.duration(200)}
+                  exiting={FadeOut.duration(200)}
+                  style={{
+                    backgroundColor: "rgba(0, 0, 0, 0.75)",
+                    borderRadius: 50,
+                    padding: 16,
+                    paddingHorizontal: 24,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 8,
+                    elevation: 8,
+                  }}
+                >
+                  <ActivityIndicator size="small" color="#4D70D1" />
+                  <Text
+                    style={{
+                      color: "#ffffff",
+                      marginLeft: 12,
+                      fontSize: 15,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Refreshing...
+                  </Text>
+                </Reanimated.View>
+              </View>
+            )} */}
 
             {/* Feed list */}
             <FlatList
