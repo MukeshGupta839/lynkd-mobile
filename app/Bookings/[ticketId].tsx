@@ -1,6 +1,6 @@
 // app/Bookings/[ticketId].tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import {
   SafeAreaView,
@@ -45,41 +45,15 @@ export default function BookingTicketDetail() {
     return allEvents.find((e) => String(e.id) === key);
   }, [allEvents, eventId]);
 
+  // Navigate to tickets list (stable)
   const goToMyTickets = useCallback(() => {
     router.replace("/(tabs)/bookingsTickets");
   }, [router]);
 
-  // If event missing: friendly fallback UI
-  if (!event) {
-    return (
-      <SafeAreaView edges={["top"]} className="flex-1 bg-gray-50">
-        <Header title="Detail Ticket" />
-        <View className="flex-1 items-center justify-center px-3">
-          <Text className="text-lg font-semibold text-[#111827] mb-2">
-            Ticket not found
-          </Text>
-          <Text className="text-sm text-gray-500 text-center mb-4">
-            We couldn't locate the event for this ticket. Try My Tickets.
-          </Text>
-
-          <View className="flex-row space-x-3">
-            <TouchableOpacity
-              onPress={goToMyTickets}
-              accessibilityLabel="Go to My Tickets"
-              className="px-3 py-2 rounded-lg bg-violet-600">
-              <Text className="text-white font-semibold">Go to My Tickets</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              accessibilityLabel="Go back"
-              className="px-3 py-2 rounded-lg border border-gray-200">
-              <Text className="text-gray-700">Go back</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // If missing, redirect via effect so hooks order is preserved
+  useEffect(() => {
+    if (!event) return;
+  }, [event]);
 
   // Demo purchaser & pricing (could come from API)
   const purchaserName = "Franklin Clinton";
@@ -95,7 +69,7 @@ export default function BookingTicketDetail() {
     router.back();
   }, [router]);
 
-  // Memoized fake barcode (small allocation avoided on re-renders)
+  // Memoized fake barcode (unconditional)
   const barcode = useMemo(
     () => (
       <View className="w-full aspect-[4/1] flex-row items-stretch justify-center">
@@ -111,7 +85,7 @@ export default function BookingTicketDetail() {
     []
   );
 
-  // FlatList sections
+  // FlatList sections (unconditional)
   const sections = useMemo(
     () => [{ key: "hero" }, { key: "purchaser" }, { key: "summary" }],
     []
@@ -123,7 +97,7 @@ export default function BookingTicketDetail() {
         return (
           <View className="mx-3 mt-3 bg-white rounded-xl p-4 shadow-md">
             <View className="relative w-full aspect-[16/9] rounded-lg overflow-hidden bg-gray-200">
-              {event.image && (
+              {event?.image && (
                 <Image
                   source={event.image}
                   className="w-full h-full"
@@ -134,7 +108,7 @@ export default function BookingTicketDetail() {
               {/* Date badge */}
               <View className="absolute top-3 left-3 bg-black/70 px-3 py-2 rounded-md items-center">
                 {(() => {
-                  const [month = "", day = ""] = (event.dateLabel || "").split(
+                  const [month = "", day = ""] = (event?.dateLabel || "").split(
                     " "
                   );
                   return (
@@ -153,11 +127,11 @@ export default function BookingTicketDetail() {
 
             <View className="mt-4">
               <Text className="text-base font-semibold text-[#111827]">
-                {event.title}
+                {event?.title ?? ""}
               </Text>
               <Text className="text-sm text-gray-400 mt-1">
                 Ticket ID:{" "}
-                {ticketNumber ? `#${ticketNumber}` : String(event.id)}
+                {ticketNumber ? `#${ticketNumber}` : String(event?.id ?? "")}
               </Text>
             </View>
           </View>
@@ -175,7 +149,7 @@ export default function BookingTicketDetail() {
             <View className="mt-4">
               <Text className="text-sm text-gray-500">Detail Location</Text>
               <Text className="mt-1 text-base text-[#111827]">
-                {event.location ?? "-"}
+                {event?.location ?? "-"}
               </Text>
             </View>
 
@@ -188,7 +162,7 @@ export default function BookingTicketDetail() {
               <View className="flex-1 items-end">
                 <Text className="text-sm text-gray-500">Date</Text>
                 <Text className="mt-1 text-base text-[#111827]">
-                  {event.dateLabel ?? "-"}
+                  {event?.dateLabel ?? "-"}
                 </Text>
               </View>
             </View>
@@ -238,6 +212,38 @@ export default function BookingTicketDetail() {
       total,
     ]
   );
+
+  // Fallback UI rendered AFTER hooks—order preserved
+  if (!event) {
+    return (
+      <SafeAreaView edges={["top"]} className="flex-1 bg-gray-50">
+        <Header title="Detail Ticket" />
+        <View className="flex-1 items-center justify-center px-3">
+          <Text className="text-lg font-semibold text-[#111827] mb-2">
+            Ticket not found
+          </Text>
+          <Text className="text-sm text-gray-500 text-center mb-4">
+            We couldn’t locate the event for this ticket. Try My Tickets.
+          </Text>
+
+          <View className="flex-row space-x-3">
+            <TouchableOpacity
+              onPress={goToMyTickets}
+              accessibilityLabel="Go to My Tickets"
+              className="px-3 py-2 rounded-lg bg-violet-600">
+              <Text className="text-white font-semibold">Go to My Tickets</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              accessibilityLabel="Go back"
+              className="px-3 py-2 rounded-lg border border-gray-200">
+              <Text className="text-gray-700">Go back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-gray-50">

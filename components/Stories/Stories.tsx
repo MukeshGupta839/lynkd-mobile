@@ -5,7 +5,7 @@ import { useEventListener } from "expo";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   BackHandler,
   Dimensions,
@@ -277,14 +277,6 @@ const Stories = ({
   const isTransitioningRef = useRef(false);
   const storyEpochRef = useRef(0);
 
-  const beginTransition = () => {
-    isTransitioningRef.current = true;
-  };
-  const endTransition = () => {
-    setTimeout(() => {
-      isTransitioningRef.current = false;
-    }, 0);
-  };
   const bumpEpoch = () => {
     storyEpochRef.current += 1;
     return storyEpochRef.current;
@@ -295,10 +287,11 @@ const Stories = ({
     advancedRef.current = false;
   };
 
-  const resetProgressReanimated = () => {
+  /** stable reset helper (so we can include in deps) */
+  const resetProgressReanimated = useCallback(() => {
     rProgress.value = 0;
     progressValRef.current = 0;
-  };
+  }, [rProgress]);
 
   // Pointers
   const [pointerMap, setPointerMap] = useState<PointerMap>({});
@@ -312,22 +305,29 @@ const Stories = ({
     })();
   }, []);
 
-  const updatePointers = (updater: (prev: PointerMap) => PointerMap) => {
-    setPointerMap((prev) => {
-      const next = updater(prev);
-      savePointers(next);
-      return next;
-    });
-  };
+  /** stable pointer utilities */
+  const updatePointers = useCallback(
+    (updater: (prev: PointerMap) => PointerMap) => {
+      setPointerMap((prev) => {
+        const next = updater(prev);
+        savePointers(next);
+        return next;
+      });
+    },
+    []
+  );
 
-  const clearUserPointer = (userId: string) => {
-    updatePointers((prev) => {
-      if (!(userId in prev)) return prev;
-      const copy = { ...prev };
-      delete copy[userId];
-      return copy;
-    });
-  };
+  const clearUserPointer = useCallback(
+    (userId: string) => {
+      updatePointers((prev) => {
+        if (!(userId in prev)) return prev;
+        const copy = { ...prev };
+        delete copy[userId];
+        return copy;
+      });
+    },
+    [updatePointers]
+  );
 
   // keep totals correct if data changes
   useEffect(() => {
@@ -349,14 +349,18 @@ const Stories = ({
 
   const getTotal = (u: NormalizedUser) => u.stories.length;
 
-  const getEntryIndexForUser = (u: NormalizedUser) => {
-    const key = toKey(u.user_id);
-    const pm = pointerMap[key];
-    const total = getTotal(u);
-    if (!pm) return 0;
-    if (total === 0) return 0;
-    return Math.max(0, Math.min(pm.pointer, total - 1));
-  };
+  /** stable helper used inside effect */
+  const getEntryIndexForUser = useCallback(
+    (u: NormalizedUser) => {
+      const key = toKey(u.user_id);
+      const pm = pointerMap[key];
+      const total = getTotal(u);
+      if (!pm) return 0;
+      if (total === 0) return 0;
+      return Math.max(0, Math.min(pm.pointer, total - 1));
+    },
+    [pointerMap]
+  );
 
   // Align to entry index
   useEffect(() => {
@@ -364,6 +368,7 @@ const Stories = ({
     if (currentUserIndex === null) return;
     const u = localStories[currentUserIndex];
     if (!u) return;
+
     const entry = getEntryIndexForUser(u);
     setCurrentStoryIndex(entry);
     setMediaKey((k) => k + 1);
@@ -371,7 +376,14 @@ const Stories = ({
     resetProgressReanimated();
     bumpEpoch();
     mediaOpacity.value = 0;
-  }, [currentUserIndex, pointersLoaded, localStories]);
+  }, [
+    currentUserIndex,
+    pointersLoaded,
+    localStories,
+    getEntryIndexForUser,
+    resetProgressReanimated,
+    mediaOpacity,
+  ]);
 
   // Keep pointer >= current visible index
   useEffect(() => {
@@ -404,24 +416,19 @@ const Stories = ({
       { duration: 5000, easing: REEasing.linear },
       (finished) => {
         if (finished) {
-          // use the unified finishing path
           runOnJS(finishAndAdvance)();
         }
       }
     );
   };
 
-  // Unified finishing path: show last bar as PAST (full), then advance
-  const FINAL_HOLD_MS = 200; // tweak 150–250ms to taste
+  // Unified finishing path
+  const FINAL_HOLD_MS = 200;
   const finishAndAdvance = () => {
-    // 1) force-fill bar
     rProgress.value = 1;
     progressValRef.current = 1;
-
-    // 2) safety bump (pointer)
     safeBumpAtCompletion();
 
-    // 3) after a short hold, advance
     const u = currentUserIndex != null ? localStories[currentUserIndex] : null;
     if (!u) return;
 
@@ -429,34 +436,30 @@ const Stories = ({
 
     setTimeout(() => {
       if (isLastStory) {
-        // last story in this user → go next user (or close)
         handleNextUser();
       } else {
-        handleNextStoryCore(); // internal path without re-filling
+        handleNextStoryCore();
       }
     }, FINAL_HOLD_MS);
   };
 
-  // Internal next-story switch (used by finishAndAdvance)
+  // Internal next-story switch
   const handleNextStoryCore = () => {
     if (currentUserIndex === null) return;
     const u = localStories[currentUserIndex];
     if (!u) return;
 
-    // NOTE: do NOT reset to 0 here; we already showed full for a beat
-    // Reset happens on the NEXT media's onReady
     setCurrentStoryIndex((i) => i + 1);
     setMediaKey((k) => k + 1);
     bumpEpoch();
     advancedRef.current = false;
     mediaOpacity.value = 0;
 
-    // keep pointer ahead
     bumpPointerForward(u, currentStoryIndex + 1);
   };
 
-  // When exiting mid/late story (from ANY close path)
-  const bumpPointerOnExit = () => {
+  // When exiting mid/late story — make this STABLE
+  const bumpPointerOnExit = useCallback(() => {
     if (!pointersLoaded) return;
     if (currentUserIndex === null) return;
     const u = localStories[currentUserIndex];
@@ -486,9 +489,16 @@ const Stories = ({
         },
       };
     });
-  };
+  }, [
+    pointersLoaded,
+    currentUserIndex,
+    localStories,
+    currentStoryIndex,
+    clearUserPointer,
+    updatePointers,
+  ]);
 
-  // Back handler
+  // Back handler — include bumpPointerOnExit so linter is happy
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       if (currentUserIndex !== null) {
@@ -500,15 +510,14 @@ const Stories = ({
       return false;
     });
     return () => sub.remove();
-  }, [currentUserIndex, onRequestClose]);
+  }, [currentUserIndex, onRequestClose, bumpPointerOnExit]);
 
-  // Unmount
+  // Unmount — include bumpPointerOnExit
   useEffect(() => {
     return () => {
       bumpPointerOnExit();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bumpPointerOnExit]);
 
   // Cap video to 60s
   const capVideoToSixty = (
@@ -568,8 +577,6 @@ const Stories = ({
   };
 
   const switchToStory = (nextIndex: number) => {
-    // In normal taps (skip/prev), we reset to 0 BEFORE switching.
-    // For auto-finish we use finishAndAdvance -> handleNextStoryCore (no reset here).
     rProgress.value = 0;
     progressValRef.current = 0;
     setCurrentStoryIndex(nextIndex);
@@ -580,7 +587,6 @@ const Stories = ({
   };
 
   const handleNextStory = () => {
-    // Tap on right half: treat as manual skip (no “final hold”)
     if (currentUserIndex === null) return;
     const u = localStories[currentUserIndex];
     if (!u) return;
@@ -590,7 +596,6 @@ const Stories = ({
     if (currentStoryIndex < u.stories.length - 1) {
       switchToStory(currentStoryIndex + 1);
     } else {
-      // last story → small visual finish then next user
       finishAndAdvance();
     }
   };
@@ -620,7 +625,6 @@ const Stories = ({
     if (!atLast) {
       switchToUser(currentUserIndex + 1);
     } else {
-      // completely finished → brief “all past” feel then close
       setTimeout(() => {
         onAllFinished?.();
         onRequestClose?.();
@@ -658,7 +662,7 @@ const Stories = ({
     );
   };
 
-  /** ---------- Progress strip (left-anchored pixel width) ---------- */
+  /** ---------- Progress strip ---------- */
   const ProgressSlot = ({
     state,
   }: {
@@ -669,32 +673,20 @@ const Stories = ({
       slotW.value = e.nativeEvent.layout.width;
     };
 
-    if (state === "past") {
-      return (
-        <View
-          onLayout={onLayout}
-          className="flex-1 bg-white/30 mx-0.5 overflow-hidden">
-          <View
-            style={{ width: "100%", height: "100%" }}
-            className="bg-white"
-          />
-        </View>
-      );
-    }
-    if (state === "future") {
-      return (
-        <View
-          onLayout={onLayout}
-          className="flex-1 bg-white/30 mx-0.5 overflow-hidden">
-          <View style={{ width: 0, height: "100%" }} className="bg-white" />
-        </View>
-      );
-    }
+    const fillStyle = useAnimatedStyle(() => {
+      const total = slotW.value;
+      let w = 0;
 
-    const fillStyle = useAnimatedStyle(() => ({
-      width: Math.max(0, slotW.value * rProgress.value),
-      height: "100%",
-    }));
+      if (state === "past") {
+        w = total;
+      } else if (state === "current") {
+        w = Math.max(0, total * rProgress.value);
+      } else {
+        w = 0;
+      }
+
+      return { width: w, height: "100%" };
+    }, [state]);
 
     return (
       <View
@@ -761,7 +753,6 @@ const Stories = ({
         if (ay <= topGuard || ay >= bottomGuard) return;
 
         if (ax >= width / 2) {
-          // manual skip: ensure clean switch
           handleNextStory();
         } else {
           handlePreviousStory();
@@ -774,12 +765,10 @@ const Stories = ({
 
     const onMediaReady = () => {
       if (currentEpoch !== storyEpochRef.current) return;
-      // fade in current media
       mediaOpacity.value = withTiming(1, {
         duration: 180,
         easing: REEasing.out(REEasing.quad),
       });
-      // ensure progress starts at 0 for fresh media
       rProgress.value = 0;
       progressValRef.current = 0;
 
@@ -811,7 +800,6 @@ const Stories = ({
                   }}
                   onSegmentEnd={() => {
                     if (currentEpoch !== storyEpochRef.current) return;
-                    // use unified finish so bar shows full momentarily
                     finishAndAdvance();
                   }}
                   onReadyToPlay={onMediaReady}

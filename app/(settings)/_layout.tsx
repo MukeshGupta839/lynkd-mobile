@@ -6,8 +6,7 @@ export default function SettingsLayout() {
       screenOptions={{
         headerShown: false,
         animation: "slide_from_right",
-      }}
-    >
+      }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen
         name="changePassword"
@@ -15,6 +14,16 @@ export default function SettingsLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="appInformation"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack>
+        <Stack.Screen name="legalpolicies" options={{ headerShown: false }} />
+        <Stack.Screen name="policyviewer" options={{ headerShown: false }} />
+      </Stack>
       <Stack.Screen
         name="analytics-coming-soon"
         options={{

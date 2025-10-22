@@ -8,7 +8,7 @@ import {
   WishlistItemT,
 } from "@/constants/cart";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   ListRenderItemInfo,
@@ -72,6 +72,43 @@ function mapWishlistToCartItem(w: WishlistItemT): CartItemWithQty {
 
 const TAB_BAR_HEIGHT = 45;
 const TAX_RATE = 0.18; // 18% GST placeholder
+
+/* ------------------------------------------------------------------ */
+/* Named memoized components (with displayName)                       */
+/* ------------------------------------------------------------------ */
+
+const CartListHeader = memo(function CartListHeader() {
+  return <AddressCard />;
+});
+CartListHeader.displayName = "CartListHeader";
+
+type CartListFooterProps = {
+  itemsCount: number;
+  subtotal: number;
+  discount: number;
+  tax: number;
+};
+
+const CartListFooter = memo(function CartListFooter({
+  itemsCount,
+  subtotal,
+  discount,
+  tax,
+}: CartListFooterProps) {
+  return (
+    <View className="mt-4">
+      <PriceDetails
+        itemsCount={itemsCount}
+        subtotal={subtotal}
+        discount={discount}
+        tax={tax}
+      />
+    </View>
+  );
+});
+CartListFooter.displayName = "CartListFooter";
+
+/* ------------------------------------------------------------------ */
 
 export default function CartAndWishlistScreen() {
   const insets = useSafeAreaInsets();
@@ -189,22 +226,6 @@ export default function CartAndWishlistScreen() {
     [insets.bottom]
   );
 
-  const CartListHeader = useMemo(() => () => <AddressCard />, []);
-
-  const CartListFooter = useMemo(() => {
-    const Footer = () => (
-      <View className="mt-4">
-        <PriceDetails
-          itemsCount={itemsCount}
-          subtotal={subtotal}
-          discount={discount}
-          tax={tax}
-        />
-      </View>
-    );
-    return Footer;
-  }, [itemsCount, subtotal, discount, tax]);
-
   const removeClippedSubviewsForPlatform = Platform.OS === "android";
 
   /* ----------------- UI ----------------- */
@@ -248,7 +269,14 @@ export default function CartAndWishlistScreen() {
             keyExtractor={(i) => i.id}
             renderItem={renderCartItem}
             ListHeaderComponent={CartListHeader}
-            ListFooterComponent={CartListFooter}
+            ListFooterComponent={
+              <CartListFooter
+                itemsCount={itemsCount}
+                subtotal={subtotal}
+                discount={discount}
+                tax={tax}
+              />
+            }
             contentContainerStyle={cartContentContainerStyle}
             showsVerticalScrollIndicator={false}
             removeClippedSubviews={removeClippedSubviewsForPlatform}
