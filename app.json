@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "icon": "./assets/images/adaptive-icon2.png",
-      "buildNumber": "13",
+      "buildNumber": "15",
       "bundleIdentifier": "com.lynkd.socialcommerce",
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
@@ -80,15 +80,15 @@
       [
         "expo-video",
         {
-          "supportsBackgroundPlayback": true,
+          "supportsBackgroundPlayback": false,
           "supportsPictureInPicture": true
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
-          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos and record videos. This permission is required to post content on the platform or to upload profile and banner images.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone record videos and to send voice notes to your friends.",
           "recordAudioAndroid": true
         }
       ],

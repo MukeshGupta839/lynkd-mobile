@@ -57,7 +57,8 @@ const StoryBubble = memo<StoryBubbleProps>(
             hasStory ? onOpen(user) : onOpenProfile(user.profile_picture)
           }
           accessibilityLabel={`${user.username} story or profile`}
-          className="items-center">
+          className="items-center"
+        >
           {hasStory ? (
             isSeen ? (
               // Gray ring + dim avatar if finished
@@ -67,7 +68,8 @@ const StoryBubble = memo<StoryBubbleProps>(
                   borderRadius: 999,
                   backgroundColor: "#e5e7eb",
                 }}
-                className="rounded-full">
+                className="rounded-full"
+              >
                 <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
                   <Image
                     source={{ uri: user.profile_picture ?? DEFAULT_AVATAR }}
@@ -83,7 +85,8 @@ const StoryBubble = memo<StoryBubbleProps>(
                 start={[0, 0]}
                 end={[1, 1]}
                 className="rounded-full"
-                style={{ padding: 2, borderRadius: 999 }}>
+                style={{ padding: 2, borderRadius: 999 }}
+              >
                 <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
                   <Image
                     source={{ uri: user.profile_picture ?? DEFAULT_AVATAR }}
@@ -103,7 +106,8 @@ const StoryBubble = memo<StoryBubbleProps>(
         </Pressable>
         <Text
           className={`text-xs mt-1 ${isSeen ? "text-gray-400" : "text-gray-600"}`}
-          numberOfLines={1}>
+          numberOfLines={1}
+        >
           {user.username.split(".")[0]}
         </Text>
       </View>
@@ -128,7 +132,8 @@ const YouBubble = memo<YouBubbleProps>(
         <Pressable
           onPress={hasStory ? onOpenStories : onAdd}
           accessibilityLabel="Your story"
-          className="items-center">
+          className="items-center"
+        >
           <View className="relative">
             {hasStory ? (
               <LinearGradient
@@ -136,7 +141,8 @@ const YouBubble = memo<YouBubbleProps>(
                 start={[0, 0]}
                 end={[1, 1]}
                 className="rounded-full"
-                style={{ padding: 2, borderRadius: 999 }}>
+                style={{ padding: 2, borderRadius: 999 }}
+              >
                 <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
                   <Image
                     source={{ uri: you.profile_picture ?? DEFAULT_AVATAR }}
@@ -160,7 +166,8 @@ const YouBubble = memo<YouBubbleProps>(
                 backgroundColor: "#000",
                 borderWidth: 2,
                 borderColor: "#fff",
-              }}>
+              }}
+            >
               <Text className="text-white text-xs font-extrabold">＋</Text>
             </Pressable>
 
@@ -204,7 +211,8 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
       onPress={() => onOpenChat(otherUser)}
       className="flex-row items-center px-3 py-3 border-b border-gray-100"
       accessibilityRole="button"
-      accessibilityLabel={`Open chat with ${displayName}`}>
+      accessibilityLabel={`Open chat with ${displayName}`}
+    >
       <Pressable onPress={() => onOpenProfile(otherUser.profile_picture)}>
         <Image
           source={{ uri: otherUser.profile_picture ?? DEFAULT_AVATAR }}
@@ -214,12 +222,14 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
 
       <View className="flex-1 ml-3">
         <Text
-          className={`text-base ${unreadCount > 0 ? "font-bold text-black" : "font-medium text-black"}`}>
+          className={`text-base ${unreadCount > 0 ? "font-bold text-black" : "font-medium text-black"}`}
+        >
           {displayName}
         </Text>
         <Text
           className={`text-sm ${unreadCount > 0 ? "text-black" : "text-gray-500"}`}
-          numberOfLines={1}>
+          numberOfLines={1}
+        >
           {preview}
         </Text>
       </View>
@@ -656,11 +666,13 @@ export default function Chats() {
           visible={profileModalVisible}
           transparent={false}
           animationType="fade"
-          onRequestClose={() => setProfileModalVisible(false)}>
+          onRequestClose={() => setProfileModalVisible(false)}
+        >
           <View className="flex-1 bg-black">
             <Pressable
               className="absolute top-10 left-4 z-50 p-2"
-              onPress={() => setProfileModalVisible(false)}>
+              onPress={() => setProfileModalVisible(false)}
+            >
               <Text className="text-white text-2xl">✕</Text>
             </Pressable>
             {profileModalImage ? (
@@ -688,7 +700,8 @@ export default function Chats() {
           animationType="fade"
           onRequestClose={() => {
             setStoriesVisible(false);
-          }}>
+          }}
+        >
           <View className="flex-1 bg-black">
             <Stories
               storiesData={storiesViewerData}
@@ -716,10 +729,12 @@ export default function Chats() {
           visible={previewOpen}
           transparent={false}
           animationType="slide"
-          onRequestClose={() => setPreviewOpen(false)}>
+          onRequestClose={() => setPreviewOpen(false)}
+        >
           <View
             className="flex-1 bg-black"
-            style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
+            style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+          >
             {/* Top-right CLOSE (X) */}
             <Pressable
               onPress={() => setPreviewOpen(false)}
@@ -730,7 +745,8 @@ export default function Chats() {
                 right: 10,
                 zIndex: 10,
                 backgroundColor: "transparent",
-              }}>
+              }}
+            >
               <Ionicons name="close" size={28} color="#ffffff" />
             </Pressable>
 
@@ -773,7 +789,8 @@ export default function Chats() {
                   opacity: uploading ? 0.7 : 1,
                   borderWidth: 2,
                   borderColor: "rgba(255,255,255,0.9)",
-                }}>
+                }}
+              >
                 <Ionicons name="arrow-forward" size={30} color="#ffffff" />
               </Pressable>
             )}

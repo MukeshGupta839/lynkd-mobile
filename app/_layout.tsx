@@ -16,6 +16,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useInitializeFCM } from "@/utils/fcm";
+import { requestAllPermissions } from "@/utils/permissions";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { setVideoCacheSizeAsync } from "expo-video";
 import { useEffect } from "react";
@@ -58,6 +59,17 @@ export default function RootLayout() {
     })();
   }, []);
 
+  // Request all permissions when app opens
+  useEffect(() => {
+    (async () => {
+      try {
+        await requestAllPermissions();
+      } catch (error) {
+        console.error("Error requesting permissions on app start:", error);
+      }
+    })();
+  }, []);
+
   useInitializeFCM();
 
   // Hide splash screen when fonts are loaded
@@ -76,7 +88,8 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <PaperProvider theme={MD3LightTheme}>
           <ThemeProvider
-            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+          >
             <BottomSheetModalProvider>
               <KeyboardProvider>
                 <AuthProvider>
@@ -85,7 +98,8 @@ export default function RootLayout() {
                       screenOptions={{
                         animation: "slide_from_right",
                         contentStyle: { backgroundColor: "#fff" },
-                      }}>
+                      }}
+                    >
                       <Stack.Screen
                         name="index"
                         options={{ headerShown: false }}

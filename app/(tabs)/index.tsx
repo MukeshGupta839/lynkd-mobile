@@ -31,8 +31,6 @@ import { useUploadStore } from "@/stores/useUploadStore";
 import { Post } from "@/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { Camera } from "expo-camera";
-import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -209,27 +207,6 @@ export default function ConsumerHomeUI() {
       subscription?.remove();
       if (backPressTimer) clearTimeout(backPressTimer);
     };
-  }, []);
-
-  useEffect(() => {
-    const requestPermissions = async () => {
-      try {
-        const cameraResponse = await Camera.requestCameraPermissionsAsync();
-        const mediaLibraryResponse =
-          await MediaLibrary.requestPermissionsAsync();
-
-        if (cameraResponse.status !== "granted") {
-          console.warn("Camera permission not granted");
-        }
-        if (mediaLibraryResponse.status !== "granted") {
-          console.warn("Media library permission not granted");
-        }
-      } catch (error) {
-        console.error("Error requesting permissions:", error);
-      }
-    };
-
-    requestPermissions();
   }, []);
 
   // Ensure tab bar is visible when component mounts/unmounts

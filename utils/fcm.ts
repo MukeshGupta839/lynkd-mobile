@@ -13,7 +13,6 @@ import {
   requestPermission,
   setBackgroundMessageHandler,
 } from "@react-native-firebase/messaging";
-import { requestTrackingPermissionsAsync } from "expo-tracking-transparency";
 import { useContext, useEffect } from "react";
 import { Alert, PermissionsAndroid, Platform } from "react-native";
 import { AuthContext } from "../context/AuthContext";
@@ -85,15 +84,6 @@ export const useInitializeFCM = () => {
   const firebaseUser = authCtx?.firebaseUser;
 
   useEffect(() => {
-    (async () => {
-      const { status } = await requestTrackingPermissionsAsync();
-      if (status === "granted") {
-        console.log("Yay! I have user permission to track data");
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
     let unsubForeground: undefined | (() => void);
     let tokenRefreshUnsub: undefined | (() => void);
 
@@ -117,10 +107,10 @@ export const useInitializeFCM = () => {
     const checkPermission = async (): Promise<boolean> => {
       try {
         if (Platform.OS === "android") {
-          const granted = await PermissionsAndroid.request(
+          const granted = await PermissionsAndroid.check(
             PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
           );
-          return granted === PermissionsAndroid.RESULTS.GRANTED;
+          return granted;
         } else if (Platform.OS === "ios") {
           const status = await requestPermission(messagingModule);
           const enabled =
@@ -135,41 +125,26 @@ export const useInitializeFCM = () => {
       }
     };
 
-    const requestPermissionAndRegister = async (): Promise<boolean> => {
-      try {
-        if (Platform.OS === "android") {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-          );
-          return granted === PermissionsAndroid.RESULTS.GRANTED;
-        } else if (Platform.OS === "ios") {
-          const status = await requestPermission(messagingModule);
-          const enabled =
-            status === AuthorizationStatus.AUTHORIZED ||
-            status === AuthorizationStatus.PROVISIONAL;
-          if (enabled) {
-            await registerDeviceForRemoteMessages(messagingModule);
-            return true;
-          }
-          Alert.alert(
-            "Permission required",
-            "Please enable notifications to receive updates."
-          );
-          return false;
+    const registerForIOSIfNeeded = async (): Promise<void> => {
+      if (Platform.OS === "ios") {
+        try {
+          await registerDeviceForRemoteMessages(messagingModule);
+        } catch (error) {
+          console.error("Error registering for iOS remote messages:", error);
         }
-        return false;
-      } catch (error) {
-        console.error("Error requesting notification permission:", error);
-        return false;
       }
     };
 
     const setupFCM = async () => {
+      // Check if permission is granted (permissions are requested at app startup)
       const permissionGranted = await checkPermission();
       if (!permissionGranted) {
-        const requested = await requestPermissionAndRegister();
-        if (!requested) return;
+        console.log("Notification permission not granted. Skipping FCM setup.");
+        return;
       }
+
+      // Register for iOS remote messages if needed
+      await registerForIOSIfNeeded();
 
       // Get FCM token
       const token = await getToken(messagingModule);

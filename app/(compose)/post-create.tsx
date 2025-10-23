@@ -8,7 +8,6 @@ import CircularProgress from "@/components/ProgressBar/CircularProgress";
 import StatusModal from "@/components/StatusModal";
 import { TAGS } from "@/constants/PostCreation";
 import { AuthContext } from "@/context/AuthContext";
-import { useGradualAnimation } from "@/hooks/useGradualAnimation";
 import { apiCall } from "@/lib/api/apiService";
 import { useUploadStore } from "@/stores/useUploadStore";
 import { Entypo, Ionicons, Octicons } from "@expo/vector-icons";
@@ -38,7 +37,10 @@ import {
   View,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import {
+  KeyboardAwareScrollView,
+  KeyboardStickyView,
+} from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import Camera from "../../assets/posts/camera.svg";
@@ -183,7 +185,6 @@ function HighlightedText({
 export default function PostCreate() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const kbHeight = useGradualAnimation();
   const authContext = useContext(AuthContext);
   const user = authContext?.user;
   const firebaseUser = authContext?.firebaseUser;
@@ -192,7 +193,6 @@ export default function PostCreate() {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [, setDisablePostButton] = useState(true);
   const [, setKeyboardHeight] = useState(0);
-  const [, setScrollOffset] = useState(0);
   const [statusOpen, setStatusOpen] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const [showProductModal, setShowProductModal] = useState(false);
@@ -206,6 +206,7 @@ export default function PostCreate() {
     null
   );
   const [aspectRatio, setAspectRatio] = useState<string | null>(null);
+  const [barH, setBarH] = useState(0);
 
   // Refs for managing transitions
   const keyboardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,6 +264,8 @@ export default function PostCreate() {
     height: 0,
   });
 
+  const awareBottomOffset = barH + 5;
+
   const looksLikeVideo = (nameOrUri: string) =>
     /\.(mp4|mov|m4v|webm|3gp|mkv)$/i.test(nameOrUri);
 
@@ -274,12 +277,6 @@ export default function PostCreate() {
 
   // helpers
   const hasVideo = image.length === 1 && !!image[0]?.isVideo;
-
-  const keyboardPadding = useAnimatedStyle(() => {
-    return {
-      paddingBottom: kbHeight.value,
-    };
-  }, [kbHeight]);
 
   // Drive the header ring while posting (up to 0.9, finish on success)
   useEffect(() => {
@@ -880,14 +877,19 @@ export default function PostCreate() {
             setMainContainerLayout(event.nativeEvent.layout);
           }}
         >
-          <ScrollView
+          <KeyboardAwareScrollView
             ref={scrollViewRef}
+            keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
-            contentContainerClassName="flex-grow gap-3 pt-3 pb-2"
-            onScroll={(e) => {
-              setScrollOffset(e.nativeEvent.contentOffset.y);
-            }}
-            scrollEventThrottle={16}
+            bottomOffset={awareBottomOffset}
+            bounces={false} // iOS: no rubber-band
+            alwaysBounceVertical={false} // iOS
+            alwaysBounceHorizontal={false} // iOS (defensive)
+            overScrollMode="never" // Android: no stretch/edge glow
+            contentInsetAdjustmentBehavior="never" // iOS: avoid auto safe-area inset tweaks
+            decelerationRate="normal"
+            automaticallyAdjustKeyboardInsets={false} // iOS 17+: prevent double insets
+            contentContainerClassName="flex-grow gap-3 pt-3"
           >
             <View className="flex-1 pt-3 gap-3">
               <View className="flex flex-row items-center px-3">
@@ -926,7 +928,15 @@ export default function PostCreate() {
                 {/* Highlighter behind */}
                 <View
                   pointerEvents="none"
-                  style={[StyleSheet.absoluteFillObject, { padding: 8 }]} // matches p-2
+                  style={[
+                    StyleSheet.absoluteFillObject,
+                    {
+                      paddingTop: 8,
+                      paddingRight: 8,
+                      paddingBottom: 8,
+                      paddingLeft: 8,
+                    },
+                  ]}
                 >
                   <HighlightedText
                     value={text}
@@ -948,6 +958,10 @@ export default function PostCreate() {
                   style={[
                     styles.base,
                     {
+                      paddingTop: 8, // ← Must match exactly
+                      paddingRight: 8,
+                      paddingBottom: 8,
+                      paddingLeft: 8,
                       textAlignVertical: "top",
                       minHeight: Platform.OS === "android" ? 200 : undefined,
                       // Use *almost* transparent to avoid Android composition artifacts
@@ -1073,97 +1087,113 @@ export default function PostCreate() {
                 </View>
               </View>
             )}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
 
         {/* Bottom selector with stable positioning. When mentioning, show smart mention list here */}
-        <Animated.View
-          style={[keyboardPadding, { minHeight: 60 }]}
+        {/* <Animated.View
+          style={[
+            bottomBarStyle, // your translateY for lifting with keyboard height
+            {
+              minHeight: 60,
+              position: "absolute",
+              left: 0,
+              right: 0,
+            },
+          ]}
+          pointerEvents="box-none"
           className="bg-white flex flex-row items-center px-3 gap-2"
-        >
-          {mentioning && filteredUsers.length > 0 ? (
-            // When mentioning, show the Mention UI in place of the bottom selector.
-            // Center it and use ~100% width so the left/right parts of the bar remain visible.
-            <View style={{ width: "100%", alignItems: "center" }}>
-              <Mention
-                users={filteredUsers}
-                selection={selection}
-                text={text}
-                mentionTrigger={mentionTrigger}
-                setText={setText}
-                setMentioning={setMentioning}
-                setSelection={setSelection}
-                inputRef={inputRef}
-              />
-            </View>
-          ) : (
-            // Default bottom controls when not mentioning
-            <>
-              <View className="flex-1 flex-row justify-between p-2.5 items-center bg-[#F2F2F4] rounded-full">
-                <TouchableOpacity
-                  className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    console.log("Camera");
-                  }}
-                  disabled={loader}
-                >
-                  <Camera width={22} height={22} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
-                  onPress={pickMedia}
-                  disabled={loader}
-                >
-                  <Gallery width={22} height={22} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    openProductModal();
-                  }}
-                  disabled={loader}
-                >
-                  <Cart width={22} height={22} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  className="items-center justify-center bg-gray-200 p-2.5 rounded-full"
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setStatusOpen(true);
-                  }}
-                  disabled={loader}
-                >
-                  <Community width={22} height={22} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  className="items-center justify-center bg-gray-200 p-2.5 rounded-full"
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    console.log("Location");
-                  }}
-                  disabled={loader}
-                >
-                  <Location width={22} height={22} />
-                </TouchableOpacity>
+        > */}
+        <KeyboardStickyView offset={{ opened: 5, closed: 0 }}>
+          <View
+            onLayout={(e) => setBarH(Math.round(e.nativeEvent.layout.height))}
+            className="flex flex-row items-center px-3 gap-2"
+          >
+            {mentioning && filteredUsers.length > 0 ? (
+              // When mentioning, show the Mention UI in place of the bottom selector.
+              // Center it and use ~100% width so the left/right parts of the bar remain visible.
+              <View style={{ width: "100%", alignItems: "center" }}>
+                <Mention
+                  users={filteredUsers}
+                  selection={selection}
+                  text={text}
+                  mentionTrigger={mentionTrigger}
+                  setText={setText}
+                  setMentioning={setMentioning}
+                  setSelection={setSelection}
+                  inputRef={inputRef}
+                />
               </View>
+            ) : (
+              // Default bottom controls when not mentioning
+              <>
+                <View className="flex-1 flex-row justify-between p-2.5 items-center bg-[#F2F2F4] rounded-full">
+                  <TouchableOpacity
+                    className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      console.log("Camera");
+                    }}
+                    disabled={loader}
+                  >
+                    <Camera width={22} height={22} />
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                className="bg-black flex-row rounded-full items-center justify-center px-5 py-2.5 gap-1"
-                onPress={createPost}
-              >
-                <Text className="text-white text-sm font-opensans-semibold">
-                  POST
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </Animated.View>
+                  <TouchableOpacity
+                    className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
+                    onPress={pickMedia}
+                    disabled={loader}
+                  >
+                    <Gallery width={22} height={22} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      openProductModal();
+                    }}
+                    disabled={loader}
+                  >
+                    <Cart width={22} height={22} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="items-center justify-center bg-gray-200 p-2.5 rounded-full"
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setStatusOpen(true);
+                    }}
+                    disabled={loader}
+                  >
+                    <Community width={22} height={22} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="items-center justify-center bg-gray-200 p-2.5 rounded-full"
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      console.log("Location");
+                    }}
+                    disabled={loader}
+                  >
+                    <Location width={22} height={22} />
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  className="bg-black flex-row rounded-full items-center justify-center px-5 py-2.5 gap-1"
+                  onPress={createPost}
+                >
+                  <Text className="text-white text-sm font-opensans-semibold">
+                    POST
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </KeyboardStickyView>
+        {/* </Animated.View> */}
 
         {/* Smart Mention is rendered in the bottom selector now */}
       </View>
