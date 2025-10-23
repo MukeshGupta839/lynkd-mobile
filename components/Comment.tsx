@@ -73,146 +73,6 @@ type CommentItem = {
   likes: number;
 };
 
-// --- Dummy comments ---
-const comments: CommentItem[] = [
-  {
-    id: 1,
-    userId: 101,
-    comment: "This is amazing! Great work!",
-    username: "john.doe",
-    userImage: "https://randomuser.me/api/portraits/men/40.jpg",
-    time: "1 hour ago",
-    likes: 10,
-  },
-  {
-    id: 2,
-    userId: 102,
-    comment: "Absolutely stunning view!...",
-    username: "Jane.smith",
-    userImage: "https://randomuser.me/api/portraits/women/45.jpg",
-    time: "3 hours ago",
-    likes: 8,
-  },
-  {
-    id: 3,
-    userId: 103,
-    comment: "I love the colors in this picture!...",
-    username: "Alex.jones",
-    userImage: "https://randomuser.me/api/portraits/men/50.jpg",
-    time: "1 day ago",
-    likes: 15,
-  },
-  {
-    id: 4,
-    userId: 104,
-    comment: "This is breathtaking. Well done!...",
-    username: "Emily.davis",
-    userImage: "https://randomuser.me/api/portraits/women/30.jpg",
-    time: "2 days ago",
-    likes: 12,
-  },
-  {
-    id: 5,
-    userId: 105,
-    comment: "Such a peaceful place. Great shot!...",
-    username: "Michael.brown",
-    userImage: "https://randomuser.me/api/portraits/men/60.jpg",
-    time: "3 days ago",
-    likes: 5,
-  },
-  {
-    id: 6,
-    userId: 106,
-    comment: "Wow, this is incredible!...",
-    username: "Sarah.miller",
-    userImage: "https://randomuser.me/api/portraits/women/35.jpg",
-    time: "5 hours ago",
-    likes: 20,
-  },
-  {
-    id: 7,
-    userId: 107,
-    comment: "The lighting is perfect here.",
-    username: "Daniel.taylor",
-    userImage: "https://randomuser.me/api/portraits/men/55.jpg",
-    time: "6 hours ago",
-    likes: 18,
-  },
-  {
-    id: 8,
-    userId: 108,
-    comment: "Such a unique perspective!",
-    username: "Olivia.anderson",
-    userImage: "https://randomuser.me/api/portraits/women/40.jpg",
-    time: "1 day ago",
-    likes: 22,
-  },
-  {
-    id: 9,
-    userId: 109,
-    comment: "This reminds me of my last vacation.",
-    username: "Matthew.white",
-    userImage: "https://randomuser.me/api/portraits/men/65.jpg",
-    time: "2 days ago",
-    likes: 14,
-  },
-  {
-    id: 10,
-    userId: 110,
-    comment: "The composition is excellent!",
-    username: "Isabella.johnson",
-    userImage: "https://randomuser.me/api/portraits/women/50.jpg",
-    time: "2 days ago",
-    likes: 25,
-  },
-  {
-    id: 11,
-    userId: 111,
-    comment: "Love the contrast in this photo.",
-    username: "Ethan.martin",
-    userImage: "https://randomuser.me/api/portraits/men/45.jpg",
-    time: "3 days ago",
-    likes: 17,
-  },
-  {
-    id: 12,
-    userId: 112,
-    comment: "This shot is simply amazing!",
-    username: "Sophia.lee",
-    userImage: "https://randomuser.me/api/portraits/women/60.jpg",
-    time: "4 days ago",
-    likes: 30,
-  },
-  {
-    id: 13,
-    userId: 113,
-    comment: "Great use of natural light.",
-    username: "James.harris",
-    userImage: "https://randomuser.me/api/portraits/men/75.jpg",
-    time: "4 days ago",
-    likes: 13,
-  },
-  {
-    id: 14,
-    userId: 114,
-    comment:
-      "Such a serene image. Such a serene image. Such a serene image. Such a serene image. Such a serene image. Such a serene image. Such a serene image. Such a serene image. Such a serene image. Such a serene image. Such a serene image.",
-    username: "Ava.carter",
-    userImage: "https://randomuser.me/api/portraits/women/55.jpg",
-    time: "5 days ago",
-    likes: 19,
-  },
-  {
-    id: 15,
-    userId: 115,
-    comment: "This photo has a calming effect.",
-    username: "Liam.walker",
-    userImage: "https://randomuser.me/api/portraits/men/85.jpg",
-    time: "6 days ago",
-    likes: 16,
-  },
-];
-
 const NullHandle: BottomSheetModalProps["handleComponent"] = () => null;
 
 const FOOTER_HEIGHT = 54;
@@ -331,13 +191,11 @@ const CommentsSheet = forwardRef<CommentsSheetHandle, CommentsSheetProps>(
     const insets = useSafeAreaInsets();
     const [footerHeight, setFooterHeight] = useState(FOOTER_HEIGHT);
 
-    // Use comments from props if provided, otherwise use dummy data
-    const sourceComments = commentsFromProps || comments;
-
     // Reverse comments so latest appear at the top
     const displayComments = useMemo(() => {
+      const sourceComments = commentsFromProps || [];
       return [...sourceComments].reverse();
-    }, [sourceComments]);
+    }, [commentsFromProps]);
 
     useImperativeHandle(ref, () => ({
       present: () => {
@@ -368,40 +226,74 @@ const CommentsSheet = forwardRef<CommentsSheetHandle, CommentsSheetProps>(
 
     const CommentRow = memo(({ item }: { item: CommentItem }) => {
       const [liked, setLiked] = useState(false);
+      const lastTapRef = useRef<number>(0);
+      type Timer = ReturnType<typeof setTimeout>;
+      const singleTimerRef = useRef<Timer | null>(null);
+      const DOUBLE_DELAY = 260; // ms
+
+      const handleDoubleTap = useCallback(() => {
+        setLiked((v) => !v);
+      }, []);
+
+      const handleTap = useCallback(() => {
+        const now = Date.now();
+        const delta = now - (lastTapRef.current || 0);
+        lastTapRef.current = now;
+
+        if (singleTimerRef.current) {
+          clearTimeout(singleTimerRef.current);
+          singleTimerRef.current = null;
+        }
+
+        if (delta < DOUBLE_DELAY) {
+          // DOUBLE TAP → toggle like
+          handleDoubleTap();
+          return;
+        }
+
+        // SINGLE TAP → do nothing (or implement single tap behavior)
+        singleTimerRef.current = setTimeout(() => {
+          singleTimerRef.current = null;
+          // Single tap behavior can be added here if needed
+        }, DOUBLE_DELAY + 10);
+      }, [handleDoubleTap]);
+
       return (
-        <View className="flex-row items-start py-2 px-3">
-          <Image
-            source={{ uri: item.userImage }}
-            className="w-[38px] h-[38px] rounded-full mr-2.5"
-          />
-          <View className="flex-1">
-            <View className="flex-row items-center mb-0.5">
-              <Text className="text-sm text-black font-opensans-semibold">
-                {item.username}
-              </Text>
-              <Text className="text-gray-400 text-sm mx-1 font-opensans-regular">
-                ·
-              </Text>
-              <Text className="text-sm text-gray-400 font-opensans-regular">
-                {item.time}
+        <TouchableOpacity activeOpacity={1} onPress={handleTap}>
+          <View className="flex-row items-start py-2 px-3">
+            <Image
+              source={{ uri: item.userImage }}
+              className="w-[38px] h-[38px] rounded-full mr-2.5"
+            />
+            <View className="flex-1">
+              <View className="flex-row items-center mb-0.5">
+                <Text className="text-sm text-black font-opensans-semibold">
+                  {item.username}
+                </Text>
+                <Text className="text-gray-400 text-sm mx-1 font-opensans-regular">
+                  ·
+                </Text>
+                <Text className="text-sm text-gray-400 font-opensans-regular">
+                  {item.time}
+                </Text>
+              </View>
+              <Text className="text-sm text-gray-600 font-opensans-regular mt-0.5">
+                {item.comment}
               </Text>
             </View>
-            <Text className="text-sm text-gray-600 font-opensans-regular mt-0.5">
-              {item.comment}
-            </Text>
+            <TouchableOpacity
+              onPress={() => setLiked((v) => !v)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              className="px-1 self-end"
+            >
+              <Ionicons
+                name={liked ? "heart" : "heart-outline"}
+                size={20}
+                color={liked ? "#e74c3c" : "#687684"}
+              />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            onPress={() => setLiked((v) => !v)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            className="px-1 self-end"
-          >
-            <Ionicons
-              name={liked ? "heart" : "heart-outline"}
-              size={20}
-              color={liked ? "#e74c3c" : "#687684"}
-            />
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       );
     });
     CommentRow.displayName = "CommentRow";

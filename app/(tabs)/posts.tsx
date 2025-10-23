@@ -8,7 +8,14 @@ import Octicons from "@expo/vector-icons/Octicons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
-import React, { memo, useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -46,6 +53,10 @@ import { useReelsStore } from "@/stores/useReelsStore";
 import { useUploadStore } from "@/stores/useUploadStore";
 // ✅ Added: import apiCall for like and comment API calls
 import { apiCall } from "@/lib/api/apiService";
+import {
+  registerTabPressHandler,
+  unregisterTabPressHandler,
+} from "@/lib/tabBarVisibility";
 
 // Use 'screen' instead of 'window' for true fullscreen (includes notch and navigation)
 const { width, height } = Dimensions.get("screen");
@@ -89,7 +100,7 @@ const PostItem: React.FC<{
   onOpenProfile: (uid?: number) => void;
   onToggleLike: () => void;
   onOpenPostOptions: () => void;
-  isFavorited: boolean;
+  likedPostIDs: number[]; // ✅ Changed: receive likedPostIDs array instead of isFavorited
   onToggleFollow: (uid?: number) => void;
   isFollowing: boolean;
   onOverlayPress: () => void;
@@ -107,7 +118,7 @@ const PostItem: React.FC<{
     onOpenProfile,
     onToggleLike,
     onOpenPostOptions,
-    isFavorited,
+    likedPostIDs, // ✅ Changed: receive likedPostIDs array
     onToggleFollow,
     isFollowing,
     onOverlayPress,
@@ -125,6 +136,31 @@ const PostItem: React.FC<{
 
     // ✅ Added: local state to open ShareSectionBottomSheet
     const [shareOpen, setShareOpen] = useState(false);
+
+    // ✅ Calculate isFavorited internally to avoid unnecessary re-renders
+    const isFavorited = useMemo(
+      () => likedPostIDs.includes(item.id) || !!item.liked,
+      [likedPostIDs, item.id, item.liked]
+    );
+
+    // ✅ Added: Local like count state (similar to your other app)
+    const [likesCount, setLikesCount] = useState(
+      item?.reels_likes_aggregate?.aggregate?.count ??
+        item?.likesCount ??
+        item?.likes ??
+        0
+    );
+    const prevIsFavoritedRef = useRef(isFavorited);
+
+    // ✅ Sync like count with isFavorited changes (similar to your other app)
+    useEffect(() => {
+      if (prevIsFavoritedRef.current !== isFavorited) {
+        setLikesCount((prev: number) =>
+          Math.max(0, isFavorited ? prev + 1 : prev - 1)
+        );
+      }
+      prevIsFavoritedRef.current = isFavorited;
+    }, [isFavorited]);
 
     useEffect(() => setLocalFollowing(!!item.following), [item.following]);
 
@@ -214,7 +250,8 @@ const PostItem: React.FC<{
                     },
                   })
                 }
-                onLongPress={onOpenPostOptions}>
+                onLongPress={onOpenPostOptions}
+              >
                 {part}
               </Text>
             );
@@ -234,7 +271,8 @@ const PostItem: React.FC<{
                     params: { tag },
                   })
                 }
-                onLongPress={onOpenPostOptions}>
+                onLongPress={onOpenPostOptions}
+              >
                 {part}
               </Text>
             );
@@ -250,7 +288,8 @@ const PostItem: React.FC<{
                 style={{ textDecorationLine: "underline" }}
                 suppressHighlighting
                 onPress={() => Linking.openURL(url)}
-                onLongPress={onOpenPostOptions}>
+                onLongPress={onOpenPostOptions}
+              >
                 {part}
               </Text>
             );
@@ -288,7 +327,8 @@ const PostItem: React.FC<{
         {centerVisible && active && (
           <View
             className="absolute inset-0 items-center justify-center"
-            style={{ zIndex: 30 }}>
+            style={{ zIndex: 30 }}
+          >
             <TouchableOpacity onPress={onCenterToggle} activeOpacity={0.9}>
               <View
                 style={{
@@ -298,7 +338,8 @@ const PostItem: React.FC<{
                   alignItems: "center",
                   justifyContent: "center",
                   backgroundColor: "rgba(0,0,0,0.32)",
-                }}>
+                }}
+              >
                 <Ionicons
                   name={isPlaying ? "pause" : "play"}
                   size={32}
@@ -312,13 +353,15 @@ const PostItem: React.FC<{
         {/* right action column (icons) */}
         <View
           className="absolute right-3 bottom-1/4 items-center"
-          style={{ zIndex: 30 }}>
+          style={{ zIndex: 30 }}
+        >
           {item.isProduct && (
             <>
               <TouchableOpacity
                 className="w-12 h-12 rounded-full items-center justify-center mb-1 bg-white/20"
                 onPress={() => {}}
-                activeOpacity={0.8}>
+                activeOpacity={0.8}
+              >
                 <Ionicons name="bag-outline" size={20} color="#fff" />
               </TouchableOpacity>
               <Text className="text-white text-xs mt-2">
@@ -330,20 +373,22 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={() => onToggleLike()}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+          >
             <Ionicons
               name={item.liked || isFavorited ? "heart" : "heart-outline"}
               size={20}
               color={item.liked || isFavorited ? "#ff3b30" : "#fff"}
             />
           </TouchableOpacity>
-          <Text className="text-white text-xs mt-2">{item.likes ?? 0}</Text>
+          <Text className="text-white text-xs mt-2">{likesCount}</Text>
 
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             // ✅ Changed: open the comments sheet
             onPress={onOpenComments}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+          >
             <Ionicons name="chatbubble-outline" size={18} color="#fff" />
           </TouchableOpacity>
           <Text className="text-white text-xs mt-2">
@@ -353,7 +398,8 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={onShare}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+          >
             <Send width={20} height={20} />
           </TouchableOpacity>
           <Text className="text-white text-xs mt-2">Share</Text>
@@ -361,7 +407,8 @@ const PostItem: React.FC<{
           <TouchableOpacity
             className="w-12 h-12 rounded-full items-center justify-center mt-3 bg-white/20"
             onPress={() => onOpenPostOptions()}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+          >
             <Ionicons name="ellipsis-horizontal" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -372,14 +419,16 @@ const PostItem: React.FC<{
           style={{
             bottom: BOTTOM_NAV_HEIGHT + 10,
             zIndex: 40,
-          }}>
+          }}
+        >
           <TouchableOpacity
             onPress={() => {
               onToggleFollow(item.user_id);
               setLocalFollowing((s) => !s);
             }}
             activeOpacity={0.95}
-            className="absolute right-3 top-2 z-10 rounded-full px-3 py-1 border border-white/70 bg-white/8">
+            className="absolute right-3 top-2 z-10 rounded-full px-3 py-1 border border-white/70 bg-white/8"
+          >
             <Text className="text-white font-semibold">
               {localFollowing ? "Following" : "Follow"}
             </Text>
@@ -413,11 +462,13 @@ const PostItem: React.FC<{
               <View className="flex-row items-center">
                 <TouchableOpacity
                   onPress={() => onOpenProfile(item.user_id)}
-                  activeOpacity={0.7}>
+                  activeOpacity={0.7}
+                >
                   <StyledText
                     className="text-white font-bold text-base mr-2"
                     numberOfLines={1}
-                    ellipsizeMode="tail">
+                    ellipsizeMode="tail"
+                  >
                     {item.username}
                   </StyledText>
                 </TouchableOpacity>
@@ -443,17 +494,20 @@ const PostItem: React.FC<{
           </View>
 
           <Reanimated.View
-            style={[{ overflow: "hidden" }, captionAnimatedStyle]}>
+            style={[{ overflow: "hidden" }, captionAnimatedStyle]}
+          >
             <Text
               numberOfLines={captionOpen ? undefined : 1}
               ellipsizeMode="tail"
-              className="text-white text-base mt-2 leading-7">
+              className="text-white text-base mt-2 leading-7"
+            >
               {captionOpen ? (
                 <>
                   {renderCaptionParts(item.caption ?? "")}
                   <Text
                     onPress={() => setCaptionOpen(false)}
-                    style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>
+                    style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}
+                  >
                     {"  "}Show less
                   </Text>
                 </>
@@ -463,7 +517,8 @@ const PostItem: React.FC<{
                   {needsTruncate ? (
                     <Text
                       onPress={() => setCaptionOpen(true)}
-                      style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>
+                      style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}
+                    >
                       {" "}
                       ... more
                     </Text>
@@ -486,6 +541,33 @@ const PostItem: React.FC<{
         />
       </View>
     );
+  },
+  // ✅ Custom comparison function to prevent unnecessary re-renders
+  (prevProps, nextProps) => {
+    // Only re-render if these specific props change
+    const itemChanged = prevProps.item.id !== nextProps.item.id;
+    const activeChanged = prevProps.active !== nextProps.active;
+    const isPlayingChanged = prevProps.isPlaying !== nextProps.isPlaying;
+    const centerVisibleChanged =
+      prevProps.centerVisible !== nextProps.centerVisible;
+
+    // Check if THIS specific item's like status changed
+    const prevLiked =
+      prevProps.likedPostIDs.includes(prevProps.item.id) ||
+      !!prevProps.item.liked;
+    const nextLiked =
+      nextProps.likedPostIDs.includes(nextProps.item.id) ||
+      !!nextProps.item.liked;
+    const likeStatusChanged = prevLiked !== nextLiked;
+
+    // Return true to skip re-render, false to re-render
+    return !(
+      itemChanged ||
+      activeChanged ||
+      isPlayingChanged ||
+      centerVisibleChanged ||
+      likeStatusChanged
+    );
   }
 );
 
@@ -505,11 +587,17 @@ const VideoFeed: React.FC = () => {
     isInitialLoading: loading,
     error: reelsError,
     hasMore,
-    cursor,
+    // cursor, // Not needed directly since handled by store
     fetchReels,
     loadMoreReels,
     refreshReels,
     updateReel,
+    likedPostIDs,
+    postComments,
+    fetchUserLikedPosts,
+    toggleLike: toggleLikeStore,
+    fetchCommentsOfAPost: fetchCommentsStore,
+    addComment: addCommentStore,
   } = useReelsStore();
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -598,41 +686,31 @@ const VideoFeed: React.FC = () => {
   const commentsRef = useRef<CommentsSheetHandle>(null);
   const [commentsPost, setCommentsPost] = useState<RawReel | null>(null);
 
-  // ✅ Added: state for comments and likes
-  const [postComments, setPostComments] = useState<any[]>([]);
-  const [likedPostIDs, setLikedPostIDs] = useState<number[]>([]);
-
   // Track video errors by index
   const videoErrorsRef = useRef<Map<number, boolean>>(new Map());
   const [hasVideoError, setHasVideoError] = useState(false);
 
   // ✅ Added: open comments handler
-  const openCommentsFor = useCallback((post: RawReel) => {
-    setCommentsPost(post);
-    fetchCommentsOfAPost(post.id);
-    commentsRef.current?.present();
-  }, []);
+  const openCommentsFor = useCallback(
+    (post: RawReel) => {
+      setCommentsPost(post);
+      fetchCommentsStore(post.id);
+      commentsRef.current?.present();
+    },
+    [fetchCommentsStore]
+  );
 
-  // ✅ Added: fetch user's liked posts and followings on mount
+  // ✅ Fetch user's liked posts and followings on mount
   useEffect(() => {
     if (user?.id) {
-      fetchUserLikedPosts();
+      fetchUserLikedPosts(user.id);
       fetchUserFollowings();
     }
-  }, [user?.id]);
+  }, [user?.id, fetchUserLikedPosts]);
 
-  const fetchUserLikedPosts = async () => {
-    if (!user?.id) return;
-    try {
-      const response = await apiCall(
-        `/api/reelLikes/${user.id}/likedPosts`,
-        "GET"
-      );
-      setLikedPostIDs(response.likedPosts || []);
-    } catch (error) {
-      console.error("Error fetching liked posts:", error);
-    }
-  };
+  // ✅ REMOVED: Sync effect that was causing unnecessary re-renders
+  // The liked status is now calculated directly in PostItem using useMemo,
+  // so we don't need to update the posts array when likedPostIDs changes
 
   const fetchUserFollowings = async () => {
     if (!user?.id) return;
@@ -652,75 +730,29 @@ const VideoFeed: React.FC = () => {
     }
   };
 
-  const fetchCommentsOfAPost = async (postID: number) => {
-    try {
-      const response = await apiCall(`/api/reelComments/post/${postID}`, "GET");
-      console.log("Comments API Response:", response.comments);
-      console.log("First comment structure:", response.comments?.[0]);
-
-      // Map API response to expected comment format
-      const mappedComments = (response.comments || []).map((c: any) => ({
-        id: c.id,
-        userId: c.user_id || c.userId,
-        comment: c.content || c.comment,
-        username: c.user?.username || c.username || "Unknown",
-        userImage:
-          c.user?.profile_picture ||
-          c.user?.photoURL ||
-          c.userImage ||
-          "https://via.placeholder.com/150",
-        time: formatCommentTime(c.created_at || c.createdAt || c.time),
-        likes: c.likes || 0,
-      }));
-
-      console.log("Mapped comments:", mappedComments);
-      setPostComments(mappedComments);
-    } catch (error) {
-      console.error("Error fetching comments:", error);
-    }
-  };
-
-  // Helper function to format comment timestamp
-  const formatCommentTime = (timestamp: string) => {
-    if (!timestamp) return "Just now";
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  };
+  // Helper function to format comment timestamp (kept for reference, handled in store now)
+  // const formatCommentTime = (timestamp: string) => {
+  //   if (!timestamp) return "Just now";
+  //   const date = new Date(timestamp);
+  //   const now = new Date();
+  //   const diffMs = now.getTime() - date.getTime();
+  //   const diffMins = Math.floor(diffMs / 60000);
+  //   const diffHours = Math.floor(diffMs / 3600000);
+  //   const diffDays = Math.floor(diffMs / 86400000);
+  //
+  //   if (diffMins < 1) return "Just now";
+  //   if (diffMins < 60) return `${diffMins}m ago`;
+  //   if (diffHours < 24) return `${diffHours}h ago`;
+  //   if (diffDays < 7) return `${diffDays}d ago`;
+  //   return date.toLocaleDateString();
+  // };
 
   const toggleLike = async (postId: number) => {
     if (!user?.id) return;
     try {
       Vibration.vibrate(50);
-
-      const isPostLiked = likedPostIDs.includes(postId);
-      const endpoint = isPostLiked
-        ? `/api/reelLikes/${postId}/${user.id}/unlike`
-        : `/api/reelLikes/${postId}/${user.id}/like`;
-
-      await apiCall(endpoint, "POST");
-
-      // Update liked posts state
-      setLikedPostIDs((prev) =>
-        isPostLiked ? prev.filter((id) => id !== postId) : [...prev, postId]
-      );
-
-      // ✅ Update posts state with new like status using Zustand
-      updateReel(postId, {
-        liked: !isPostLiked,
-        likes:
-          (posts.find((p) => p.id === postId)?.likes ?? 0) +
-          (isPostLiked ? -1 : 1),
-      });
+      // Use the store method for toggling like
+      await toggleLikeStore(postId, user.id);
     } catch (error) {
       console.error("Error toggling like:", error);
     }
@@ -1607,7 +1639,7 @@ const VideoFeed: React.FC = () => {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [currentIndex, posts]); // ✅ Now properly depends on both currentIndex AND posts
+  }, [currentIndex]); // ✅ FIXED: Only depend on currentIndex, not posts array (prevents reload on like/unlike)
 
   // Handle screen focus/blur - pause when screen is not focused
   useEffect(() => {
@@ -1861,6 +1893,34 @@ const VideoFeed: React.FC = () => {
     console.log("✅ Refresh complete");
   }, [refreshReels, safePause, scrollY, user?.id]);
 
+  // Register tab press handlers for scroll to top and refresh
+  useEffect(() => {
+    const scrollToTop = () => {
+      // For reels/posts screen, always scroll to 0 (first reel)
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      // Reset the current index to first item
+      setCurrentIndex(0);
+    };
+
+    const refresh = () => {
+      // For reels/posts screen, always scroll to 0 (first reel)
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      // Reset the current index to first item
+      setCurrentIndex(0);
+      // Set refreshing to true to show the loading indicator
+      setRefreshing(true);
+      setTimeout(() => {
+        onRefresh();
+      }, 100);
+    };
+
+    registerTabPressHandler("posts", { scrollToTop, refresh });
+
+    return () => {
+      unregisterTabPressHandler("posts");
+    };
+  }, [onRefresh]);
+
   // Watch for upload completion to refresh reels
   const { shouldRefreshReels, clearRefreshTriggers } = useUploadStore();
   useEffect(() => {
@@ -1949,7 +2009,8 @@ const VideoFeed: React.FC = () => {
           backgroundColor: "black",
           justifyContent: "center",
           alignItems: "center",
-        }}>
+        }}
+      >
         <ActivityIndicator size="large" color="#ffffff" />
         <Text style={{ color: "#ffffff", marginTop: 16, fontSize: 16 }}>
           Loading reels...
@@ -1980,7 +2041,8 @@ const VideoFeed: React.FC = () => {
           backgroundColor: "black",
           justifyContent: "center",
           alignItems: "center",
-        }}>
+        }}
+      >
         <Text style={{ color: "#ffffff", fontSize: 16 }}>
           No reels available
         </Text>
@@ -2028,7 +2090,8 @@ const VideoFeed: React.FC = () => {
         <Reanimated.View pointerEvents="none" style={overlayStyle}>
           <View
             pointerEvents="none"
-            style={{ width, height, backgroundColor: "#000000" }}>
+            style={{ width, height, backgroundColor: "#000000" }}
+          >
             <VideoView
               player={playerRef.current ?? (player as any)}
               style={videoStyle}
@@ -2087,13 +2150,15 @@ const VideoFeed: React.FC = () => {
                   alignItems: "center",
                   // Show spinner with slight delay or immediately based on showLoadingSpinner
                   opacity: showLoadingSpinner ? 1 : 0.7,
-                }}>
+                }}
+              >
                 <View
                   style={{
                     backgroundColor: "rgba(0,0,0,0.4)",
                     borderRadius: 50,
                     padding: 16,
-                  }}>
+                  }}
+                >
                   <ActivityIndicator size="large" color="#ffffff" />
                 </View>
               </View>
@@ -2116,14 +2181,16 @@ const VideoFeed: React.FC = () => {
                   zIndex: 200,
                 },
                 { top: overlayTop.value },
-              ]}>
+              ]}
+            >
               <View
                 style={{
                   backgroundColor: "rgba(255,0,0,0.3)",
                   borderRadius: 50,
                   padding: 20,
                   alignItems: "center",
-                }}>
+                }}
+              >
                 <Ionicons name="alert-circle" size={48} color="#ff3b30" />
                 <Text
                   style={{
@@ -2131,7 +2198,8 @@ const VideoFeed: React.FC = () => {
                     marginTop: 12,
                     fontSize: 16,
                     fontWeight: "600",
-                  }}>
+                  }}
+                >
                   Failed to load video
                 </Text>
                 <Text
@@ -2140,7 +2208,8 @@ const VideoFeed: React.FC = () => {
                     marginTop: 4,
                     fontSize: 14,
                     opacity: 0.8,
-                  }}>
+                  }}
+                >
                   Swipe to next video
                 </Text>
               </View>
@@ -2162,7 +2231,8 @@ const VideoFeed: React.FC = () => {
             zIndex: 999,
             justifyContent: "center",
             alignItems: "center",
-          }}>
+          }}
+        >
           <Reanimated.View
             entering={FadeIn.duration(200).springify()}
             exiting={FadeOut.duration(300)}
@@ -2171,11 +2241,57 @@ const VideoFeed: React.FC = () => {
               height: width * 0.6,
               justifyContent: "center",
               alignItems: "center",
-            }}>
+            }}
+          >
             <Ionicons name="heart" size={width * 0.35} color="#ff3b30" />
           </Reanimated.View>
         </View>
       )}
+
+      {/* ✅ Refresh Loading Indicator Overlay - Shows prominently during refresh */}
+      {/* {refreshing && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 60,
+            width,
+            zIndex: 1000,
+            alignItems: "center",
+          }}
+        >
+          <Reanimated.View
+            entering={FadeIn.duration(200)}
+            exiting={FadeOut.duration(200)}
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.75)",
+              borderRadius: 50,
+              padding: 16,
+              paddingHorizontal: 24,
+              flexDirection: "row",
+              alignItems: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+          >
+            <ActivityIndicator size="small" color="#4D70D1" />
+            <Text
+              style={{
+                color: "#ffffff",
+                marginLeft: 12,
+                fontSize: 15,
+                fontWeight: "600",
+              }}
+            >
+              Refreshing...
+            </Text>
+          </Reanimated.View>
+        </View>
+      )} */}
 
       {/* Animated list of posts */}
       <AnimatedFlatList
@@ -2209,7 +2325,7 @@ const VideoFeed: React.FC = () => {
                 }
                 onToggleLike={() => toggleLike(item.id)}
                 onOpenPostOptions={() => setShowPostOptionsFor(item)}
-                isFavorited={!!item.liked}
+                likedPostIDs={likedPostIDs}
                 onToggleFollow={async (uid?: number) => {
                   if (uid == null || !user?.id) return;
                   try {
@@ -2306,7 +2422,11 @@ const VideoFeed: React.FC = () => {
         title={
           commentsPost ? `Comments • @${commentsPost.username}` : "Comments"
         }
-        comments={postComments}
+        comments={
+          commentsPost && postComments[commentsPost.id]
+            ? postComments[commentsPost.id]
+            : []
+        }
         postId={commentsPost ? String(commentsPost.id) : undefined}
         onSendComment={async (text) => {
           if (commentsPost && user?.id && text.trim()) {
@@ -2317,44 +2437,18 @@ const VideoFeed: React.FC = () => {
                 userID: user.id,
               });
 
-              // Optimistically add comment to UI
-              const optimisticComment = {
-                id: Date.now(), // Temporary ID
-                userId: user.id,
-                comment: text,
-                username: user.username || "You",
-                userImage:
-                  user.profile_picture || "https://via.placeholder.com/150",
-                time: "Just now",
-                likes: 0,
-              };
-              setPostComments((prev) => [optimisticComment, ...prev]);
+              // Use the store method to add comment
+              await addCommentStore(commentsPost.id, user.id, text);
 
-              const response = await apiCall(`/api/reelComments/`, "POST", {
-                postID: commentsPost.id,
-                content: text,
-                userID: user.id,
-              });
-
-              console.log("✅ Comment added successfully:", response.comment);
-
-              // Fetch fresh comments from server
-              await fetchCommentsOfAPost(commentsPost.id);
-
-              // ✅ Update comment count using Zustand
-              updateReel(commentsPost.id, {
-                commentsCount:
-                  (posts.find((p) => p.id === commentsPost.id)?.commentsCount ||
-                    0) + 1,
-              });
+              console.log("✅ Comment added successfully");
             } catch (error) {
               console.error("❌ Error adding comment:", error);
-              // Remove optimistic comment on error
-              await fetchCommentsOfAPost(commentsPost.id);
             }
           }
         }}
-        onFetchComments={(postId) => fetchCommentsOfAPost(Number(postId))}
+        onFetchComments={async (postId) => {
+          await fetchCommentsStore(Number(postId));
+        }}
         currentUserAvatar={user?.profile_picture}
       />
 

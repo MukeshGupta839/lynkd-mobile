@@ -23,6 +23,7 @@
     "production": {
       "distribution": "store",
       "autoIncrement": true,
+      "android": { "buildType": "app-bundle" },
       "ios": {
         "image": "latest",
         "resourceClass": "m-medium",
@@ -38,6 +39,16 @@
       "ios": {
         "appleId": "mukesh@lynkd.app",
         "ascAppId": "6740008236"
+      },
+      "android": {
+        "track": "production",
+        "releaseStatus": "completed"
+      }
+    },
+    "internal": {
+      "android": {
+        "track": "internal",
+        "changesNotSentForReview": true
       }
     }
   }

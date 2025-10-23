@@ -1,3 +1,4 @@
+import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -180,6 +181,7 @@ const ProfileScreen = ({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
+  const isFocused = useIsFocused(); // Track if screen is focused
 
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [activeTab, setActiveTab] = useState("All");
@@ -196,6 +198,7 @@ const ProfileScreen = ({
   );
   const [following, setFollowing] = useState("");
   const [bioExpanded, setBioExpanded] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Key to trigger refresh
 
   // ⬅️ ADDED: state to control the Followers/Following sheet
   const [showFFSheet, setShowFFSheet] = useState(false);
@@ -370,7 +373,16 @@ const ProfileScreen = ({
     userID,
     params.user,
     currentUserId,
+    refreshKey, // Add refreshKey to dependencies
   ]);
+
+  // Re-fetch data when screen comes into focus
+  useEffect(() => {
+    if (isFocused) {
+      console.log("Profile screen focused - triggering refresh");
+      setRefreshKey((prev) => prev + 1);
+    }
+  }, [isFocused]);
 
   const toggleFollow = async () => {
     if (!userID) {

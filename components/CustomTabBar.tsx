@@ -1,10 +1,10 @@
 // components/CustomTabBar.tsx
-import { tabBarHiddenSV } from "@/lib/tabBarVisibility";
+import { handleTabPress, tabBarHiddenSV } from "@/lib/tabBarVisibility";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 import { Camera } from "lucide-react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   FlatListProps,
@@ -24,6 +24,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 type Props = BottomTabBarProps & {
   hidden?: boolean;
   avatarUri?: string | null;
+  onDisabledTabPress?: () => void;
+  disabledTabs?: string[];
 };
 
 /**
@@ -133,8 +135,14 @@ export default function CustomTabBar({
   navigation,
   hidden,
   avatarUri,
+  onDisabledTabPress,
+  disabledTabs = [],
 }: Props) {
   const [wasInShop, setWasInShop] = useState(false);
+
+  // Double-tap detection state
+  const lastTapRef = useRef<{ route: string; time: number } | null>(null);
+  const DOUBLE_TAP_DELAY = 300; // ms
 
   const currentRoute = state.routes[state.index];
   const currentName = currentRoute?.name ?? "";
@@ -223,9 +231,36 @@ export default function CustomTabBar({
     }
 
     const routeName = SLOT_TO_ROUTE[slot];
-    if (routeName) {
-      navigateToRouteName(routeName);
+    if (!routeName) return;
+
+    // Check if this tab is disabled
+    if (disabledTabs.includes(routeName)) {
+      onDisabledTabPress?.();
+      return;
     }
+
+    // Check if this is a double tap on the same route
+    const now = Date.now();
+    const isCurrentRoute = currentName === routeName;
+    const lastTap = lastTapRef.current;
+    const isDoubleTap =
+      lastTap &&
+      lastTap.route === routeName &&
+      now - lastTap.time < DOUBLE_TAP_DELAY;
+
+    // Update last tap
+    lastTapRef.current = { route: routeName, time: now };
+
+    // If already on this route, handle scroll/refresh
+    if (isCurrentRoute) {
+      if (routeName === "index" || routeName === "posts") {
+        handleTabPress(routeName, !!isDoubleTap);
+      }
+      return;
+    }
+
+    // Navigate to route
+    navigateToRouteName(routeName);
   };
 
   const isSlotFocused = (slot: string) => {

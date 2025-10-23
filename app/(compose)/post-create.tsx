@@ -387,22 +387,6 @@ export default function PostCreate() {
     }
   };
 
-  // Stable keyboard dismissal
-  const dismissKeyboardAndWait = useCallback((): Promise<void> => {
-    return new Promise<void>((resolve) => {
-      if (keyboardTimeoutRef.current) clearTimeout(keyboardTimeoutRef.current);
-      setKeyboardVisible(false);
-      setKeyboardHeight(0);
-      Keyboard.dismiss();
-      nextTick(() => {
-        keyboardTimeoutRef.current = setTimeout(
-          () => resolve(),
-          Platform.OS === "ios" ? 150 : 100
-        );
-      });
-    });
-  }, []);
-
   // Fingerprint function remains the same
   async function fingerprintAsset(a: ImagePicker.ImagePickerAsset) {
     if (a.assetId) return `asset:${a.assetId}`;
@@ -420,8 +404,8 @@ export default function PostCreate() {
   }
 
   const pickMedia = async () => {
-    // Ensure keyboard is dismissed before opening picker
-    await dismissKeyboardAndWait();
+    // Dismiss keyboard immediately without waiting
+    Keyboard.dismiss();
 
     // If images are already selected, we *disable* video picking by only allowing images
     const mediaTypes: ImagePicker.MediaType[] =
@@ -668,8 +652,8 @@ export default function PostCreate() {
     setDisablePostButton(false);
   };
 
-  const openProductModal = async () => {
-    await dismissKeyboardAndWait();
+  const openProductModal = () => {
+    Keyboard.dismiss();
     setShowProductModal(true);
   };
 
@@ -688,6 +672,9 @@ export default function PostCreate() {
 
   const createPost = async () => {
     if (!text.trim() && image.length === 0) return;
+
+    // Dismiss keyboard immediately
+    Keyboard.dismiss();
 
     setMode("posting");
     setLoader(true);
@@ -1115,10 +1102,11 @@ export default function PostCreate() {
               <View className="flex-1 flex-row justify-between p-2.5 items-center bg-[#F2F2F4] rounded-full">
                 <TouchableOpacity
                   className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
-                  onPress={async () => {
-                    await dismissKeyboardAndWait();
+                  onPress={() => {
+                    Keyboard.dismiss();
                     console.log("Camera");
                   }}
+                  disabled={loader}
                 >
                   <Camera width={22} height={22} />
                 </TouchableOpacity>
@@ -1126,37 +1114,40 @@ export default function PostCreate() {
                 <TouchableOpacity
                   className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
                   onPress={pickMedia}
+                  disabled={loader}
                 >
                   <Gallery width={22} height={22} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
-                  onPress={async () => {
-                    await dismissKeyboardAndWait();
+                  onPress={() => {
+                    Keyboard.dismiss();
                     openProductModal();
-                    console.log("GIF picker");
                   }}
+                  disabled={loader}
                 >
                   <Cart width={22} height={22} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   className="items-center justify-center bg-gray-200 p-2.5 rounded-full"
-                  onPress={async () => {
-                    await dismissKeyboardAndWait();
+                  onPress={() => {
+                    Keyboard.dismiss();
                     setStatusOpen(true);
                   }}
+                  disabled={loader}
                 >
                   <Community width={22} height={22} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   className="items-center justify-center bg-gray-200 p-2.5 rounded-full"
-                  onPress={async () => {
-                    await dismissKeyboardAndWait();
+                  onPress={() => {
+                    Keyboard.dismiss();
                     console.log("Location");
                   }}
+                  disabled={loader}
                 >
                   <Location width={22} height={22} />
                 </TouchableOpacity>

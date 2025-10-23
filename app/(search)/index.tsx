@@ -1,5 +1,5 @@
 import SearchPostsWithTags from "@/components/SearchPostsWithTags";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { debounce } from "lodash";
 import React, {
@@ -49,149 +49,8 @@ const TABS: {
 ];
 
 /** -------------------------------
- * DUMMY DATA (API-SHAPE COMPATIBLE)
- * ------------------------------- */
-
-// /api/search/users -> [{id, first_name, last_name, username, profile_picture, is_creator}]
-const USERS = [
-  {
-    id: 1,
-    first_name: "NUPUR",
-    last_name: "SARDA",
-    username: "nupurs",
-    profile_picture: "",
-    is_creator: true,
-  },
-  {
-    id: 2,
-    first_name: "Andri",
-    last_name: "Wijaya",
-    username: "rachmancahyono06",
-    profile_picture: "",
-    is_creator: false,
-  },
-  {
-    id: 3,
-    first_name: "Baim",
-    last_name: "",
-    username: "baimggg",
-    profile_picture: "",
-    is_creator: false,
-  },
-  {
-    id: 4,
-    first_name: "Rinda",
-    last_name: "Choiriyah",
-    username: "rinda5",
-    profile_picture: "",
-    is_creator: false,
-  },
-  {
-    id: 5,
-    first_name: "Ayu",
-    last_name: "Nduts",
-    username: "ayu_widiastutu",
-    profile_picture: "",
-    is_creator: false,
-  },
-  {
-    id: 6,
-    first_name: "John",
-    last_name: "Matthew",
-    username: "matthew",
-    profile_picture: "",
-    is_creator: true,
-  },
-  {
-    id: 7,
-    first_name: "Farida",
-    last_name: "Yanuar",
-    username: "fy87",
-    profile_picture: "",
-    is_creator: false,
-  },
-  {
-    id: 8,
-    first_name: "Karthik",
-    last_name: "Venkatesh",
-    username: "karthikvenkatesh",
-    profile_picture: "",
-    is_creator: true,
-  },
-  {
-    id: 9,
-    first_name: "Bayu",
-    last_name: "",
-    username: "bayurenata",
-    profile_picture: "",
-    is_creator: false,
-  },
-  {
-    id: 10,
-    first_name: "Putra",
-    last_name: "N",
-    username: "putra.nuralim22",
-    profile_picture: "",
-    is_creator: false,
-  },
-  {
-    id: 11,
-    first_name: "Putra",
-    last_name: "N",
-    username: "putra.nuralim22",
-    profile_picture: "",
-    is_creator: false,
-  },
-  {
-    id: 13,
-    first_name: "Putra",
-    last_name: "N",
-    username: "putra.nuralim22",
-    profile_picture: "",
-    is_creator: false,
-  },
-];
-
-// /api/search/brands -> [{id, brand_name, brandLogoURL}]
-const BRANDS = [
-  { id: 101, brand_name: "Acme Outfitters", brandLogoURL: "" },
-  { id: 102, brand_name: "Nova Gear", brandLogoURL: "" },
-  { id: 103, brand_name: "Pixel Apparel", brandLogoURL: "" },
-  { id: 104, brand_name: "Orbit Shoes", brandLogoURL: "" },
-  { id: 105, brand_name: "Zen Cosmetics", brandLogoURL: "" },
-];
-
-// /api/search/products -> [{id, name, regular_price, sale_price, main_image, brand:{id, brand_name, brandLogoURL}}]
-const PRODUCTS = Array.from({ length: 18 }).map((_, i) => {
-  const brand = BRANDS[i % BRANDS.length];
-  const regular = 999 + i * 23;
-  const sale = i % 3 === 0 ? regular - 120 : null;
-  return {
-    id: 1000 + i,
-    name:
-      [
-        "Cotton Tee",
-        "Running Shoes",
-        "Denim Jacket",
-        "Smart Watch",
-        "Hydra Serum",
-      ][i % 5] + ` #${i + 1}`,
-    regular_price: regular,
-    sale_price: sale,
-    main_image: "",
-    brand: {
-      id: brand.id,
-      brand_name: brand.brand_name,
-      brandLogoURL: brand.brandLogoURL,
-    },
-  };
-});
-
-/** -------------------------------
  * HELPERS
  * ------------------------------- */
-const contains = (a: string, b: string) =>
-  a.toLowerCase().includes(b.toLowerCase());
 const safe = (v?: string | null) => (v ?? "").trim();
 
 // Helper function to replace null values
@@ -441,39 +300,27 @@ const SearchScreen = () => {
     if (useApiData && apiUsersResults.length >= 0) {
       return apiUsersResults;
     }
-    // Otherwise use dummy data with filtering
-    const q = searchQuery.trim();
-    if (!q) return USERS;
-    return USERS.filter(
-      (u) =>
-        contains(u.username, q) ||
-        contains(`${safe(u.first_name)} ${safe(u.last_name)}`, q)
-    );
-  }, [searchQuery, useApiData, apiUsersResults]);
+    // Return empty array when no API data available
+    return [];
+  }, [useApiData, apiUsersResults]);
 
   const brandsResults = useMemo(() => {
     // Always use API data if available (even when search is empty)
     if (useApiData && apiBrandsResults.length >= 0) {
       return apiBrandsResults;
     }
-    // Otherwise use dummy data with filtering
-    const q = searchQuery.trim();
-    if (!q) return BRANDS;
-    return BRANDS.filter((b) => contains(b.brand_name, q));
-  }, [searchQuery, useApiData, apiBrandsResults]);
+    // Return empty array when no API data available
+    return [];
+  }, [useApiData, apiBrandsResults]);
 
   const productsResults = useMemo(() => {
     // Always use API data if available (even when search is empty)
     if (useApiData && apiProductsResults.length >= 0) {
       return apiProductsResults;
     }
-    // Otherwise use dummy data with filtering
-    const q = searchQuery.trim();
-    if (!q) return PRODUCTS;
-    return PRODUCTS.filter(
-      (p) => contains(p.name, q) || contains(p.brand.brand_name, q)
-    );
-  }, [searchQuery, useApiData, apiProductsResults]);
+    // Return empty array when no API data available
+    return [];
+  }, [useApiData, apiProductsResults]);
 
   console.log("productsResults:", productsResults);
 
@@ -490,22 +337,26 @@ const SearchScreen = () => {
     productNumColumns;
 
   /** RENDERERS – shapes match your real mapping */
-  const renderPeopleItem = ({ item }: { item: (typeof USERS)[number] }) => {
+  const renderPeopleItem = ({ item }: { item: any }) => {
     const fullName = `${safe(item.first_name)} ${safe(item.last_name)}`.trim();
     return (
-      <View className="flex-row items-center px-3 py-4">
+      <TouchableOpacity
+        className="flex-row items-center px-3 py-4"
+        onPress={() =>
+          router.push({
+            pathname: "/(profiles)/" as any,
+            params: { user: item.id },
+          })
+        }
+      >
         <View className="h-12 w-12 rounded-full bg-gray-200 mr-4 items-center justify-center">
-          {item.profile_picture ? (
-            <Image
-              source={{
-                uri: item.profile_picture,
-              }}
-              resizeMode="contain"
-              className="w-10 h-10 rounded-full"
-            />
-          ) : (
-            <Ionicons name="person" size={20} color="#6B7280" />
-          )}
+          <Image
+            source={{
+              uri: item.profile_picture || "https://via.placeholder.com/40",
+            }}
+            resizeMode="contain"
+            className="w-10 h-10 rounded-full"
+          />
         </View>
         <View className="flex-1">
           <View className="flex flex-row items-center gap-2">
@@ -515,16 +366,16 @@ const SearchScreen = () => {
               </Text>
             ) : null}
             {item.is_creator ? (
-              <Ionicons name="checkmark-circle" size={18} color="#111827" />
+              <Octicons name="verified" size={18} color="#000" />
             ) : null}
           </View>
           <Text className="text-[13px] text-gray-500">@{item.username}</Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
-  const renderBrandItem = ({ item }: { item: (typeof BRANDS)[number] }) => (
+  const renderBrandItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={{
         width: brandItemWidth,
@@ -556,7 +407,7 @@ const SearchScreen = () => {
     </TouchableOpacity>
   );
 
-  const renderProductItem = ({ item }: { item: (typeof PRODUCTS)[number] }) => {
+  const renderProductItem = ({ item }: { item: any }) => {
     const finalPrice = item.sale_price || item.regular_price;
     const hasDiscount =
       item.sale_price !== null && item.sale_price < item.regular_price;
