@@ -25,7 +25,11 @@ import Octicons from "@expo/vector-icons/Octicons";
 import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
 
 // Components
+import FollowersFollowingSheet from "@/components/FollowersFollowingSheet"; // ⬅️ ADDED
 import TextPost from "./TextPost";
+
+// ⬅️ ADDED: api helper
+import { apiCall } from "@/lib/api/apiService";
 
 const { width } = Dimensions.get("window");
 
@@ -49,6 +53,16 @@ interface UserDetails {
   }[];
 }
 
+// ⬅️ ADDED: lightweight type for users in followers/following lists
+type FollowUser = {
+  user_id: number | string;
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  is_creator?: boolean;
+  profile_picture?: string;
+};
+
 interface ProfileScreenProps {
   userId?: number;
   username?: string;
@@ -63,7 +77,92 @@ interface ProfileScreenProps {
   onUnfollow?: (userId: number) => Promise<void>;
   checkFollowStatus?: (userId: number) => Promise<string | null>;
   currentUserId?: number;
+
+  // ⬅️ ADDED (optional): feed data into the sheet without API in this component
+  followersData?: FollowUser[];
+  followingData?: FollowUser[];
 }
+
+/* =========================================================================
+   ⬇️ ADDED: Default API implementations (only used if props not provided)
+   ========================================================================= */
+
+const defaultFetchUserDetails = async (
+  userId: number,
+  username?: string
+): Promise<UserDetails> => {
+  // Try username lookup first if provided; else use userId
+  const endpoint = username
+    ? `/api/users/profile?username=${encodeURIComponent(username)}`
+    : `/api/users/${userId}`;
+
+  const res = await apiCall(endpoint, "GET");
+
+  // Accept both {data:{...}} and flat {...}
+  const u = res?.data ?? res;
+
+  // Map to UserDetails with safe fallbacks
+  const details: UserDetails = {
+    id: Number(u?.id ?? userId),
+    username: String(u?.username ?? username ?? ""),
+    first_name: u?.first_name ?? u?.firstName ?? "",
+    last_name: u?.last_name ?? u?.lastName ?? "",
+    bio: u?.bio ?? "",
+    profile_picture: u?.profile_picture ?? u?.photoURL ?? "",
+    banner_image: u?.banner_image ?? u?.bannerURL ?? "",
+    is_creator: !!(u?.is_creator ?? u?.verified ?? false),
+    postsCount: Number(u?.postsCount ?? u?.posts_count ?? 0),
+    reelsCount: Number(u?.reelsCount ?? u?.reels_count ?? 0),
+    followersCount: Number(u?.followersCount ?? u?.followers_count ?? 0),
+    followingCount: Number(u?.followingCount ?? u?.following_count ?? 0),
+    social_media_accounts: u?.social_media_accounts ?? [
+      {
+        instagram_username: u?.instagram_username ?? "",
+        twitter_username: u?.twitter_username ?? "",
+        youtube_username: u?.youtube_username ?? "",
+      },
+    ],
+  };
+
+  return details;
+};
+
+const defaultFetchUserPosts = async (userId: number): Promise<any[]> => {
+  const res = await apiCall(`/api/posts/user/${userId}`, "GET");
+  // Normalize to array of posts
+  const data = res?.data ?? res ?? [];
+  return Array.isArray(data) ? data : [];
+};
+
+const defaultFetchUserReels = async (userId: number): Promise<any[]> => {
+  const res = await apiCall(`/api/reels/user/${userId}`, "GET");
+  const data = res?.data ?? res ?? [];
+  return Array.isArray(data) ? data : [];
+};
+
+const defaultFetchUserProducts = async (userId: number): Promise<any[]> => {
+  const res = await apiCall(`/api/products/user/${userId}`, "GET");
+  const data = res?.data ?? res ?? [];
+  return Array.isArray(data) ? data : [];
+};
+
+const defaultCheckFollowStatus = async (
+  userId: number
+): Promise<string | null> => {
+  const res = await apiCall(`/api/follows/status/${userId}`, "GET");
+  // Expect {status:"followed"|"pending"|""}
+  const status = res?.status ?? res?.data?.status ?? "";
+  if (typeof status === "string") return status;
+  return null;
+};
+
+const defaultOnFollow = async (userId: number): Promise<void> => {
+  await apiCall(`/api/follows/follow/${userId}`, "POST");
+};
+
+const defaultOnUnfollow = async (userId: number): Promise<void> => {
+  await apiCall(`/api/follows/unfollow/${userId}`, "POST");
+};
 
 const ProfileScreen = ({
   userId: propUserId,
@@ -76,6 +175,8 @@ const ProfileScreen = ({
   onUnfollow,
   checkFollowStatus,
   currentUserId,
+  followersData, // ⬅️ ADDED
+  followingData, // ⬅️ ADDED
 }: ProfileScreenProps) => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -98,6 +199,29 @@ const ProfileScreen = ({
   const [following, setFollowing] = useState("");
   const [bioExpanded, setBioExpanded] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // Key to trigger refresh
+
+  // ⬅️ ADDED: state to control the Followers/Following sheet
+  const [showFFSheet, setShowFFSheet] = useState(false);
+  const [activeFFTab, setActiveFFTab] = useState<"followers" | "following">(
+    "followers"
+  );
+
+  // ⬅️ ADDED: local state that actually feeds the sheet (no mock fallback)
+  const [followersList, setFollowersList] = useState<FollowUser[]>(
+    followersData ?? []
+  );
+  const [followingList, setFollowingList] = useState<FollowUser[]>(
+    followingData ?? []
+  );
+
+  // ⬅️ ADDED: stable function references (use props if provided, else defaults)
+  const fetchUserDetailsFn = fetchUserDetails ?? defaultFetchUserDetails;
+  const fetchUserPostsFn = fetchUserPosts ?? defaultFetchUserPosts;
+  const fetchUserReelsFn = fetchUserReels ?? defaultFetchUserReels;
+  const fetchUserProductsFn = fetchUserProducts ?? defaultFetchUserProducts;
+  const checkFollowStatusFn = checkFollowStatus ?? defaultCheckFollowStatus;
+  const followFn = onFollow ?? defaultOnFollow;
+  const unfollowFn = onUnfollow ?? defaultOnUnfollow;
 
   // Function to format numbers (e.g., 1000 -> 1k)
   const kFormatter = (num: number): string => {
@@ -135,7 +259,7 @@ const ProfileScreen = ({
         // This happens when navigating with only username (no userId in params)
         const hasValidUserId = propUserId && propUserId !== currentUserId;
         const needsUserIdResolution =
-          mentionedUsername && !hasValidUserId && fetchUserDetails;
+          mentionedUsername && !hasValidUserId && fetchUserDetailsFn;
 
         console.log("Resolution check:", {
           hasValidUserId,
@@ -147,24 +271,23 @@ const ProfileScreen = ({
             "Fetching user details from username:",
             mentionedUsername
           );
-          if (actualUserId) {
-            const details = await fetchUserDetails(
-              actualUserId,
-              mentionedUsername
-            );
-            setUserDetails(details);
+          // We can call defaultFetchUserDetails with username (userId may be undefined)
+          const details = await fetchUserDetailsFn(
+            actualUserId ?? 0,
+            mentionedUsername
+          );
+          setUserDetails(details);
 
-            // Update the userID state with the fetched user's ID
-            if (details.id && details.id !== actualUserId) {
-              actualUserId = details.id;
-              setUserID(details.id);
-              console.log("Updated userID from username fetch:", details.id);
-            }
+          // Update the userID state with the fetched user's ID
+          if (details.id && details.id !== actualUserId) {
+            actualUserId = details.id;
+            setUserID(details.id);
+            console.log("Updated userID from username fetch:", details.id);
           }
         } else {
           // Fetch user details normally
-          if (fetchUserDetails && actualUserId) {
-            const details = await fetchUserDetails(
+          if (fetchUserDetailsFn && actualUserId) {
+            const details = await fetchUserDetailsFn(
               actualUserId,
               mentionedUsername
             );
@@ -204,28 +327,28 @@ const ProfileScreen = ({
         }
 
         // Fetch user posts
-        if (fetchUserPosts) {
-          const userPosts = await fetchUserPosts(actualUserId);
+        if (fetchUserPostsFn) {
+          const userPosts = await fetchUserPostsFn(actualUserId);
           console.log("Loaded posts:", userPosts.length);
           console.log("Sample post:", userPosts[0]);
           setPosts(userPosts);
         }
 
         // Fetch user reels
-        if (fetchUserReels) {
-          const reels = await fetchUserReels(actualUserId);
+        if (fetchUserReelsFn) {
+          const reels = await fetchUserReelsFn(actualUserId);
           setUserReels(reels);
         }
 
         // Fetch user products
-        if (fetchUserProducts) {
-          const products = await fetchUserProducts(actualUserId);
+        if (fetchUserProductsFn) {
+          const products = await fetchUserProductsFn(actualUserId);
           setProductsAffiliated(products);
         }
 
         // Check follow status if this is not the current user's profile
-        if (checkFollowStatus && actualUserId !== currentUserId) {
-          const status = await checkFollowStatus(actualUserId);
+        if (checkFollowStatusFn && actualUserId !== currentUserId) {
+          const status = await checkFollowStatusFn(actualUserId);
           if (status) {
             setFollowing(status);
           }
@@ -242,11 +365,11 @@ const ProfileScreen = ({
     propUserId,
     propUsername,
     params.username,
-    fetchUserDetails,
-    fetchUserPosts,
-    fetchUserReels,
-    fetchUserProducts,
-    checkFollowStatus,
+    fetchUserDetailsFn,
+    fetchUserPostsFn,
+    fetchUserReelsFn,
+    fetchUserProductsFn,
+    checkFollowStatusFn,
     userID,
     params.user,
     currentUserId,
@@ -270,15 +393,13 @@ const ProfileScreen = ({
     try {
       if (following === "followed") {
         // Unfollow
-        if (onUnfollow) {
-          await onUnfollow(userID);
-        }
+        await unfollowFn(userID);
         setFollowing("");
       } else {
         // Follow
-        if (onFollow) {
-          await onFollow(userID);
-        }
+        await followFn(userID);
+        // Some backends return "pending" if private accounts
+        // Here we optimistically set to "followed" unless you need to read response
         setFollowing("followed");
       }
     } catch (error) {
@@ -286,8 +407,59 @@ const ProfileScreen = ({
     }
   };
 
+  // ⬅️ UPDATED: open Followers/Following sheet and fetch via API
   const handleOpenSheet = async (label: string) => {
-    console.log("Opening sheet for:", label);
+    if (userID !== currentUserId || label === "Posts") return;
+
+    const tab = label.toLowerCase() as "followers" | "following";
+    setActiveFFTab(tab);
+    setShowFFSheet(true);
+
+    try {
+      // Expected response from backend:
+      // { followers: FollowUser[], following: FollowUser[] }
+      const res = await apiCall(
+        `/api/follows/followFollowing/${userID}`,
+        "GET"
+      );
+
+      // Map to the shape our sheet expects (defensive for alternate keys)
+      const apiFollowers: FollowUser[] =
+        res?.followers?.map((u: any) => ({
+          user_id: u.user_id ?? u.id ?? u.userId,
+          username: u.username,
+          first_name: u.first_name ?? u.firstName,
+          last_name: u.last_name ?? u.lastName,
+          is_creator: !!(u.is_creator ?? u.verified),
+          profile_picture: u.profile_picture ?? u.photoURL,
+        })) ?? [];
+
+      const apiFollowing: FollowUser[] =
+        res?.following?.map((u: any) => ({
+          user_id: u.user_id ?? u.id ?? u.userId,
+          username: u.username,
+          first_name: u.first_name ?? u.firstName,
+          last_name: u.last_name ?? u.lastName,
+          is_creator: !!(u.is_creator ?? u.verified),
+          profile_picture: u.profile_picture ?? u.photoURL,
+        })) ?? [];
+
+      // Set lists from API (or []) — no mock fallback here
+      setFollowersList(apiFollowers ?? []);
+      setFollowingList(apiFollowing ?? []);
+    } catch (err) {
+      console.error("Failed to fetch follow lists:", err);
+      // Keep whatever is already in state; optionally clear:
+      // setFollowersList([]);
+      // setFollowingList([]);
+    }
+  };
+
+  // ⬅️ ADDED: helper to close and reset sheet data (accept optional bool to match setter signature)
+  const closeSheet = (_?: boolean) => {
+    setShowFFSheet(false);
+    setFollowersList([]);
+    setFollowingList([]);
   };
 
   const stats = [
@@ -367,8 +539,7 @@ const ProfileScreen = ({
                         focusedIndexPost: dateImages[0].id,
                       },
                     });
-                  }}
-                >
+                  }}>
                   <Image
                     source={{ uri: dateImages[0].media_url }}
                     className="w-full h-full"
@@ -405,8 +576,7 @@ const ProfileScreen = ({
                             focusedIndexPost: image.id,
                           },
                         });
-                      }}
-                    >
+                      }}>
                       <Image
                         source={{ uri: image.media_url }}
                         className="w-full h-full"
@@ -446,8 +616,7 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       });
-                    }}
-                  >
+                    }}>
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -475,8 +644,7 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           });
-                        }}
-                      >
+                        }}>
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -506,8 +674,7 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       });
-                    }}
-                  >
+                    }}>
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -536,8 +703,7 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           });
-                        }}
-                      >
+                        }}>
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -617,8 +783,7 @@ const ProfileScreen = ({
                       focusedIndexPost: image.id,
                     },
                   });
-                }}
-              >
+                }}>
                 <Image
                   source={{ uri: image.media_url }}
                   className="w-full h-full"
@@ -673,8 +838,7 @@ const ProfileScreen = ({
           <View
             key={rowIndex}
             className="flex-row mb-1 gap-1"
-            style={{ gap: gap }}
-          >
+            style={{ gap: gap }}>
             {row.map((video, videoIndex) => (
               <TouchableOpacity
                 key={video.id}
@@ -683,8 +847,7 @@ const ProfileScreen = ({
                   width: videoWidth,
                   height: videoHeight,
                 }}
-                onPress={() => router.navigate("/(tabs)/posts")}
-              >
+                onPress={() => router.navigate("/(tabs)/posts")}>
                 <Image
                   source={{ uri: video.thumbnail_url }}
                   className="w-full h-full"
@@ -732,8 +895,7 @@ const ProfileScreen = ({
           <TouchableOpacity
             key={product.id}
             className="mb-4 rounded-xl overflow-hidden bg-gray-50 border border-gray-200"
-            style={{ width: (width - 40) / 2 }}
-          >
+            style={{ width: (width - 40) / 2 }}>
             <Image
               source={{ uri: product.main_image }}
               className="w-full h-40"
@@ -828,8 +990,7 @@ const ProfileScreen = ({
           paddingBottom:
             Platform.OS === "ios" ? insets.bottom + 20 : insets.bottom + 30, // Tab bar height + extra space
         }}
-        nestedScrollEnabled={true}
-      >
+        nestedScrollEnabled={true}>
         {/* Header with Banner - Fixed height */}
         <View className="relative h-52">
           <Image
@@ -850,12 +1011,10 @@ const ProfileScreen = ({
 
           <View
             className="absolute inset-0 flex-row justify-between px-4"
-            style={{ paddingTop: insets.top - 10 }}
-          >
+            style={{ paddingTop: insets.top - 10 }}>
             <TouchableOpacity
               className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-              onPress={() => router.back()}
-            >
+              onPress={() => router.back()}>
               <MaterialIcons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
 
@@ -864,8 +1023,7 @@ const ProfileScreen = ({
                 className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
                 onPress={() => {
                   router.push("/(settings)");
-                }}
-              >
+                }}>
                 <Ionicons name="settings-outline" size={24} color="#fff" />
               </TouchableOpacity>
             )}
@@ -885,8 +1043,7 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://instagram.com/${userDetails.social_media_accounts![0].instagram_username}`
                           )
-                        }
-                      >
+                        }>
                         <FontAwesome5 name="instagram" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -899,8 +1056,7 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://twitter.com/${userDetails.social_media_accounts![0].twitter_username}`
                           )
-                        }
-                      >
+                        }>
                         <FontAwesome5 name="twitter" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -913,8 +1069,7 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://youtube.com/${userDetails.social_media_accounts![0].youtube_username}`
                           )
-                        }
-                      >
+                        }>
                         <FontAwesome5 name="youtube" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -931,8 +1086,7 @@ const ProfileScreen = ({
               onPress={async () => {
                 // Copy profile link functionality
                 console.log("Profile link copied");
-              }}
-            >
+              }}>
               <Image
                 source={{
                   uri:
@@ -974,8 +1128,7 @@ const ProfileScreen = ({
           {/* Bio Section - Optimized for expansion */}
           <TouchableOpacity
             onPress={() => setBioExpanded(!bioExpanded)}
-            className="py-2"
-          >
+            className="py-2">
             {userDetails?.bio && (
               <Text className="text-base text-gray-700 leading-5">
                 {bioExpanded
@@ -994,8 +1147,7 @@ const ProfileScreen = ({
                 key={index}
                 className="items-center"
                 onPress={() => handleOpenSheet(stat.label)}
-                disabled={userID !== currentUserId || stat.label === "Posts"}
-              >
+                disabled={userID !== currentUserId || stat.label === "Posts"}>
                 <Text className="text-sm font-bold text-gray-900">
                   {kFormatter(stat.value)}
                 </Text>
@@ -1012,16 +1164,14 @@ const ProfileScreen = ({
                   className="flex-1 h-10 rounded-full justify-center items-center bg-white mr-2"
                   onPress={() => {
                     router.push("/(profiles)/editProfile");
-                  }}
-                >
+                  }}>
                   <Text className="text-sm font-semibold text-gray-900">
                     Edit Profile
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 h-10 rounded-full justify-center items-center bg-gray-900 ml-2"
-                  onPress={() => router.push("/(profiles)/InviteHome")}
-                >
+                  onPress={() => router.push("/(profiles)/InviteHome")}>
                   <Text className="text-sm font-semibold text-white">
                     Invite
                   </Text>
@@ -1033,13 +1183,11 @@ const ProfileScreen = ({
                   className={`flex-1 h-10 rounded-full justify-center items-center ${
                     following === "followed" ? "bg-white" : "bg-gray-900"
                   }`}
-                  onPress={toggleFollow}
-                >
+                  onPress={toggleFollow}>
                   <Text
                     className={`text-sm font-semibold ${
                       following === "followed" ? "text-gray-900" : "text-white"
-                    }`}
-                  >
+                    }`}>
                     {following === "followed"
                       ? "Following"
                       : following === "pending"
@@ -1071,8 +1219,7 @@ const ProfileScreen = ({
                     className={`w-12 h-12 rounded-full justify-center items-center ${
                       activeTab === tab ? "bg-gray-900" : "bg-white"
                     }`}
-                    onPress={() => setActiveTab(tab)}
-                  >
+                    onPress={() => setActiveTab(tab)}>
                     {tab === "All" && (
                       <FontAwesome
                         name="snowflake-o"
@@ -1136,6 +1283,21 @@ const ProfileScreen = ({
           )}
         </View>
       </ScrollView>
+
+      {/* ⬇️ ADDED: Followers / Following Bottom Sheet */}
+      <FollowersFollowingSheet
+        show={showFFSheet}
+        setShow={closeSheet}
+        followers={followersList}
+        followings={followingList}
+        activeTab={activeFFTab}
+        onUserPress={(u) => {
+          router.push({
+            pathname: "/(profiles)",
+            params: { username: u.username },
+          });
+        }}
+      />
     </View>
   );
 };

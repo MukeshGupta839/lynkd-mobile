@@ -1,7 +1,9 @@
-// src/lib/api/api.ts
 import { apiCall } from "./apiService";
 
-// --- TYPES ---
+/* =======================
+   TYPES
+======================= */
+
 export interface Brand {
   brand_name: string;
   brandLogoURL?: string;
@@ -53,7 +55,10 @@ export interface RawPost {
   PostToTagsMultiple: PostTag[];
 }
 
-// Reel-specific interface (reels have different aggregate field names)
+/* =======================
+   REELS TYPES
+======================= */
+
 export interface RawReel {
   id: number;
   user_id: number;
@@ -73,7 +78,6 @@ export interface RawReel {
   likesCount: number;
   commentsCount: number;
   viewsCount: number;
-  // Client-side state properties (not from API)
   likes?: number;
   liked?: boolean;
   following?: boolean;
@@ -106,7 +110,10 @@ export interface FetchPostsResponse {
   randomPosts: APIResponse<RawPost>;
 }
 
-// --- FUNCTION ---
+/* =======================
+   POSTS + REELS FUNCTIONS
+======================= */
+
 export const fetchPostsAPI = async (
   userId: string
 ): Promise<FetchPostsResponse> => {
@@ -201,7 +208,6 @@ export const fetchReelsApi = async (
   currentCursor: number
 ): Promise<FetchReelResponse> => {
   try {
-    // Add timestamp and random parameter to bust cache on refresh
     const reels = (await apiCall(
       `/api/posts/reels/feed/user/${userID}?page=${currentCursor}`,
       "GET"
@@ -226,4 +232,72 @@ export const clearReelsCache = async (userID: string): Promise<void> => {
     console.error("Error clearing reels cache:", error);
     throw error;
   }
+};
+
+/* =======================
+   FOLLOWERS / FOLLOWING API HELPERS
+======================= */
+
+// ✅ UI Shape
+export interface FollowUser {
+  user_id: number | string;
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  is_creator?: boolean;
+  profile_picture?: string;
+}
+
+// ✅ Combined response
+export interface FollowListsResponse {
+  followers: FollowUser[];
+  following: FollowUser[];
+}
+
+// ✅ GET both followers & following
+export const fetchFollowLists = async (
+  userId: number | string
+): Promise<FollowListsResponse> => {
+  const res = await apiCall(`/api/follows/followFollowing/${userId}`, "GET");
+
+  const mapUser = (u: any): FollowUser => ({
+    user_id: u?.user_id ?? u?.id ?? u?.userId,
+    username: u?.username,
+    first_name: u?.first_name,
+    last_name: u?.last_name,
+    is_creator: !!u?.is_creator,
+    profile_picture: u?.profile_picture,
+  });
+
+  return {
+    followers: Array.isArray(res?.followers) ? res.followers.map(mapUser) : [],
+    following: Array.isArray(res?.following) ? res.following.map(mapUser) : [],
+  };
+};
+
+// ✅ Follow user
+export const followUserApi = async (
+  me: number | string,
+  target: number | string
+): Promise<any> => {
+  return apiCall(`/api/follows/follow/${me}/${target}`, "POST");
+};
+
+// ✅ Unfollow user
+export const unfollowUserApi = async (
+  me: number | string,
+  target: number | string
+): Promise<any> => {
+  return apiCall(`/api/follows/unfollow/${me}/${target}`, "DELETE");
+};
+
+// ✅ Check follow status
+export const fetchFollowStatus = async (
+  me: number | string,
+  target: number | string
+): Promise<"followed" | "pending" | "" | null> => {
+  const res = await apiCall(`/api/follows/isFollowing/${me}/${target}`, "GET");
+  if (res?.isFollowing === true) return "followed";
+  if (res?.isFollowing === false) return "";
+  return (res?.isFollowing as any) ?? "";
 };
