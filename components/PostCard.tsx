@@ -262,6 +262,7 @@ export interface PostCardProps {
   onToggleLike?: (postId: string) => void;
   toggleLike?: (postId: string) => void; // Backward compatibility
   onUpdatePost?: (postId: string, updates: any) => void;
+  profilePostsMode?: boolean;
 }
 
 /* ===========================
@@ -278,6 +279,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   onToggleLike,
   toggleLike: toggleLikeProp, // Support both prop names
   onUpdatePost,
+  profilePostsMode = false,
 }) => {
   const router = useRouter();
   const navigating = useRef(false);
@@ -302,7 +304,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   }, [item, onLongPress]);
 
   const handleUserPressSafe = () => {
-    if (isGestureActive) return;
+    if (profilePostsMode || isGestureActive) return;
     router.push({
       pathname: "/(profiles)" as any,
       params: { user: item.user_id as number },
@@ -458,12 +460,8 @@ export const PostCard: React.FC<PostCardProps> = ({
           >
             {/* Header */}
             <View className="flex-row px-3 items-center h-10">
-              <GestureDetector gesture={openProfileTap}>
-                <TouchableOpacity
-                  className="flex-row items-center flex-1 mr-2"
-                  activeOpacity={0.7}
-                  disabled={isGestureActive}
-                >
+              {profilePostsMode ? (
+                <View className="flex-row items-center flex-1 mr-2">
                   <Image
                     source={{ uri: item.userProfilePic }}
                     className="w-10 h-10 rounded-full mr-2"
@@ -503,8 +501,56 @@ export const PostCard: React.FC<PostCardProps> = ({
                       </View>
                     )}
                   </View>
-                </TouchableOpacity>
-              </GestureDetector>
+                </View>
+              ) : (
+                <GestureDetector gesture={openProfileTap}>
+                  <TouchableOpacity
+                    className="flex-row items-center flex-1 mr-2"
+                    activeOpacity={0.7}
+                    disabled={isGestureActive}
+                  >
+                    <Image
+                      source={{ uri: item.userProfilePic }}
+                      className="w-10 h-10 rounded-full mr-2"
+                    />
+                    <View>
+                      <View className="flex-row items-center">
+                        <Text className="font-semibold text-lg">
+                          {item.username}
+                        </Text>
+                        {Boolean(
+                          item?.is_creator ||
+                            item?.verified ||
+                            item?.user?.verified ||
+                            item?.user?.isVerified
+                        ) && (
+                          <Octicons
+                            name="verified"
+                            size={14}
+                            color="#000"
+                            style={{ marginLeft: 4 }}
+                          />
+                        )}
+                      </View>
+                      {item.location && item.postDate && (
+                        <View className="flex-row items-center">
+                          {item.location && (
+                            <Text className="text-xs text-[#257AF1] mr-2 font-opensans-regular">
+                              {item.location}
+                            </Text>
+                          )}
+                          <View className="w-1 h-1 rounded-full bg-black mr-1.5" />
+                          {item.postDate && (
+                            <Text className="text-xs text-black font-opensans-regular">
+                              {item.postDate}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                </GestureDetector>
+              )}
               {item.affiliated && item.affiliation && <View />}
             </View>
 

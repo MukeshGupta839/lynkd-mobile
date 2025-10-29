@@ -1021,51 +1021,6 @@ export default function ConsumerHomeUI() {
               </View>
             </Reanimated.View>
 
-            {/* ✅ Refresh Loading Indicator Overlay - Shows prominently during refresh */}
-            {/* {refreshing && (
-              <View
-                pointerEvents="none"
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  top: TOP_BAR_HEIGHT + 20,
-                  zIndex: 1000,
-                  alignItems: "center",
-                }}
-              >
-                <Reanimated.View
-                  entering={FadeIn.duration(200)}
-                  exiting={FadeOut.duration(200)}
-                  style={{
-                    backgroundColor: "rgba(0, 0, 0, 0.75)",
-                    borderRadius: 50,
-                    padding: 16,
-                    paddingHorizontal: 24,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 8,
-                    elevation: 8,
-                  }}
-                >
-                  <ActivityIndicator size="small" color="#4D70D1" />
-                  <Text
-                    style={{
-                      color: "#ffffff",
-                      marginLeft: 12,
-                      fontSize: 15,
-                      fontWeight: "600",
-                    }}
-                  >
-                    Refreshing...
-                  </Text>
-                </Reanimated.View>
-              </View>
-            )} */}
-
             {/* Feed list */}
             <FlatList
               ref={flatListRef}

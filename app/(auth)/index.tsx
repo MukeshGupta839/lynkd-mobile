@@ -1224,7 +1224,7 @@ export default function LoginScreen() {
         bottomOffset={10}
         extraKeyboardSpace={-10}
       >
-        {showUsernameSetup ? (
+        {true ? (
           <UsernameSetupContent
             username={username}
             usernameError={usernameError}

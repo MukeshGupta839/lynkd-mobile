@@ -6,6 +6,7 @@ import { USERS as CREATION_USERS } from "@/constants/PostCreation";
 import { Ionicons } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
 import React, {
@@ -647,14 +648,98 @@ const VideoFeed: React.FC = () => {
   // Track if we're showing loading spinner (after timeout)
   const [showLoadingSpinner, setShowLoadingSpinner] = useState<boolean>(false);
   const loadingTimeoutRef = useRef<any>(null);
+  // Show thumbnail overlay after a short delay to avoid covering video during quick swipes
+  const [showLoadingThumbnail, setShowLoadingThumbnail] = useState(false);
+  const loadingThumbTimeoutRef = useRef<any>(null);
+  // short timeout to suppress overlays briefly after momentum end (Android)
+  const scrollEndTimeoutRef = useRef<any>(null);
+  // Keep a ref-free usage of loadedVersion so linter doesn't complain
+  const [loadedVersion, setLoadedVersion] = useState(0);
+
+  // reference loadedVersion to suppress unused variable lint; value updates force re-renders
+  useEffect(() => {}, [loadedVersion]);
+
+  // Helper: determine whether the video for the given index is already
+  // effectively playing/loaded so we can skip showing thumbnail/spinner overlays.
+  const isIndexPlayingOrLoaded = async (index: number) => {
+    try {
+      // If we've explicitly marked it loaded (prefetch or cache), skip overlays
+      if (loadedSetRef.current.has(index)) return true;
+      if (localFileUrisRef.current.has(index)) return true;
+
+      // If a player exists (shared or slot) and reports playing/position, skip
+      const p = playerRef.current ?? (player as any);
+      if (p && typeof p.getStatusAsync === "function") {
+        const s: any = await p.getStatusAsync().catch(() => null);
+        const pos = Number(s?.positionMillis ?? s?.position ?? 0);
+        if (s && (s.isPlaying || s.isLoaded || pos > 50)) return true;
+      }
+
+      // Android: also check the two-slot players if they match this index's media
+      if (Platform.OS === "android" && currentMedia) {
+        const uri = currentMedia.media_url as string;
+        if (slotAUri === uri) {
+          const pl = slotPlayersRef.current[0];
+          if (pl && typeof pl.getStatusAsync === "function") {
+            const s: any = await pl.getStatusAsync().catch(() => null);
+            const pos = Number(s?.positionMillis ?? s?.position ?? 0);
+            if (s && (s.isPlaying || s.isLoaded || pos > 50)) return true;
+          }
+        }
+        if (slotBUri === uri) {
+          const pl = slotPlayersRef.current[1];
+          if (pl && typeof pl.getStatusAsync === "function") {
+            const s: any = await pl.getStatusAsync().catch(() => null);
+            const pos = Number(s?.positionMillis ?? s?.position ?? 0);
+            if (s && (s.isPlaying || s.isLoaded || pos > 50)) return true;
+          }
+        }
+      }
+    } catch {
+      // ignore errors and fall back to showing overlays
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    // Manage thumbnail overlay delay: show after short delay, hide immediately when loaded
+    if (mediaLoading) {
+      if (loadingThumbTimeoutRef.current)
+        clearTimeout(loadingThumbTimeoutRef.current);
+      loadingThumbTimeoutRef.current = setTimeout(async () => {
+        try {
+          const playing = await isIndexPlayingOrLoaded(currentIndex);
+          if (playing) return;
+        } catch {
+          // ignore
+        }
+        setShowLoadingThumbnail(true);
+      }, 350); // 350ms delay to avoid UI flash on quick swipes
+    } else {
+      if (loadingThumbTimeoutRef.current) {
+        clearTimeout(loadingThumbTimeoutRef.current);
+        loadingThumbTimeoutRef.current = null;
+      }
+      setShowLoadingThumbnail(false);
+    }
+    return () => {
+      if (loadingThumbTimeoutRef.current) {
+        clearTimeout(loadingThumbTimeoutRef.current);
+        loadingThumbTimeoutRef.current = null;
+      }
+    };
+  }, [mediaLoading]);
 
   // loadedSetRef tracks which indices have finished loading at least once
   const loadedSetRef = useRef<Set<number>>(new Set());
   // a tiny integer state to trigger re-renders when loadedSetRef changes
-  const [loadedVersion, setLoadedVersion] = useState(0);
 
   // Preload nearby videos for smooth Instagram-like experience
   const preloadedPlayersRef = useRef<Map<number, any>>(new Map());
+  // If we've downloaded a video file to cache, store its local URI here
+  const localFileUrisRef = useRef<Map<number, string>>(new Map());
+  // Track active downloads to avoid concurrent downloads spamming device
+  const downloadingSetRef = useRef<Set<number>>(new Set());
 
   // Track if we've triggered playback-based preloading for current video
   const playbackPreloadTriggeredRef = useRef<Set<number>>(new Set());
@@ -678,6 +763,8 @@ const VideoFeed: React.FC = () => {
   const [centerVisible, setCenterVisible] = useState(false);
   const [isPlayingState, setIsPlayingState] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Track whether the user is actively scrolling/swiping between reels
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
 
   // ✅ Added: heart animation for double-tap like
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
@@ -730,23 +817,6 @@ const VideoFeed: React.FC = () => {
     }
   };
 
-  // Helper function to format comment timestamp (kept for reference, handled in store now)
-  // const formatCommentTime = (timestamp: string) => {
-  //   if (!timestamp) return "Just now";
-  //   const date = new Date(timestamp);
-  //   const now = new Date();
-  //   const diffMs = now.getTime() - date.getTime();
-  //   const diffMins = Math.floor(diffMs / 60000);
-  //   const diffHours = Math.floor(diffMs / 3600000);
-  //   const diffDays = Math.floor(diffMs / 86400000);
-  //
-  //   if (diffMins < 1) return "Just now";
-  //   if (diffMins < 60) return `${diffMins}m ago`;
-  //   if (diffHours < 24) return `${diffHours}h ago`;
-  //   if (diffDays < 7) return `${diffDays}d ago`;
-  //   return date.toLocaleDateString();
-  // };
-
   const toggleLike = async (postId: number) => {
     if (!user?.id) return;
     try {
@@ -759,8 +829,15 @@ const VideoFeed: React.FC = () => {
   };
 
   // create single player for currentMedia
+  // On Android we use the two-slot persistent players to avoid surface
+  // re-creation; do NOT create the single shared player on Android to avoid
+  // multiple native decoders and possible OOMs.
   const player = useVideoPlayer(
-    currentMedia ? currentMedia.media_url : null,
+    Platform.OS === "android"
+      ? null
+      : currentMedia
+        ? currentMedia.media_url
+        : null,
     (pl) => {
       console.log("🎬 Player created for:", currentMedia?.media_url);
       console.log("🎬 Player object:", pl ? "✅ Available" : "❌ Null");
@@ -961,6 +1038,213 @@ const VideoFeed: React.FC = () => {
     prefetchAll();
   }, [posts]);
 
+  // ------------------ Android two-slot persistent players ------------------
+  // Mount two persistent player hooks (slot 0 and slot 1). Load the new URI
+  // into the inactive slot and swap to it once it reports ready to avoid
+  // reusing released native objects and to prevent surface flicker on Android.
+  // Only initialize slot URIs on Android; on iOS keep them null so the
+  // useVideoPlayer hooks remain idle and don't allocate decoders.
+  const [slotAUri, setSlotAUri] = useState<string | null>(
+    Platform.OS === "android" && currentMedia
+      ? (currentMedia.media_url as string)
+      : null
+  );
+  const [slotBUri, setSlotBUri] = useState<string | null>(null);
+  const [activeSlot, setActiveSlot] = useState<0 | 1>(0);
+  // Android-only: render a temporary placeholder while swapping persistent slots
+  // to avoid showing the previous player's last frame (native surface artifact).
+  const [androidSwapInProgress, setAndroidSwapInProgress] = useState(false);
+
+  const slotPlayersRef = useRef<any[]>([null, null]);
+  const slotReadyRef = useRef<Record<number, boolean>>({});
+
+  // animated opacities for crossfade
+  const slot0Opacity = useSharedValue(activeSlot === 0 ? 1 : 0);
+  const slot1Opacity = useSharedValue(activeSlot === 1 ? 1 : 0);
+  useEffect(() => {
+    slot0Opacity.value = withTiming(activeSlot === 0 ? 1 : 0, {
+      duration: 0,
+    });
+    slot1Opacity.value = withTiming(activeSlot === 1 ? 1 : 0, {
+      duration: 0,
+    });
+  }, [activeSlot]);
+
+  const slot0Style = useAnimatedStyle(() => ({ opacity: slot0Opacity.value }));
+  const slot1Style = useAnimatedStyle(() => ({ opacity: slot1Opacity.value }));
+
+  // helper to poll a player until it reports a duration or loaded status
+  const watchPlayerReady = (pl: any, slotIndex: number) => {
+    if (!pl) return;
+    slotReadyRef.current[slotIndex] = false;
+    const id = setInterval(async () => {
+      try {
+        if (typeof pl.getStatusAsync === "function") {
+          const s: any = await pl.getStatusAsync();
+          if (s && (s.isLoaded || (s.durationMillis || s.duration) > 0)) {
+            slotReadyRef.current[slotIndex] = true;
+            clearInterval(id);
+          }
+        } else if (Number(pl.duration || 0) > 0) {
+          slotReadyRef.current[slotIndex] = true;
+          clearInterval(id);
+        }
+      } catch {
+        // ignore and continue polling
+      }
+    }, 120);
+  };
+
+  // slot 0 player hook
+  useVideoPlayer(slotAUri, (pl) => {
+    try {
+      slotPlayersRef.current[0] = pl;
+      if (pl) {
+        console.log("slot0 player created", slotAUri);
+        watchPlayerReady(pl, 0);
+      } else {
+        slotReadyRef.current[0] = false;
+        slotPlayersRef.current[0] = null;
+      }
+    } catch {}
+  });
+
+  // slot 1 player hook
+  useVideoPlayer(slotBUri, (pl) => {
+    try {
+      slotPlayersRef.current[1] = pl;
+      if (pl) {
+        console.log("slot1 player created", slotBUri);
+        watchPlayerReady(pl, 1);
+      } else {
+        slotReadyRef.current[1] = false;
+        slotPlayersRef.current[1] = null;
+      }
+    } catch {}
+  });
+
+  // When currentIndex changes: on Android, load into inactive slot and swap
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const target = posts[currentIndex];
+    if (!target || !target.media_url) return;
+    const targetUri = target.media_url as string;
+
+    // If already in a slot and ready, switch immediately
+    if (slotAUri === targetUri && slotReadyRef.current[0]) {
+      setActiveSlot(0);
+      playerRef.current = slotPlayersRef.current[0] ?? playerRef.current;
+      setMediaLoading(false);
+      setShowLoadingSpinner(false);
+      setShowLoadingThumbnail(false);
+      return;
+    }
+    if (slotBUri === targetUri && slotReadyRef.current[1]) {
+      setActiveSlot(1);
+      playerRef.current = slotPlayersRef.current[1] ?? playerRef.current;
+      setMediaLoading(false);
+      setShowLoadingSpinner(false);
+      setShowLoadingThumbnail(false);
+      return;
+    }
+
+    // Otherwise load into inactive slot
+    const inactive = activeSlot === 0 ? 1 : 0;
+    // prefer local cached file if present
+    const localCached = localFileUrisRef.current.get(currentIndex);
+    const uriToUse = localCached ?? targetUri;
+    if (inactive === 0) setSlotAUri(uriToUse);
+    else setSlotBUri(uriToUse);
+    // show loading and start the android swap guard so we render a placeholder
+    // until the new slot is ready and playing
+    setMediaLoading(true);
+    setAndroidSwapInProgress(true);
+    setShowLoadingSpinner(false);
+    setShowLoadingThumbnail(false);
+
+    // wait for readiness (with timeout)
+    let waited = 0;
+    const interval = setInterval(async () => {
+      if (slotReadyRef.current[inactive]) {
+        clearInterval(interval);
+        // pause previous player if possible
+        try {
+          const prev = slotPlayersRef.current[activeSlot];
+          if (prev) {
+            if (typeof prev.pause === "function") prev.pause();
+            else if (typeof prev.pauseAsync === "function")
+              await prev.pauseAsync().catch(() => {});
+          }
+        } catch {}
+
+        // attach new active player
+        setActiveSlot(inactive);
+        playerRef.current =
+          slotPlayersRef.current[inactive] ?? playerRef.current;
+
+        // start playback on new player
+        try {
+          const p = playerRef.current as any;
+          if (p) {
+            if (typeof p.playAsync === "function")
+              await p.playAsync().catch(() => {});
+            else if (typeof p.play === "function") p.play();
+
+            // After requesting playback, poll the player status briefly until
+            // it reports isPlaying or a non-zero position. This avoids hiding
+            // the placeholder (and thereby exposing previous frame) before the
+            // native surface has actually rendered the new frame.
+            if (typeof p.getStatusAsync === "function") {
+              let waitedMs = 0;
+              const CHECK_MS = 80;
+              const MAX_MS = 600;
+              try {
+                await new Promise<void>((resolve) => {
+                  const tid = setInterval(async () => {
+                    try {
+                      const s: any = await p.getStatusAsync();
+                      const isPlaying = !!s?.isPlaying;
+                      const pos = Number(s?.positionMillis ?? s?.position ?? 0);
+                      if (isPlaying || pos > 30) {
+                        clearInterval(tid);
+                        resolve();
+                        return;
+                      }
+                    } catch {
+                      // ignore transient errors while polling
+                    }
+                    waitedMs += CHECK_MS;
+                    if (waitedMs >= MAX_MS) {
+                      clearInterval(tid);
+                      resolve();
+                    }
+                  }, CHECK_MS);
+                });
+              } catch {}
+            }
+          }
+        } catch {}
+
+        setMediaLoading(false);
+        setShowLoadingSpinner(false);
+        setShowLoadingThumbnail(false);
+        // new slot is active/playing — stop forcing the swap placeholder
+        setAndroidSwapInProgress(false);
+      } else {
+        waited += 120;
+        if (waited > 3000) {
+          // timeout: give up and show spinner as fallback
+          clearInterval(interval);
+          setShowLoadingSpinner(true);
+          // stop forcing the swap placeholder on timeout
+          setAndroidSwapInProgress(false);
+        }
+      }
+    }, 120);
+
+    return () => clearInterval(interval);
+  }, [currentIndex, slotAUri, slotBUri, activeSlot, posts]);
+
   // CONTINUOUS PLAYBACK MONITORING: Preload next video while current is playing
   useEffect(() => {
     let playbackMonitor: ReturnType<typeof setInterval> | null = null;
@@ -1005,32 +1289,75 @@ const VideoFeed: React.FC = () => {
                     `📥 🚨 PRIORITY: Full download of next video ${nextIndex} while video ${currentIndex} plays`
                   );
 
-                  // Full download - no byte range limit
-                  fetch(nextPost.media_url, { method: "GET" })
-                    .then(() => {
+                  // Full download - write to FileSystem cache and use local file
+                  (async () => {
+                    try {
+                      if (downloadingSetRef.current.has(nextIndex)) return;
+                      // Limit concurrent downloads to 2
+                      if (downloadingSetRef.current.size >= 2) return;
+                      downloadingSetRef.current.add(nextIndex);
+                      const filename = `reel_${nextIndex}.mp4`;
+                      const cacheDir =
+                        (FileSystem as any).cacheDirectory ??
+                        (FileSystem as any).documentDirectory ??
+                        "";
+                      const localPath = cacheDir + filename;
+
+                      // If file already present, reuse it
+                      const info = await FileSystem.getInfoAsync(localPath);
+                      if (!info.exists) {
+                        console.log(
+                          `📥 Downloading next video ${nextIndex} to cache:`,
+                          localPath
+                        );
+                        await FileSystem.downloadAsync(
+                          nextPost.media_url,
+                          localPath
+                        );
+                      } else {
+                        console.log(
+                          `📦 Reusing cached video for ${nextIndex}: ${localPath}`
+                        );
+                      }
+
+                      localFileUrisRef.current.set(nextIndex, localPath);
                       preloadedPlayersRef.current.set(
                         nextIndex,
-                        "fully-loaded"
+                        "fully-loaded-local"
                       );
-                      // ✅ Mark as loaded immediately so no spinner shows
                       loadedSetRef.current.add(nextIndex);
                       console.log(
-                        `✅ ⚡ Next video ${nextIndex} FULLY LOADED and marked - ready for instant playback!`
+                        `✅ ⚡ Next video ${nextIndex} cached locally and marked ready`
                       );
 
-                      // Also preload thumbnail
                       if (nextPost.thumbnail_url) {
                         Image.prefetch(nextPost.thumbnail_url).catch(() => {});
                       }
-                    })
-                    .catch((err) => {
+                    } catch (err) {
                       console.log(
-                        `❌ Failed to preload next video ${nextIndex}:`,
+                        `❌ Failed to download next video ${nextIndex}:`,
                         err
                       );
                       preloadedPlayersRef.current.delete(nextIndex);
                       loadedSetRef.current.delete(nextIndex);
-                    });
+                      // remove any partial file
+                      try {
+                        const filename = `reel_${nextIndex}.mp4`;
+                        const cacheDir =
+                          (FileSystem as any).cacheDirectory ??
+                          (FileSystem as any).documentDirectory ??
+                          "";
+                        const localPath = cacheDir + filename;
+                        await FileSystem.deleteAsync(localPath, {
+                          idempotent: true,
+                        });
+                      } catch {
+                        /* ignore */
+                      }
+                    } finally {
+                      downloadingSetRef.current.delete(nextIndex);
+                    }
+                  })();
                 }
               }
             }
@@ -1268,11 +1595,6 @@ const VideoFeed: React.FC = () => {
         // CLEANUP: Remove videos outside cache window (keep 10 in cache)
         const keysToRemove: number[] = [];
         preloadedPlayersRef.current.forEach((_, idx) => {
-          const distanceFromWindow = Math.min(
-            Math.abs(idx - newCacheStart),
-            Math.abs(idx - (cacheEnd - 1))
-          );
-
           // Remove if outside cache window by more than 2 positions
           if (idx < newCacheStart - 2 || idx > cacheEnd + 2) {
             keysToRemove.push(idx);
@@ -1283,9 +1605,19 @@ const VideoFeed: React.FC = () => {
           console.log(
             `🧹 Cleaning up ${keysToRemove.length} videos outside cache window`
           );
-          keysToRemove.forEach((key) =>
-            preloadedPlayersRef.current.delete(key)
-          );
+          for (const key of keysToRemove) {
+            preloadedPlayersRef.current.delete(key);
+            // delete cached file if present
+            const local = localFileUrisRef.current.get(key);
+            if (local) {
+              try {
+                await FileSystem.deleteAsync(local, { idempotent: true });
+              } catch {
+                /* ignore */
+              }
+              localFileUrisRef.current.delete(key);
+            }
+          }
         }
 
         // Cleanup old batch load triggers
@@ -1612,6 +1944,7 @@ const VideoFeed: React.FC = () => {
       loadedSetRef.current.add(currentIndex);
       setMediaLoading(false);
       setShowLoadingSpinner(false);
+      setShowLoadingThumbnail(false);
     } else if (isAlreadyLoaded) {
       // Video already loaded before, transition instantly
       console.log(
@@ -1619,24 +1952,36 @@ const VideoFeed: React.FC = () => {
       );
       setMediaLoading(false);
       setShowLoadingSpinner(false);
+      setShowLoadingThumbnail(false);
     } else {
       // First time loading this video
       console.log(`📥 Loading video ${currentIndex} for first time`);
       setMediaLoading(true);
       setShowLoadingSpinner(false);
+      // reset thumbnail/show flags
+      setShowLoadingThumbnail(false);
 
-      // ✅ Show spinner only after 150ms (reduced from 300ms) if still loading
-      loadingTimeoutRef.current = setTimeout(() => {
+      // ✅ Show spinner only after a long delay (2s) so quick swipes don't show it
+      loadingTimeoutRef.current = setTimeout(async () => {
+        try {
+          const playing = await isIndexPlayingOrLoaded(currentIndex);
+          if (playing) return;
+        } catch {
+          // ignore
+        }
         if (!loadedSetRef.current.has(currentIndex)) {
           console.log(`⏳ Showing spinner for video ${currentIndex}`);
           setShowLoadingSpinner(true);
         }
-      }, 150);
+      }, 2000);
     }
 
     return () => {
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
+      }
+      if (loadingThumbTimeoutRef.current) {
+        clearTimeout(loadingThumbTimeoutRef.current);
       }
     };
   }, [currentIndex]); // ✅ FIXED: Only depend on currentIndex, not posts array (prevents reload on like/unlike)
@@ -1784,6 +2129,45 @@ const VideoFeed: React.FC = () => {
     const y = e.nativeEvent.contentOffset.y ?? 0;
     const index = Math.round(y / height);
     if (index !== currentIndex) setCurrentIndex(index);
+    // user finished scrolling
+    // On Android, keep suppressing overlays for a short window after the momentum
+    // ends to allow the native player surface to settle and render the new frame.
+    try {
+      if (scrollEndTimeoutRef.current) {
+        clearTimeout(scrollEndTimeoutRef.current as any);
+        scrollEndTimeoutRef.current = null as any;
+      }
+    } catch {}
+    if (Platform.OS === "android") {
+      // keep suppressing overlays briefly (500ms) so we don't flash the thumbnail
+      scrollEndTimeoutRef.current = setTimeout(() => {
+        setIsUserScrolling(false);
+        scrollEndTimeoutRef.current = null as any;
+      }, 500);
+    } else {
+      setIsUserScrolling(false);
+    }
+    // After user finished the swipe, allow overlays to appear again if still loading.
+    // (Don't immediately show spinner; the existing delayed timeout will handle that.)
+  };
+
+  const onMomentumScrollBegin = () => {
+    // User started an active swipe — immediately suppress any loading UI
+    // to avoid flicker while the list is animating between items.
+    setIsUserScrolling(true);
+    // Cancel pending spinner timeout and hide overlays immediately
+    try {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current as any);
+        loadingTimeoutRef.current = null as any;
+      }
+      if (loadingThumbTimeoutRef.current) {
+        clearTimeout(loadingThumbTimeoutRef.current as any);
+        loadingThumbTimeoutRef.current = null as any;
+      }
+    } catch {}
+    setShowLoadingSpinner(false);
+    setShowLoadingThumbnail(false);
   };
 
   // Load more reels when approaching the end
@@ -1812,7 +2196,8 @@ const VideoFeed: React.FC = () => {
     backgroundColor: "#000000",
     // Use opacity for smoother transitions on Android
     // Hide video when loading OR when there's an error (prevents previous video showing through)
-    opacity: mediaLoading || hasVideoError ? 0 : 1,
+    // Keep the previous video visible during quick swipes; only hide if there's an actual error
+    opacity: hasVideoError ? 0 : 1,
     position: "absolute" as const,
     left: 0,
     top: 0,
@@ -2092,18 +2477,104 @@ const VideoFeed: React.FC = () => {
             pointerEvents="none"
             style={{ width, height, backgroundColor: "#000000" }}
           >
-            <VideoView
-              player={playerRef.current ?? (player as any)}
-              style={videoStyle}
-              contentFit="contain"
-              nativeControls={false}
-              allowsPictureInPicture={false}
-              allowsFullscreen={false}
-            />
+            {Platform.OS === "android" ? (
+              // Two persistent stacked VideoViews (slot 0 and slot 1) with animated crossfade
+              <>
+                <Reanimated.View
+                  pointerEvents="none"
+                  style={[
+                    {
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      right: 0,
+                      bottom: 0,
+                    },
+                    slot0Style as any,
+                  ]}
+                >
+                  {slotPlayersRef.current[0] ? (
+                    <VideoView
+                      player={slotPlayersRef.current[0]}
+                      style={videoStyle}
+                      contentFit="contain"
+                      nativeControls={false}
+                      allowsPictureInPicture={false}
+                      allowsFullscreen={false}
+                      surfaceType="textureView"
+                    />
+                  ) : null}
+                </Reanimated.View>
+
+                <Reanimated.View
+                  pointerEvents="none"
+                  style={[
+                    {
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      right: 0,
+                      bottom: 0,
+                    },
+                    slot1Style as any,
+                  ]}
+                >
+                  {slotPlayersRef.current[1] ? (
+                    <VideoView
+                      player={slotPlayersRef.current[1]}
+                      style={videoStyle}
+                      contentFit="contain"
+                      nativeControls={false}
+                      allowsPictureInPicture={false}
+                      allowsFullscreen={false}
+                      surfaceType="textureView"
+                    />
+                  ) : null}
+                </Reanimated.View>
+                {/* Android placeholder during swap: blurred thumbnail if available,
+                    otherwise solid black. This covers native surface artifacts. */}
+                {androidSwapInProgress && (
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      right: 0,
+                      bottom: 0,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "#000",
+                      zIndex: 26,
+                    }}
+                  >
+                    {currentMedia?.thumbnail_url ? (
+                      <Image
+                        source={{ uri: currentMedia.thumbnail_url }}
+                        style={{ width, height }}
+                        resizeMode="cover"
+                        blurRadius={8}
+                        onError={() => {}}
+                      />
+                    ) : null}
+                  </View>
+                )}
+              </>
+            ) : (
+              <VideoView
+                player={playerRef.current ?? (player as any)}
+                style={videoStyle}
+                contentFit="contain"
+                nativeControls={false}
+                allowsPictureInPicture={false}
+                allowsFullscreen={false}
+                surfaceType={undefined}
+              />
+            )}
           </View>
 
           {/* mandatory shared thumbnail: visible while mediaLoading is true */}
-          {mediaLoading && (
+          {mediaLoading && showLoadingThumbnail && !isUserScrolling && (
             <View pointerEvents="none" style={sharedThumbStyle}>
               {currentMedia?.thumbnail_url ? (
                 <>
@@ -2302,6 +2773,7 @@ const VideoFeed: React.FC = () => {
         keyExtractor={(item: RawReel) => item.id.toString()}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.3}
+        onMomentumScrollBegin={onMomentumScrollBegin}
         // Aggressive rendering for smooth preloading
         initialNumToRender={12}
         maxToRenderPerBatch={5}

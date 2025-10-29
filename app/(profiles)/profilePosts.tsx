@@ -28,6 +28,8 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import Octicons from "@expo/vector-icons/Octicons";
 
 // Components
+import FeedSkeletonPlaceholder from "@/components/Placeholder/FeedSkeletonPlaceholder";
+import { PostCard } from "@/components/PostCard";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchComment, fetchUserLikedPosts } from "@/lib/api/api";
 import { apiCall } from "@/lib/api/apiService";
@@ -35,7 +37,6 @@ import BlockUserPopup from "../../components/BlockUserPopup";
 import CommentsSheet, { CommentsSheetHandle } from "../../components/Comment";
 import PostOptionsBottomSheet from "../../components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "../../components/ReportPostBottomSheet";
-import TextPost from "../../components/TextPost";
 
 interface Post {
   id: number;
@@ -553,6 +554,29 @@ export default function ProfilePosts() {
   const flatListRef = useRef<FlatList<Post>>(null);
   const commentsRef = useRef<CommentsSheetHandle>(null);
 
+  // Visibility / gesture helpers used by PostCard
+  const [visibleItems, setVisibleItems] = useState<string[]>([]);
+  const panGesture = Gesture.Pan();
+
+  const handleLongPress = useCallback(
+    (item: any) => {
+      Vibration.vibrate(100);
+      setFocusedPostID(String(item.id));
+      setPostOptionsVisible(true);
+    },
+    [setPostOptionsVisible]
+  );
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    const visiblePostIds = (viewableItems || []).map((v: any) => v.item.id);
+    setVisibleItems(visiblePostIds);
+  }).current;
+
+  const viewabilityConfig = useMemo(
+    () => ({ itemVisiblePercentThreshold: 50 }),
+    []
+  );
+
   // Fetch user's liked posts to initialize the liked state
   const fetchUserLikedPostsData = useCallback(async () => {
     try {
@@ -650,11 +674,6 @@ export default function ProfilePosts() {
     },
     [followedUsers, user?.id]
   );
-
-  const handleShare = useCallback(() => {
-    // Add your share logic here
-    console.log("Sharing post");
-  }, []);
 
   const toggleLike = useCallback(
     async (postId: string) => {
@@ -784,13 +803,6 @@ export default function ProfilePosts() {
     [commentsPost, user?.id, fetchCommentsForPost]
   );
 
-  const commentBox = useCallback(
-    (post: Post) => {
-      openComments(post);
-    },
-    [openComments]
-  );
-
   const deletePost = useCallback(
     async (postId: string) => {
       if (!user?.id) return;
@@ -840,8 +852,8 @@ export default function ProfilePosts() {
     <View className="flex-1 bg-gray-100">
       {/* Header */}
       <View
-        className="flex-row justify-between items-center px-4 py-3"
-        style={{ paddingTop: insets.top }}
+        className="flex-row justify-between items-center px-4"
+        style={{ paddingTop: insets.top - 10 }}
       >
         <TouchableOpacity
           className="w-9 h-9 rounded-full justify-center items-center"
@@ -861,41 +873,20 @@ export default function ProfilePosts() {
           data={posts}
           nestedScrollEnabled={true}
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => {
-            if (item.text_post) {
-              return (
-                <TextPost
-                  key={item.id}
-                  item={item}
-                  onPress={() => {}}
-                  likedPosts={[]}
-                  likedPostIDs={likedPostIDs}
-                  handleShare={handleShare}
-                  toggleLike={toggleLike}
-                  commentBox={() => commentBox(item)}
-                  toggleFollow={() => toggleFollow(String(item.user_id))}
-                  followedUsers={followedUsers}
-                  setFocusedPostID={setFocusedPostID}
-                  setPostOptionsVisible={setPostOptionsVisible}
-                  hideActions={false}
-                />
-              );
-            }
-
-            // Render regular post with memoized PostCard component
-            return (
-              <RegularPostCard
-                item={item}
-                likedPostIDs={likedPostIDs}
-                toggleLike={toggleLike}
-                commentBox={commentBox}
-                handleShare={handleShare}
-                setFocusedPostID={setFocusedPostID}
-                setPostOptionsVisible={setPostOptionsVisible}
-                router={router}
-              />
-            );
-          }}
+          renderItem={({ item }) => (
+            <PostCard
+              item={item}
+              isVisible={visibleItems.includes(String(item.id))}
+              onLongPress={handleLongPress}
+              panGesture={panGesture}
+              onPressComments={openComments}
+              toggleLike={toggleLike}
+              likedPostIDs={likedPostIDs}
+              profilePostsMode={true}
+            />
+          )}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
           onScrollToIndexFailed={(info) => {
             const wait = new Promise((resolve) => setTimeout(resolve, 500));
             wait.then(() => {
@@ -907,10 +898,16 @@ export default function ProfilePosts() {
           }}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
-            flexGrow: 1,
-            paddingBottom: insets.bottom,
+            paddingBottom:
+              Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
+            backgroundColor: "#F3F4F8",
           }}
-          contentContainerClassName="gap-2.5 px-3"
+          ListEmptyComponent={
+            <>
+              <FeedSkeletonPlaceholder />
+              <FeedSkeletonPlaceholder />
+            </>
+          }
         />
       </View>
 
