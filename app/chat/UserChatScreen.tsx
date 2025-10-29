@@ -452,7 +452,7 @@ export default function UserChatScreen() {
   const headerSpacerStyle = useAnimatedStyle(() => {
     const target = Math.max(
       0,
-      kbH.value + Math.max(0, insetBottom - 2) + OPENED_OFFSET - BASE_TRIM
+      kbH.value + Math.max(0, insetBottom - 5) + OPENED_OFFSET - BASE_TRIM
     );
     return { height: target };
   }, [stripH, showAttachmentStrip, insetBottom]);
@@ -1204,7 +1204,7 @@ export default function UserChatScreen() {
       </Modal>
 
       {/* Attachment strip + Composer — sticky above the keyboard */}
-      <KeyboardStickyView offset={{ opened: 16, closed: 0 }}>
+      <KeyboardStickyView offset={{ opened: 22, closed: 0 }}>
         <View className="bg-transparent">
           {showAttachmentStrip && (
             <View
