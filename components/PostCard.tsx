@@ -8,6 +8,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useRouter } from "expo-router";
+import { Send } from "lucide-react-native";
 import React, { useCallback, useContext, useRef, useState } from "react";
 import {
   Image,
@@ -827,8 +828,27 @@ export const PostCard: React.FC<PostCardProps> = ({
                   disabled={isGestureActive}
                   onPress={() => setShareOpen(true)}
                   activeOpacity={0.8}
+                  className="flex-row items-center"
                 >
-                  <Ionicons name="arrow-redo-outline" size={20} color="#000" />
+                  {/* wrapper lets us rotate + offset without affecting layout */}
+                  <View
+                    style={{
+                      width: 18,
+                      height: 18,
+                      justifyContent: "center",
+
+                      // fine-tune here:
+                      transform: [{ rotate: "15deg" }], // tilt to the right
+                    }}
+                  >
+                    <Send
+                      width={18}
+                      height={18}
+                      stroke="#262626"
+                      strokeWidth={1.6}
+                      fill="none"
+                    />
+                  </View>
                 </TouchableOpacity>
               </View>
             </View>

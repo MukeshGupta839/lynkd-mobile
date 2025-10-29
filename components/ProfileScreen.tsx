@@ -216,12 +216,16 @@ const ProfileScreen = ({
   const [following, setFollowing] = useState("");
   const [bioExpanded, setBioExpanded] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // Key to trigger refresh
+  // ⬇ add these
+  const [ffLoading, setFfLoading] = useState(false);
+  const [ffError, setFfError] = useState<string | null>(null);
 
   // ⬅️ ADDED: state to control the Followers/Following sheet
   const [showFFSheet, setShowFFSheet] = useState(false);
   const [activeFFTab, setActiveFFTab] = useState<"followers" | "following">(
     "followers"
   );
+  const [ffKey, setFfKey] = useState(0);
 
   // ⬅️ ADDED: local state that actually feeds the sheet (no mock fallback)
   const [followersList, setFollowersList] = useState<FollowUser[]>(
@@ -431,7 +435,11 @@ const ProfileScreen = ({
     const tab = label.toLowerCase() as "followers" | "following";
     setActiveFFTab(tab);
     setShowFFSheet(true);
-
+    setFfLoading(true);
+    setFfError(null);
+    setActiveFFTab(tab);
+    setFfKey((k) => k + 1);
+    setShowFFSheet(true);
     try {
       // Expected response from backend:
       // { followers: FollowUser[], following: FollowUser[] }
@@ -469,6 +477,8 @@ const ProfileScreen = ({
       // Keep whatever is already in state; optionally clear:
       // setFollowersList([]);
       // setFollowingList([]);
+    } finally {
+      setFfLoading(false);
     }
   };
 
@@ -1324,11 +1334,15 @@ const ProfileScreen = ({
 
       {/* ⬇️ ADDED: Followers / Following Bottom Sheet */}
       <FollowersFollowingSheet
+        key={`ff-${activeFFTab}-${showFFSheet ? 1 : 0}`}
         show={showFFSheet}
         setShow={closeSheet}
         followers={followersList}
         followings={followingList}
+        enableDemoData={true}
         activeTab={activeFFTab}
+        loading={ffLoading} // ⬅️ pass loader state
+        error={ffError} // ⬅️ pass error state (sheet shows red text)
         onUserPress={(u) =>
           safePush({
             pathname: "/(profiles)",
