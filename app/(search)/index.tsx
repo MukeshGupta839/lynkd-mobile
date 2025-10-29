@@ -1,4 +1,5 @@
 import SearchPostsWithTags from "@/components/SearchPostsWithTags";
+import SearchBar from "@/components/Searchbar";
 import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { debounce } from "lodash";
@@ -16,44 +17,27 @@ import {
   Image,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import Animated, {
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiCall } from "../../lib/api/apiService";
-
-const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 const { width: PAGE_WIDTH } = Dimensions.get("window");
 
 type TabKey = "people" | "brands" | "products" | "hashtags";
 
-const TABS: {
-  key: TabKey;
-  label: string;
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-}[] = [
-  { key: "people", label: "People", icon: "person" },
-  { key: "brands", label: "Brands", icon: "storefront" },
-  { key: "products", label: "Products", icon: "pricetag" },
-  { key: "hashtags", label: "Hashtags", icon: "pricetags" },
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "people", label: "People" },
+  { key: "brands", label: "Brands" },
+  { key: "products", label: "Products" },
+  { key: "hashtags", label: "Hashtags" },
 ];
 
 /** -------------------------------
  * HELPERS
  * ------------------------------- */
 const safe = (v?: string | null) => (v ?? "").trim();
-
-// Helper function to replace null values
 const replaceNull = (value: any) => (value === null ? "" : value);
 
 /** -------------------------------
@@ -64,25 +48,13 @@ const SearchScreen = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>("people");
   const flatListRef = useRef<FlatList<{ key: TabKey }> | null>(null);
-  const glow = useSharedValue(0);
 
-  // API-fetched results state (replaces dummy data filtering)
+  // API-fetched results state
   const [apiUsersResults, setApiUsersResults] = useState<any[]>([]);
   const [apiBrandsResults, setApiBrandsResults] = useState<any[]>([]);
   const [apiProductsResults, setApiProductsResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [useApiData, setUseApiData] = useState(false); // Toggle between dummy and API data
-
-  useEffect(() => {
-    glow.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 2000 }),
-        withTiming(0, { duration: 2000 })
-      ),
-      -1,
-      false
-    );
-  }, [glow]);
+  const [useApiData, setUseApiData] = useState(false);
 
   // API fetch functions
   const fetchUsersbySearch = useCallback(async (query: string) => {
@@ -153,8 +125,6 @@ const SearchScreen = () => {
       );
       const data = response.data;
 
-      console.log("Fetched products:", data);
-
       const products = data.map((product: any) => ({
         id: product.id,
         name: product.name,
@@ -190,16 +160,10 @@ const SearchScreen = () => {
       ) => {
         setLoading(true);
         try {
-          // If query is empty, fetch with default "a" to get all results
           const searchTerm = query.trim() || "a";
-
-          if (tab === "people") {
-            await fetchUsers(searchTerm);
-          } else if (tab === "brands") {
-            await fetchBrands(searchTerm);
-          } else if (tab === "products") {
-            await fetchProducts(searchTerm);
-          }
+          if (tab === "people") await fetchUsers(searchTerm);
+          else if (tab === "brands") await fetchBrands(searchTerm);
+          else if (tab === "products") await fetchProducts(searchTerm);
           setUseApi(true);
         } finally {
           setLoading(false);
@@ -244,87 +208,29 @@ const SearchScreen = () => {
         setIsLoading(false);
       }
     };
-
     fetchDefaultResults();
   }, [fetchUsersbySearch, fetchBrandsbySearch, fetchProductsbySearch]);
 
   // Trigger search when query or tab changes
   useEffect(() => {
-    // Always trigger search, even when query is empty
     debouncedSearch(searchQuery, activeTab);
   }, [searchQuery, activeTab, debouncedSearch]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    const borderColor = interpolateColor(
-      glow.value,
-      [0, 0.5, 1],
-      ["#0F27BD", "#ffc202", "#3d576c"]
-    );
+  /** FILTERED DATA */
+  const peopleResults = useMemo(
+    () => (useApiData ? apiUsersResults : []),
+    [useApiData, apiUsersResults]
+  );
+  const brandsResults = useMemo(
+    () => (useApiData ? apiBrandsResults : []),
+    [useApiData, apiBrandsResults]
+  );
+  const productsResults = useMemo(
+    () => (useApiData ? apiProductsResults : []),
+    [useApiData, apiProductsResults]
+  );
 
-    const shadowColor = interpolateColor(
-      glow.value,
-      [0, 0.5, 1],
-      [
-        "rgba(0, 255, 204, 0.5)",
-        "rgba(255, 105, 180, 0.5)",
-        "rgba(0, 255, 204, 0.5)",
-      ]
-    );
-
-    return {
-      borderColor,
-      shadowColor,
-      shadowOpacity: 1,
-      shadowOffset: { width: 0, height: 0 },
-      shadowRadius: 10,
-      elevation: 10,
-    };
-  });
-
-  const onTabPress = (tab: TabKey) => {
-    setActiveTab(tab);
-    const index = TABS.findIndex((t) => t.key === tab);
-    if (index !== -1) {
-      try {
-        flatListRef.current?.scrollToIndex({ index, animated: true });
-      } catch (error) {
-        // Handle potential scroll error gracefully
-        console.warn("Scroll to index failed:", error);
-      }
-    }
-  };
-
-  /** FILTERED DATA (uses API data when available, falls back to dummy data) */
-  const peopleResults = useMemo(() => {
-    // Always use API data if available (even when search is empty)
-    if (useApiData && apiUsersResults.length >= 0) {
-      return apiUsersResults;
-    }
-    // Return empty array when no API data available
-    return [];
-  }, [useApiData, apiUsersResults]);
-
-  const brandsResults = useMemo(() => {
-    // Always use API data if available (even when search is empty)
-    if (useApiData && apiBrandsResults.length >= 0) {
-      return apiBrandsResults;
-    }
-    // Return empty array when no API data available
-    return [];
-  }, [useApiData, apiBrandsResults]);
-
-  const productsResults = useMemo(() => {
-    // Always use API data if available (even when search is empty)
-    if (useApiData && apiProductsResults.length >= 0) {
-      return apiProductsResults;
-    }
-    // Return empty array when no API data available
-    return [];
-  }, [useApiData, apiProductsResults]);
-
-  console.log("productsResults:", productsResults);
-
-  // Calculate number of columns based on screen width
+  // Layout helpers
   const brandNumColumns = PAGE_WIDTH >= 375 ? 4 : 3;
   const productNumColumns = PAGE_WIDTH >= 375 ? 3 : 2;
   const columnGap = 12;
@@ -336,7 +242,7 @@ const SearchScreen = () => {
     (PAGE_WIDTH - horizontalPadding * 2 - columnGap * (productNumColumns - 1)) /
     productNumColumns;
 
-  /** RENDERERS – shapes match your real mapping */
+  /** RENDERERS */
   const renderPeopleItem = ({ item }: { item: any }) => {
     const fullName = `${safe(item.first_name)} ${safe(item.last_name)}`.trim();
     return (
@@ -347,8 +253,7 @@ const SearchScreen = () => {
             pathname: "/(profiles)/" as any,
             params: { user: item.id },
           })
-        }
-      >
+        }>
         <View className="h-12 w-12 rounded-full bg-gray-200 mr-4 items-center justify-center">
           <Image
             source={{
@@ -369,7 +274,8 @@ const SearchScreen = () => {
               <Octicons name="verified" size={18} color="#000" />
             ) : null}
           </View>
-          <Text className="text-[13px] text-gray-500">@{item.username}</Text>
+          {/* username WITHOUT @ */}
+          <Text className="text-[13px] text-gray-500">{item.username}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -377,13 +283,9 @@ const SearchScreen = () => {
 
   const renderBrandItem = ({ item }: { item: any }) => (
     <TouchableOpacity
-      style={{
-        width: brandItemWidth,
-        marginBottom: 16,
-      }}
+      style={{ width: brandItemWidth, marginBottom: 16 }}
       className="items-center"
-      activeOpacity={0.7}
-    >
+      activeOpacity={0.7}>
       <View className="w-full aspect-square bg-white rounded-xl shadow-sm items-center justify-center mb-2 border border-gray-100">
         {item.brandLogoURL ? (
           <Image
@@ -400,8 +302,7 @@ const SearchScreen = () => {
       <Text
         className="text-xs font-medium text-gray-800 text-center px-1"
         numberOfLines={2}
-        style={{ lineHeight: 16 }}
-      >
+        style={{ lineHeight: 16 }}>
         {item.brand_name}
       </Text>
     </TouchableOpacity>
@@ -420,14 +321,9 @@ const SearchScreen = () => {
 
     return (
       <TouchableOpacity
-        style={{
-          width: productItemWidth,
-          marginBottom: 16,
-        }}
+        style={{ width: productItemWidth, marginBottom: 16 }}
         className="bg-white rounded-xl shadow-sm overflow-hidden"
-        activeOpacity={0.7}
-      >
-        {/* Product Image */}
+        activeOpacity={0.7}>
         <View className="relative bg-gray-50" style={{ aspectRatio: 1 }}>
           {item.main_image ? (
             <Image
@@ -441,7 +337,6 @@ const SearchScreen = () => {
             </View>
           )}
 
-          {/* Brand Badge */}
           {item.brand.brandLogoURL && (
             <View className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white items-center justify-center shadow-sm border border-gray-100">
               <Image
@@ -452,7 +347,6 @@ const SearchScreen = () => {
             </View>
           )}
 
-          {/* Discount Badge */}
           {hasDiscount && discountPercentage > 0 && (
             <View className="absolute top-2 left-2 bg-red-500 px-2 py-1 rounded-md">
               <Text className="text-white text-[10px] font-bold">
@@ -462,7 +356,6 @@ const SearchScreen = () => {
           )}
         </View>
 
-        {/* Product Details */}
         <View className="p-3">
           <Text className="text-[10px] text-gray-500 mb-1" numberOfLines={1}>
             {item.brand.brand_name}
@@ -470,12 +363,9 @@ const SearchScreen = () => {
           <Text
             className="text-xs font-semibold text-gray-900 mb-2"
             numberOfLines={2}
-            style={{ lineHeight: 16, minHeight: 32 }}
-          >
+            style={{ lineHeight: 16, minHeight: 32 }}>
             {item.name}
           </Text>
-
-          {/* Price Section */}
           <View className="flex-row items-center flex-wrap">
             {hasDiscount && (
               <Text className="text-[10px] text-gray-400 line-through mr-2">
@@ -491,12 +381,12 @@ const SearchScreen = () => {
     );
   };
 
-  // Empty state component
+  // Empty state
   const EmptyState = ({ query }: { query: string }) => (
     <View className="flex-1 justify-center items-center p-6">
+      <Ionicons name="search" size={48} color="#CCCCCC" />
       {query ? (
         <>
-          <Ionicons name="search" size={48} color="#CCCCCC" />
           <Text className="text-lg font-semibold text-gray-900 mt-4 mb-2">
             No results found
           </Text>
@@ -506,7 +396,6 @@ const SearchScreen = () => {
         </>
       ) : (
         <>
-          <Ionicons name="search" size={48} color="#CCCCCC" />
           <Text className="text-lg font-semibold text-gray-900 mt-4 mb-2">
             Search
           </Text>
@@ -554,10 +443,7 @@ const SearchScreen = () => {
               paddingHorizontal: horizontalPadding,
               gap: columnGap,
             }}
-            contentContainerStyle={{
-              paddingTop: 16,
-              paddingBottom: 20,
-            }}
+            contentContainerStyle={{ paddingTop: 16, paddingBottom: 20 }}
           />
         ))}
       {!isLoading &&
@@ -576,10 +462,7 @@ const SearchScreen = () => {
               paddingHorizontal: horizontalPadding,
               gap: columnGap,
             }}
-            contentContainerStyle={{
-              paddingTop: 16,
-              paddingBottom: 20,
-            }}
+            contentContainerStyle={{ paddingTop: 16, paddingBottom: 20 }}
           />
         ))}
       {!isLoading && item.key === "hashtags" && (
@@ -588,87 +471,69 @@ const SearchScreen = () => {
     </View>
   );
 
+  const onTabPress = (tab: TabKey) => {
+    setActiveTab(tab);
+    const index = TABS.findIndex((t) => t.key === tab);
+    if (index !== -1) {
+      try {
+        flatListRef.current?.scrollToIndex({ index, animated: true });
+      } catch (e) {
+        console.warn("Scroll to index failed:", e);
+      }
+    }
+  };
+
   return (
     <View className="flex-1 bg-[#F3F4F6]" style={{ paddingTop: insets.top }}>
       {/* Header */}
       <View className="flex-row pb-2 items-center justify-between pr-3">
         <TouchableOpacity
           onPress={() => router.back()}
-          className="mr-2 h-10 w-10 items-center justify-center"
+          className="h-10 w-10 items-center justify-center"
           accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
+          accessibilityLabel="Go back">
           <MaterialCommunityIcons
             name="chevron-left"
-            size={28}
+            size={32}
             color="#111827"
           />
         </TouchableOpacity>
 
-        <Animated.View
-          style={[
-            {
-              flex: 1,
-              height: 40,
-              borderWidth: 2,
-              borderRadius: 10,
-              paddingHorizontal: 15,
-              backgroundColor: "white",
-              flexDirection: "row",
-              alignItems: "center",
-            },
-            animatedStyle,
-          ]}
-        >
-          <AnimatedTextInput
-            placeholder="Search hashtags..."
-            placeholderTextColor="#9ca3af"
-            style={{
-              flex: 1,
-              fontSize: 13,
-              fontFamily: "System",
-            }}
+        {/* Shared SearchBar — no local placeholder/height overrides to stay in sync */}
+        <View className="flex-1 ">
+          <SearchBar
+            placeholder="Search..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
           />
-          <Ionicons name="search" size={20} color="#555" />
-        </Animated.View>
+        </View>
       </View>
 
-      {/* Pills */}
+      {/* Tabs (old pill style, no icons, active = gray, reduced padding) */}
       <View className="bg-[#F3F4F6] border-b border-gray-200 pb-3">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerClassName="px-3 gap-3"
-        >
+          contentContainerClassName="px-3 gap-3 items-center">
           {TABS.map((tab) => {
             const active = activeTab === tab.key;
             return (
               <TouchableOpacity
                 key={tab.key}
                 onPress={() => onTabPress(tab.key)}
+                activeOpacity={0.9}
                 className={[
                   "flex-row items-center justify-center",
-                  "py-2 px-3 rounded-full min-w-[160px]",
-                  active ? "bg-black" : "bg-white border border-gray-200",
-                ].join(" ")}
-                activeOpacity={0.9}
-              >
-                <Ionicons
-                  name={tab.icon}
-                  size={18}
-                  color={active ? "#fff" : "#6B7280"}
-                />
+                  "py-2 px-3 rounded-full min-w-[140px]",
+                  active
+                    ? "bg-gray-200 border-gray-200"
+                    : "bg-white border-gray-200",
+                ].join(" ")}>
                 <Text
-                  className={
-                    active
-                      ? "ml-2 text-base text-white font-semibold"
-                      : "ml-2 text-base text-gray-700"
-                  }
-                >
+                  className={[
+                    "text-base",
+                    active ? "text-[#111827] font-semibold" : "text-gray-700",
+                  ].join(" ")}>
                   {tab.label}
                 </Text>
               </TouchableOpacity>

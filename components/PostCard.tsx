@@ -8,6 +8,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useRouter } from "expo-router";
+import { Send } from "lucide-react-native";
 import React, { useCallback, useContext, useRef, useState } from "react";
 import {
   Image,
@@ -439,8 +440,7 @@ export const PostCard: React.FC<PostCardProps> = ({
     <TouchableOpacity
       activeOpacity={1}
       onLongPress={() => onLongPress?.(item)}
-      delayLongPress={500}
-    >
+      delayLongPress={500}>
       <View className="px-3 mt-2 bg-gray-100">
         <View
           style={{
@@ -450,20 +450,17 @@ export const PostCard: React.FC<PostCardProps> = ({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.12,
             shadowRadius: 8,
-          }}
-        >
+          }}>
           <View
             className="bg-white py-3 gap-1.5"
-            style={{ borderRadius: 16, overflow: "hidden" }}
-          >
+            style={{ borderRadius: 16, overflow: "hidden" }}>
             {/* Header */}
-            <View className="flex-row px-3 items-center h-10">
+            <View className="flex-row px-3 items-center py-2 ">
               <GestureDetector gesture={openProfileTap}>
                 <TouchableOpacity
                   className="flex-row items-center flex-1 mr-2"
                   activeOpacity={0.7}
-                  disabled={isGestureActive}
-                >
+                  disabled={isGestureActive}>
                   <Image
                     source={{ uri: item.userProfilePic }}
                     className="w-10 h-10 rounded-full mr-2"
@@ -553,8 +550,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                                           },
                                         })
                                 }
-                                onLongPress={openPostOptions}
-                              >
+                                onLongPress={openPostOptions}>
                                 {part}
                               </Text>
                             );
@@ -575,8 +571,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                                           params: { tag: part },
                                         })
                                 }
-                                onLongPress={openPostOptions}
-                              >
+                                onLongPress={openPostOptions}>
                                 {part}
                               </Text>
                             );
@@ -595,8 +590,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                                     ? undefined
                                     : () => Linking.openURL(url)
                                 }
-                                onLongPress={openPostOptions}
-                              >
+                                onLongPress={openPostOptions}>
                                 {part}
                               </Text>
                             );
@@ -604,8 +598,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                           return (
                             <Text
                               key={`cap-plain-${index}`}
-                              className="text-gray-900"
-                            >
+                              className="text-gray-900">
                               {part}
                             </Text>
                           );
@@ -622,8 +615,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}
-                      >
+                        delayLongPress={500}>
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show more
                         </Text>
@@ -640,8 +632,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}
-                      >
+                        delayLongPress={500}>
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show less
                         </Text>
@@ -664,8 +655,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                                 pathname: "/(search)/tagPostSearch" as any,
                                 params: { tag: "#" + tag },
                               })
-                      }
-                    >
+                      }>
                       #{tag}
                       {i < neededHashtags.length - 1 ? <Text> </Text> : null}
                     </Text>
@@ -681,8 +671,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   className="px-3"
                   onLongPress={() => onLongPress?.(item)}
                   delayLongPress={500}
-                  disabled={isGestureActive}
-                >
+                  disabled={isGestureActive}>
                   <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
                     <View
                       className="basis-1/4 self-stretch relative"
@@ -690,8 +679,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         borderTopLeftRadius: 6,
                         borderBottomLeftRadius: 6,
                         overflow: "hidden",
-                      }}
-                    >
+                      }}>
                       <Image
                         source={{ uri: item.affiliation.productImage }}
                         style={{ position: "absolute", inset: 0 as any }}
@@ -717,8 +705,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         </View>
                         <TouchableOpacity
                           className="self-start"
-                          disabled={isGestureActive}
-                        >
+                          disabled={isGestureActive}>
                           <MaterialIcons
                             name="add-shopping-cart"
                             size={24}
@@ -751,8 +738,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   className="flex-row items-center"
                   disabled={isGestureActive}
                   onPress={toggleLike}
-                  activeOpacity={0.8}
-                >
+                  activeOpacity={0.8}>
                   <Ionicons
                     name={liked ? "heart" : "heart-outline"}
                     size={20}
@@ -768,8 +754,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   onPress={
                     isGestureActive ? undefined : () => onPressComments?.(item)
                   }
-                  activeOpacity={0.8}
-                >
+                  activeOpacity={0.8}>
                   <Ionicons name="chatbubble-outline" size={18} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.comments_count}
@@ -781,8 +766,25 @@ export const PostCard: React.FC<PostCardProps> = ({
                   disabled={isGestureActive}
                   onPress={() => setShareOpen(true)}
                   activeOpacity={0.8}
-                >
-                  <Ionicons name="arrow-redo-outline" size={20} color="#000" />
+                  className="flex-row items-center">
+                  {/* wrapper lets us rotate + offset without affecting layout */}
+                  <View
+                    style={{
+                      width: 18,
+                      height: 18,
+                      justifyContent: "center",
+
+                      // fine-tune here:
+                      transform: [{ rotate: "15deg" }], // tilt to the right
+                    }}>
+                    <Send
+                      width={18}
+                      height={18}
+                      stroke="#262626"
+                      strokeWidth={1.6}
+                      fill="none"
+                    />
+                  </View>
                 </TouchableOpacity>
               </View>
             </View>

@@ -13,7 +13,7 @@ type Props = {
 
 export default function SearchBar({
   value,
-  placeholder = "Search",
+  placeholder = "",
   onChangeText,
   onSubmitEditing,
   className = "",
@@ -28,7 +28,7 @@ export default function SearchBar({
       ].join(" ")}>
       <View
         className={[
-          "flex-1 flex-row items-center justify-between px-3",
+          "flex-1 flex-row items-center justify-between px-2 mt-1",
           innerClassName,
         ].join(" ")}>
         {readOnly ? (
@@ -42,14 +42,14 @@ export default function SearchBar({
             onSubmitEditing={onSubmitEditing}
             placeholder={placeholder}
             placeholderTextColor="#6B7280"
-            className="flex-1 mr-2 text-sm leading-none text-gray-700"
+            className="flex-1 mr-2 text-lg leading-none text-gray-700"
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
           />
         )}
 
-        <Search size={18} strokeWidth={2} color="black" />
+        <Search size={20} strokeWidth={2} color="black" />
       </View>
     </View>
   );
