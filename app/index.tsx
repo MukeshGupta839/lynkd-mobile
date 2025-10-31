@@ -25,8 +25,17 @@ export default function Index() {
   // Preload the destination route when auth context is loaded
   useEffect(() => {
     if (!authContext?.loading) {
+      console.log(
+        "authContext loaded:",
+        authContext,
+        authContext?.completedRegistration
+      );
       // Preload/prepare the navigation target
-      if (authContext?.user && authContext?.completedRegistration) {
+      if (
+        authContext?.user &&
+        authContext?.completedRegistration &&
+        authContext?.user?.email?.split("@")[0] !== authContext?.user?.username
+      ) {
         // Use replace to prevent back navigation to splash
         router.replace("/(tabs)");
       } else {
@@ -34,12 +43,7 @@ export default function Index() {
         router.replace("/(auth)");
       }
     }
-  }, [
-    authContext?.loading,
-    authContext?.user,
-    authContext?.completedRegistration,
-    router,
-  ]);
+  }, [router, authContext]);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -74,7 +78,7 @@ export default function Index() {
     animation.start();
 
     return () => animation.stop();
-  }, []);
+  }, [bounceAnimation]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

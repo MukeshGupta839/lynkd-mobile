@@ -216,11 +216,13 @@ const MessageBubble = React.memo(function MessageBubble({
         style={containerStyle}
         onLayout={(e) =>
           onMeasure?.(message.id, Math.round(e.nativeEvent.layout.height))
-        }>
+        }
+      >
         <View className={`flex-row ${mine ? "justify-end pr-3" : "pl-3"} mb-0`}>
           <View
             style={{ maxWidth: maxBubbleWidth }}
-            className={`${mine ? "items-end" : "items-start"}`}>
+            className={`${mine ? "items-end" : "items-start"}`}
+          >
             {message.product ? (
               <View className="bg-white border border-black/100 rounded-3xl p-3">
                 <Text className="font-semibold text-black">
@@ -236,7 +238,8 @@ const MessageBubble = React.memo(function MessageBubble({
               message.postPreview ? (
                 <View
                   className="bg-white border border-gray-200 rounded-2xl mt-1 overflow-hidden"
-                  style={{ width: postCardWidth }}>
+                  style={{ width: postCardWidth }}
+                >
                   <View className="flex-row items-center px-3 pt-3">
                     <Image
                       source={{ uri: previewAvatar }}
@@ -271,7 +274,8 @@ const MessageBubble = React.memo(function MessageBubble({
                       borderTopLeftRadius: 12,
                       borderTopRightRadius: 12,
                       backgroundColor: "#000",
-                    }}>
+                    }}
+                  >
                     {sourceUri ? (
                       <Image
                         source={{ uri: sourceUri }}
@@ -303,7 +307,8 @@ const MessageBubble = React.memo(function MessageBubble({
                             bottom: 0,
                             alignItems: "center",
                             justifyContent: "center",
-                          }}>
+                          }}
+                        >
                           <View
                             style={{
                               width: 56,
@@ -312,7 +317,8 @@ const MessageBubble = React.memo(function MessageBubble({
                               backgroundColor: "rgba(0,0,0,0.45)",
                               alignItems: "center",
                               justifyContent: "center",
-                            }}>
+                            }}
+                          >
                             <Ionicons name="play" size={28} color="#fff" />
                           </View>
                         </View>
@@ -349,7 +355,8 @@ const MessageBubble = React.memo(function MessageBubble({
                   mine
                     ? "bg-[#DCF8C6] border border-gray-200 rounded-2xl rounded-br-sm"
                     : "bg-[#FFFFFF] rounded-2xl rounded-bl-sm"
-                }`}>
+                }`}
+              >
                 <Text className="text-black">{message.text}</Text>
               </View>
             ) : null}
@@ -357,7 +364,8 @@ const MessageBubble = React.memo(function MessageBubble({
             {message.image ? (
               <Pressable
                 onPress={() => onPressImage?.(message.image)}
-                className="mt-2">
+                className="mt-2"
+              >
                 <Image
                   source={{ uri: message.image }}
                   className="w-48 h-36 rounded-lg"
@@ -378,7 +386,8 @@ const MessageBubble = React.memo(function MessageBubble({
             alignItems: "center",
             marginTop: timeMarginTop,
             marginBottom: timeMarginBottom,
-          }}>
+          }}
+        >
           <Text className="text-xs text-gray-400">{timeText}</Text>
         </View>
       ) : null}
@@ -1067,7 +1076,8 @@ export default function UserChatScreen() {
   return (
     <SafeAreaView
       edges={["left", "right", "bottom"]}
-      className="flex-1 bg-[#ECE5DD]">
+      className="flex-1 bg-[#ECE5DD]"
+    >
       <StatusBar style="dark" translucent backgroundColor="transparent" />
       <View style={{ height: insets.top }} className="bg-white" />
 
@@ -1082,14 +1092,16 @@ export default function UserChatScreen() {
             router.back();
           }}
           accessibilityLabel="Back"
-          className="pr-3">
+          className="pr-3"
+        >
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </Pressable>
 
         <Pressable
           onPress={() => setProfileModalVisible(true)}
           accessibilityLabel="Open profile"
-          className="mr-3">
+          className="mr-3"
+        >
           <Image
             source={{ uri: chattingUser.profilePicture }}
             className="w-10 h-10 rounded-full"
@@ -1107,7 +1119,8 @@ export default function UserChatScreen() {
             onPress={deleteSelected}
             className="px-3"
             accessibilityLabel="Delete selected messages"
-            accessibilityHint="Deletes all selected messages">
+            accessibilityHint="Deletes all selected messages"
+          >
             <Ionicons name="trash" size={22} color="#DC2626" />
           </Pressable>
         ) : (
@@ -1115,7 +1128,8 @@ export default function UserChatScreen() {
             onPress={() => setShowOptions(true)}
             className="px-2"
             accessibilityLabel="Chat options"
-            accessibilityHint="Opens chat options">
+            accessibilityHint="Opens chat options"
+          >
             <Ionicons name="ellipsis-vertical" size={22} color="#6B7280" />
           </Pressable>
         )}
@@ -1147,10 +1161,12 @@ export default function UserChatScreen() {
         visible={showPreviewImage}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowPreviewImage(false)}>
+        onRequestClose={() => setShowPreviewImage(false)}
+      >
         <Pressable
           className="flex-1 justify-center items-center bg-[rgba(0,0,0,0.6)]"
-          onPress={() => setShowPreviewImage(false)}>
+          onPress={() => setShowPreviewImage(false)}
+        >
           {selectedImage ? (
             <Image
               source={{ uri: selectedImage }}
@@ -1184,12 +1200,14 @@ export default function UserChatScreen() {
         visible={profileModalVisible}
         transparent={false}
         animationType="slide"
-        onRequestClose={() => setProfileModalVisible(false)}>
+        onRequestClose={() => setProfileModalVisible(false)}
+      >
         <SafeAreaView className="flex-1 bg-black">
           <Pressable
             className="absolute top-10 left-4 z-50 p-2"
             onPress={() => setProfileModalVisible(false)}
-            accessibilityLabel="Close profile preview">
+            accessibilityLabel="Close profile preview"
+          >
             <Text className="text-white text-2xl">✕</Text>
           </Pressable>
 
@@ -1212,14 +1230,16 @@ export default function UserChatScreen() {
               style={{ overflow: "visible" }}
               onLayout={(e) =>
                 setStripH(Math.round(e.nativeEvent.layout.height))
-              }>
+              }
+            >
               <View
                 style={{
                   width: Math.max(260, screenWidth - 24),
                   alignSelf: "center",
                   position: "relative",
                   marginBottom: 8,
-                }}>
+                }}
+              >
                 {(() => {
                   const paddingH = 24;
                   const w = Math.max(260, screenWidth - paddingH);
@@ -1254,7 +1274,8 @@ export default function UserChatScreen() {
                         width={w}
                         height={h + td}
                         viewBox={`0 0 ${w} ${h + td}`}
-                        style={{ position: "absolute", top: 0, left: 0 }}>
+                        style={{ position: "absolute", top: 0, left: 0 }}
+                      >
                         <Path d={d} fill="#F3F4F6" />
                       </Svg>
 
@@ -1264,12 +1285,14 @@ export default function UserChatScreen() {
                           height: h,
                           paddingHorizontal: 12,
                           paddingVertical: 12,
-                        }}>
+                        }}
+                      >
                         <View className="flex-row justify-between">
                           <View className="items-center">
                             <Pressable
                               onPress={pickImage}
-                              className="w-12 h-12 rounded-full items-center justify-center bg-white">
+                              className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                            >
                               <Gallery width={22} height={22} />
                             </Pressable>
                             <Text className="text-xs text-gray-800 mt-2 font-medium">
@@ -1283,7 +1306,8 @@ export default function UserChatScreen() {
                               onPress={async () => {
                                 await dismissKeyboardAndWait();
                                 await takePhoto();
-                              }}>
+                              }}
+                            >
                               <Camera width={22} height={22} />
                             </TouchableOpacity>
                             <Text className="text-xs text-gray-800 mt-2 font-medium">
@@ -1294,7 +1318,8 @@ export default function UserChatScreen() {
                           <View className="items-center">
                             <Pressable
                               onPress={() => setShowProductModal(true)}
-                              className="w-12 h-12 rounded-full items-center justify-center bg-white">
+                              className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                            >
                               <Cart width={22} height={22} />
                             </Pressable>
                             <Text className="text-xs text-gray-800 mt-2 font-medium">
@@ -1308,7 +1333,8 @@ export default function UserChatScreen() {
                                 await dismissKeyboardAndWait();
                                 setStatusOpen(true);
                               }}
-                              className="w-12 h-12 rounded-full items-center justify-center bg-white">
+                              className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                            >
                               <Location width={22} height={22} />
                             </Pressable>
 
@@ -1323,7 +1349,8 @@ export default function UserChatScreen() {
                                 await dismissKeyboardAndWait();
                                 setStatusOpen(true);
                               }}
-                              className="w-12 h-12 rounded-full items-center justify-center bg-white">
+                              className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                            >
                               <Document width={22} height={22} />
                             </Pressable>
 
@@ -1347,20 +1374,23 @@ export default function UserChatScreen() {
               const h = Math.round(e.nativeEvent.layout.height);
               if (h !== composerHeight) setComposerHeight(h);
               if (h !== composerH) setComposerH(h);
-            }}>
+            }}
+          >
             <View className="flex-row items-center">
               <Pressable
                 onPress={toggleAttachmentStrip}
                 accessibilityLabel="Attach"
                 hitSlop={8}
-                className="w-12 h-12 rounded-full bg-black items-center justify-center">
+                className="w-12 h-12 rounded-full bg-black items-center justify-center"
+              >
                 <ShareIcon width={24} height={24} fill="#fff" />
               </Pressable>
 
               <View className="flex-1 mx-3">
                 <View
                   className="flex-row items-center bg-white rounded-full px-3 border border-gray-200"
-                  style={{ minHeight: 48, maxHeight: 140 }}>
+                  style={{ minHeight: 48, maxHeight: 140 }}
+                >
                   <TextInput
                     ref={inputRef}
                     value={text}
@@ -1391,7 +1421,8 @@ export default function UserChatScreen() {
                     onPress={() => console.log("Emoji tapped")}
                     accessibilityLabel="Emoji"
                     className="w-8 h-8 rounded-full items-center justify-center"
-                    hitSlop={6}>
+                    hitSlop={6}
+                  >
                     <Ionicons name="happy-outline" size={20} color="#9CA3AF" />
                   </Pressable>
                 </View>
@@ -1404,7 +1435,8 @@ export default function UserChatScreen() {
                   }}
                   accessibilityLabel="Send message"
                   className="w-12 h-12 rounded-full bg-black items-center justify-center shadow-lg"
-                  hitSlop={8}>
+                  hitSlop={8}
+                >
                   <Ionicons name="paper-plane" size={18} color="#fff" />
                 </Pressable>
               ) : (
@@ -1412,7 +1444,8 @@ export default function UserChatScreen() {
                   onPress={() => console.log("Record tapped")}
                   accessibilityLabel="Voice message"
                   className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-lg"
-                  hitSlop={8}>
+                  hitSlop={8}
+                >
                   <FontAwesome5 name="microphone" size={18} color="#111827" />
                 </Pressable>
               )}

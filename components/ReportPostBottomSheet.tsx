@@ -1,5 +1,6 @@
+import { reportPostApi } from "@/lib/api/api";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -10,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const ReportPostBottomSheet = ({
   show,
@@ -29,7 +29,6 @@ const ReportPostBottomSheet = ({
     new Animated.Value(Dimensions.get("window").height)
   ).current;
   const isAnimating = useRef(false);
-  const insets = useSafeAreaInsets();
 
   // Modal visibility control
   useEffect(() => {
@@ -127,18 +126,12 @@ const ReportPostBottomSheet = ({
 
   const handleReport = async (reasonId: number) => {
     try {
-      // Replace with your API call implementation
-      // await apiCall('/api/postReports', 'POST', {
-      //   postID: postId,
-      //   userID: userId,
-      //   reason: reportReasons.find(r => r.id === reasonId)?.reason
-      // });
-      console.log(
-        "Reporting post:",
-        postId,
-        "for reason:",
-        reportReasons.find((r) => r.id === reasonId)?.reason
-      );
+      const reasonObj = reportReasons.find((r) => r.id === reasonId);
+      // Ensure `reason` is always a string (provide a sensible default).
+      const reason: string = reasonObj?.reason ?? "Other";
+
+      // Call API (reason is guaranteed to be a string now)
+      await reportPostApi(postId, userId, reason);
       setReported(true);
     } catch (error) {
       console.error("Error reporting post:", error);
@@ -179,7 +172,7 @@ const ReportPostBottomSheet = ({
                 <Text className="text-2xl font-worksans-600 mb-3 text-center">
                   Report Post
                 </Text>
-                <Text className="w-full text-lg text-gray-500 leading-5 font-worksans-400 text-center">
+                <Text className="w-full text-base text-gray-500 leading-5 font-worksans-400">
                   Your report is anonymous, except if you&apos;re reporting an
                   intellectual property infringement. If someone is in immediate
                   danger, call local emergency services.

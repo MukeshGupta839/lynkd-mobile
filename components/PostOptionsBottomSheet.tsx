@@ -5,12 +5,14 @@ import {
   Dimensions,
   Easing,
   Modal,
+  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
   Vibration,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface MenuItem {
   id: string;
@@ -44,6 +46,7 @@ const PostOptionsBottomSheet = ({
   deleteAction: (postId: string) => void;
   user: any;
 }) => {
+  const insets = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
   const slideAnim = useRef(
     new Animated.Value(Dimensions.get("window").height)
@@ -133,6 +136,7 @@ const PostOptionsBottomSheet = ({
         label: "Block",
         textColor: "#000",
         onPress: () => {
+          deleteAction(focusedPost?.id);
           setBlockUser(true);
           setShow(false);
         },
@@ -220,6 +224,10 @@ const PostOptionsBottomSheet = ({
       }}
       statusBarTranslucent // <-- covers the status bar (removes white strip)
       hardwareAccelerated // <-- avoids tiny rendering glitches while animating
+      style={{
+        paddingBottom:
+          Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
+      }}
     >
       <TouchableOpacity
         className="flex-1 bg-black/50 justify-end"

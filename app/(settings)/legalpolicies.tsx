@@ -39,7 +39,8 @@ const PolicyItem: React.FC<{ title: string; onPress: () => void }> = ({
   <TouchableOpacity
     onPress={onPress}
     activeOpacity={0.8}
-    className="flex-row items-center px-3 py-3 border-b border-gray-200 bg-white">
+    className="flex-row items-center px-3 py-3 border-b border-gray-200 bg-white"
+  >
     <Ionicons name="document-text-outline" size={20} color="#000" />
     <Text className="flex-1 ml-4 text-base text-gray-800">{title}</Text>
     <Ionicons name="chevron-forward" size={20} color="#999" />
@@ -53,7 +54,7 @@ const LegalPolicies: React.FC = () => {
 
   const handlePolicyPress = (policy: PolicyKey) => {
     router.push({
-      pathname: "/(settings)/policyviewer",
+      pathname: "/(settings)/policyViewer",
       params: { policyTitle: policy }, // pdf resolved inside viewer
     });
   };
@@ -61,7 +62,8 @@ const LegalPolicies: React.FC = () => {
   return (
     <View
       className="flex-1 bg-gray-100"
-      style={{ paddingTop: insets.top - 10 }}>
+      style={{ paddingTop: insets.top - 10 }}
+    >
       <ScreenHeaderBack title="Legal Policies" onBack={() => router.back()} />
 
       <ScrollView
@@ -69,7 +71,8 @@ const LegalPolicies: React.FC = () => {
           width: Dimensions.get("window").width * 0.96,
           alignSelf: "center",
         }}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+      >
         {/* Group title + rounded container (matches SettingGroup) */}
         <View className="mt-2">
           <View className="rounded-xl overflow-hidden border border-gray-100 bg-white">

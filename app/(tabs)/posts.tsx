@@ -53,6 +53,7 @@ import { RawReel } from "@/lib/api/api";
 import { useReelsStore } from "@/stores/useReelsStore";
 import { useUploadStore } from "@/stores/useUploadStore";
 // ✅ Added: import apiCall for like and comment API calls
+import ReportPostBottomSheet from "@/components/ReportPostBottomSheet";
 import { apiCall } from "@/lib/api/apiService";
 import {
   registerTabPressHandler,
@@ -606,6 +607,8 @@ const VideoFeed: React.FC = () => {
   const [showPostOptionsFor, setShowPostOptionsFor] = useState<RawReel | null>(
     null
   );
+  const [reportVisible, setReportVisible] = useState(false);
+  const [focusedPost, setFocusedPost] = useState<any>(null);
 
   const focused = useIsFocused();
 
@@ -677,7 +680,7 @@ const VideoFeed: React.FC = () => {
 
       // Android: also check the two-slot players if they match this index's media
       if (Platform.OS === "android" && currentMedia) {
-        const uri = currentMedia.media_url as string;
+        const uri = String(currentMedia.media_url);
         if (slotAUri === uri) {
           const pl = slotPlayersRef.current[0];
           if (pl && typeof pl.getStatusAsync === "function") {
@@ -836,7 +839,7 @@ const VideoFeed: React.FC = () => {
     Platform.OS === "android"
       ? null
       : currentMedia
-        ? currentMedia.media_url
+        ? String(currentMedia.media_url)
         : null,
     (pl) => {
       console.log("🎬 Player created for:", currentMedia?.media_url);
@@ -1046,7 +1049,7 @@ const VideoFeed: React.FC = () => {
   // useVideoPlayer hooks remain idle and don't allocate decoders.
   const [slotAUri, setSlotAUri] = useState<string | null>(
     Platform.OS === "android" && currentMedia
-      ? (currentMedia.media_url as string)
+      ? String(currentMedia.media_url)
       : null
   );
   const [slotBUri, setSlotBUri] = useState<string | null>(null);
@@ -1128,7 +1131,7 @@ const VideoFeed: React.FC = () => {
     if (Platform.OS !== "android") return;
     const target = posts[currentIndex];
     if (!target || !target.media_url) return;
-    const targetUri = target.media_url as string;
+    const targetUri = String(target.media_url);
 
     // If already in a slot and ready, switch immediately
     if (slotAUri === targetUri && slotReadyRef.current[0]) {
@@ -1893,7 +1896,10 @@ const VideoFeed: React.FC = () => {
     }
 
     // ✅ CRITICAL FIX: Verify the post data is valid before updating
-    if (!next.media_url || typeof next.media_url !== "string") {
+    if (
+      !next.media_url ||
+      (typeof next.media_url !== "string" && typeof next.media_url !== "number")
+    ) {
       console.log(`⚠️ Invalid media_url at index ${currentIndex}, skipping`);
       return;
     }
@@ -2974,16 +2980,57 @@ const VideoFeed: React.FC = () => {
         deleteAction={async (postId: string) => {
           try {
             if (!user?.id) return;
-
             console.log(`🗑️ Deleting reel ${postId}...`);
-            await apiCall(
-              `/api/posts/user/${user.id}/reel/${postId}`,
-              "DELETE"
-            );
 
-            // ✅ Remove the reel from state (Zustand will filter it out)
-            const newPosts = posts.filter((p) => p.id !== Number(postId));
-            useReelsStore.setState({ reels: newPosts });
+            const idNum = Number(postId);
+
+            // Read current posts and compute deleted index
+            const prevPosts = useReelsStore.getState().reels;
+            const deletedIdx = prevPosts.findIndex((p) => p.id === idNum);
+
+            // Remove the reel from the store
+            useReelsStore.setState((state) => ({
+              reels: state.reels.filter((p) => p.id !== idNum),
+            }));
+
+            // Read updated posts immediately from the store
+            const newPosts = useReelsStore.getState().reels;
+
+            // Decide new index and media to show so video updates as well
+            if (newPosts.length === 0) {
+              // No posts left
+              setCurrentIndex(0);
+              setCurrentMedia(null);
+            } else {
+              // Compute a sensible new index
+              // If we deleted an earlier item, shift current index left to keep
+              // the same visual item in view. If we deleted the current item,
+              // keep the same index (next item shifted into place) when
+              // possible; otherwise clamp to last index.
+              const prevIndex = currentIndex;
+              let newIndex = prevIndex;
+
+              if (deletedIdx === -1) {
+                // Deleted id not found in previous list - keep currentIndex but clamp
+                if (newIndex >= newPosts.length) newIndex = newPosts.length - 1;
+              } else if (deletedIdx < prevIndex) {
+                newIndex = Math.max(0, prevIndex - 1);
+              } else if (deletedIdx === prevIndex) {
+                newIndex =
+                  prevIndex >= newPosts.length
+                    ? newPosts.length - 1
+                    : prevIndex;
+              } else {
+                // deletedIdx > prevIndex -> no index shift
+                if (newIndex >= newPosts.length) newIndex = newPosts.length - 1;
+              }
+
+              // Apply index and media. Setting both ensures the player hook sees the new URI.
+              setCurrentIndex(newIndex);
+              setCurrentMedia(newPosts[newIndex]);
+            }
+
+            // Close the options sheet
             setShowPostOptionsFor(null);
 
             console.log(`✅ Reel ${postId} deleted successfully`);
@@ -2992,6 +3039,13 @@ const VideoFeed: React.FC = () => {
           }
         }}
         user={user}
+      />
+
+      <ReportPostBottomSheet
+        show={reportVisible}
+        setShow={setReportVisible}
+        postId={focusedPost?.id || ""}
+        userId={user?.id || ""}
       />
     </View>
   );

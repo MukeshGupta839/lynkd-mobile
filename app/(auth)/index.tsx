@@ -70,6 +70,11 @@ interface FormContentProps {
 const UsernameSetupContent = ({
   username,
   usernameError,
+  setUsernameError,
+  authContext,
+  passwordVisible,
+  setPasswordVisible,
+  checkUsernameAvailability,
   clearToMove,
   onUsernameChange,
   onSaveUsername,
@@ -84,6 +89,11 @@ const UsernameSetupContent = ({
 }: {
   username: string;
   usernameError: string;
+  setUsernameError: (error: string) => void;
+  authContext: React.ContextType<typeof AuthContext>;
+  passwordVisible: boolean;
+  setPasswordVisible: (value: boolean | ((prev: boolean) => boolean)) => void;
+  checkUsernameAvailability: (text: string) => Promise<boolean>;
   clearToMove: boolean;
   onUsernameChange: (text: string) => void;
   onSaveUsername: () => void;
@@ -149,12 +159,18 @@ const UsernameSetupContent = ({
             value={setupPassword}
             onChangeText={setSetupPassword}
             mode="outlined"
-            secureTextEntry={true}
+            secureTextEntry={!passwordVisible}
             error={!!setupPasswordError}
             theme={{
               colors: { background: "white" },
               roundness: 12,
             }}
+            right={
+              <TextInput.Icon
+                icon={passwordVisible ? "eye" : "eye-off"}
+                onPress={() => setPasswordVisible((v) => !v)}
+              />
+            }
             outlineColor="#bdbdbd"
             activeOutlineColor="#1b1b1b"
           />
@@ -201,15 +217,45 @@ const UsernameSetupContent = ({
             <View className="flex-1 ml-3">
               <RNText className="text-xs text-gray-500 leading-4">
                 By proceeding, you agree to our{" "}
-                <RNText className="text-xs text-blue-500 underline">
+                <RNText
+                  className="text-xs text-blue-500 underline"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(settings)/policyViewer",
+                      params: {
+                        policyTitle: "End User License Agreement (EULA)",
+                      },
+                    })
+                  }
+                >
                   EULA
                 </RNText>
                 {", "}
-                <RNText className="text-xs text-blue-500 underline">
+                <RNText
+                  className="text-xs text-blue-500 underline"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(settings)/policyViewer",
+                      params: {
+                        policyTitle: "Terms of Use",
+                      },
+                    })
+                  }
+                >
                   Terms of Use
                 </RNText>{" "}
                 and{" "}
-                <RNText className="text-xs text-blue-500 underline">
+                <RNText
+                  className="text-xs text-blue-500 underline"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(settings)/policyViewer",
+                      params: {
+                        policyTitle: "Privacy Policy",
+                      },
+                    })
+                  }
+                >
                   Privacy Policy.
                 </RNText>
               </RNText>
@@ -218,10 +264,18 @@ const UsernameSetupContent = ({
         </View>
 
         <TouchableOpacity
-          disabled={!clearToMove || disableButton || !!setupPasswordError}
+          disabled={
+            !clearToMove ||
+            disableButton ||
+            !!setupPasswordError ||
+            (usernameError !== "" && usernameError !== "Username is available.")
+          }
           activeOpacity={0.8}
           className={`h-13 px-4 items-center justify-center rounded-xl mt-6 ${
-            clearToMove && !disableButton && !setupPasswordError
+            clearToMove &&
+            !disableButton &&
+            !setupPasswordError &&
+            (usernameError === "" || usernameError === "Username is available.")
               ? "bg-black"
               : "bg-gray-400"
           } shadow-sm`}
@@ -423,6 +477,10 @@ export default function LoginScreen() {
   const email = useRef("");
   const password = useRef("");
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [
+    usernameSetupContentPasswordVisible,
+    setUsernameSetupContentPasswordVisible,
+  ] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [disableButton, setDisableButton] = useState(false);
@@ -574,6 +632,11 @@ export default function LoginScreen() {
 
         if (text.length > 20) {
           setUsernameError("Username must be 20 or fewer characters.");
+          return;
+        }
+
+        if (text === authContext?.user?.email?.split("@")[0]) {
+          setUsernameError("Username cannot be your email prefix.");
           return;
         }
 
@@ -1161,8 +1224,10 @@ export default function LoginScreen() {
       // Save to secure storage
       await SecureStore.setItemAsync("user", JSON.stringify(userData));
 
-      // Navigate to main app
-      router.push("/(tabs)");
+      // Navigate to main app. Delay the navigation slightly to avoid attempting
+      // to navigate before the Root Layout has mounted (prevents a runtime
+      // error in some environments).
+      setTimeout(() => router.push("/(tabs)"), 50);
 
       console.log("Username saved successfully!");
     } catch (error: any) {
@@ -1172,6 +1237,14 @@ export default function LoginScreen() {
       setDisableButton(false);
     }
   };
+
+  useEffect(() => {
+    if (authContext?.user) {
+      setShowUsernameSetup(true);
+    }
+  }, [authContext]);
+
+  console.log("authContext user:", showUsernameSetup, authContext?.user);
 
   useEffect(() => {
     const showEvent =
@@ -1197,6 +1270,14 @@ export default function LoginScreen() {
   const auth = useAuth();
 
   console.log("login screen Auth Context:", auth);
+  console.log("disableButton", disableButton, username);
+
+  // Safely derive the local part of the authenticated user's email. This
+  // avoids calling `split` on `undefined` when the user doesn't have an
+  // email (e.g., phone/OAuth sign-ups).
+  const authEmailLocal = authContext?.user?.email
+    ? authContext.user.email.split("@")[0]
+    : undefined;
 
   return (
     <View
@@ -1224,10 +1305,15 @@ export default function LoginScreen() {
         bottomOffset={10}
         extraKeyboardSpace={-10}
       >
-        {showUsernameSetup ? (
+        {showUsernameSetup && authEmailLocal === authContext?.user?.username ? (
           <UsernameSetupContent
             username={username}
+            setUsernameError={setUsernameError}
             usernameError={usernameError}
+            authContext={authContext}
+            passwordVisible={usernameSetupContentPasswordVisible}
+            setPasswordVisible={setUsernameSetupContentPasswordVisible}
+            checkUsernameAvailability={checkUsernameAvailability}
             clearToMove={clearToMove}
             onUsernameChange={handleUsernameChange}
             onSaveUsername={handleSaveUsername}

@@ -258,21 +258,30 @@ export interface FollowListsResponse {
 export const fetchFollowLists = async (
   userId: number | string
 ): Promise<FollowListsResponse> => {
-  const res = await apiCall(`/api/follows/followFollowing/${userId}`, "GET");
+  try {
+    const res = await apiCall(`/api/follows/followFollowing/${userId}`, "GET");
 
-  const mapUser = (u: any): FollowUser => ({
-    user_id: u?.user_id ?? u?.id ?? u?.userId,
-    username: u?.username,
-    first_name: u?.first_name,
-    last_name: u?.last_name,
-    is_creator: !!u?.is_creator,
-    profile_picture: u?.profile_picture,
-  });
+    const mapUser = (u: any): FollowUser => ({
+      user_id: u?.user_id ?? u?.id ?? u?.userId,
+      username: u?.username,
+      first_name: u?.first_name,
+      last_name: u?.last_name,
+      is_creator: !!u?.is_creator,
+      profile_picture: u?.profile_picture,
+    });
 
-  return {
-    followers: Array.isArray(res?.followers) ? res.followers.map(mapUser) : [],
-    following: Array.isArray(res?.following) ? res.following.map(mapUser) : [],
-  };
+    return {
+      followers: Array.isArray(res?.followers)
+        ? res.followers.map(mapUser)
+        : [],
+      following: Array.isArray(res?.following)
+        ? res.following.map(mapUser)
+        : [],
+    };
+  } catch (error) {
+    console.error("Error fetching follow lists:", error);
+    return { followers: [], following: [] };
+  }
 };
 
 // ✅ Follow user
@@ -280,7 +289,12 @@ export const followUserApi = async (
   me: number | string,
   target: number | string
 ): Promise<any> => {
-  return apiCall(`/api/follows/follow/${me}/${target}`, "POST");
+  try {
+    return await apiCall(`/api/follows/follow/${me}/${target}`, "POST");
+  } catch (error) {
+    console.error(`Error following user ${target} by ${me}:`, error);
+    throw error;
+  }
 };
 
 // ✅ Unfollow user
@@ -288,7 +302,12 @@ export const unfollowUserApi = async (
   me: number | string,
   target: number | string
 ): Promise<any> => {
-  return apiCall(`/api/follows/unfollow/${me}/${target}`, "DELETE");
+  try {
+    return await apiCall(`/api/follows/unfollow/${me}/${target}`, "DELETE");
+  } catch (error) {
+    console.error(`Error unfollowing user ${target} by ${me}:`, error);
+    throw error;
+  }
 };
 
 // ✅ Check follow status
@@ -296,8 +315,36 @@ export const fetchFollowStatus = async (
   me: number | string,
   target: number | string
 ): Promise<"followed" | "pending" | "" | null> => {
-  const res = await apiCall(`/api/follows/isFollowing/${me}/${target}`, "GET");
-  if (res?.isFollowing === true) return "followed";
-  if (res?.isFollowing === false) return "";
-  return (res?.isFollowing as any) ?? "";
+  try {
+    const res = await apiCall(
+      `/api/follows/isFollowing/${me}/${target}`,
+      "GET"
+    );
+    if (res?.isFollowing === true) return "followed";
+    if (res?.isFollowing === false) return "";
+    return (res?.isFollowing as any) ?? "";
+  } catch (error) {
+    console.error(
+      `Error fetching follow status for ${me} -> ${target}:`,
+      error
+    );
+    return null;
+  }
+};
+
+export const reportPostApi = async (
+  postId: string,
+  userId: string,
+  reason: string
+): Promise<any> => {
+  try {
+    const res = await apiCall("/api/postReports", "POST", {
+      postID: postId,
+      userID: userId,
+      reason: reason,
+    });
+    console.log("reportPostApi res:", res);
+  } catch (error) {
+    console.error("Error reporting post:", error);
+  }
 };

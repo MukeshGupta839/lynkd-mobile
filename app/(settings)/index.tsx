@@ -41,7 +41,8 @@ const SettingItem = ({
   <TouchableOpacity
     className="flex-row items-center px-3 py-3 border-b border-gray-200 bg-white"
     onPress={onPress}
-    activeOpacity={0.8}>
+    activeOpacity={0.8}
+  >
     <Ionicons name={icon} size={20} color={iconColor} />
     <Text className="flex-1 ml-4 text-[14px] text-gray-800">{title}</Text>
     <Ionicons name="chevron-forward" size={20} color="#999" />
@@ -68,7 +69,8 @@ const SettingGroup = ({
 const LogoutType = ({ title, icon, onPress }: SettingItemProps) => (
   <TouchableOpacity
     className="flex-row items-center px-3 py-3 border-b border-gray-200 bg-white"
-    onPress={onPress}>
+    onPress={onPress}
+  >
     <Ionicons name={icon} size={20} color="#333" />
     <Text className="flex-1 ml-4 text-[14px] text-gray-800">{title}</Text>
   </TouchableOpacity>
@@ -140,7 +142,8 @@ const AccountType = () => {
       </View>
       <TouchableOpacity
         className="bg-gray-100 px-3 py-1 rounded-full"
-        onPress={handleSaveProfile}>
+        onPress={handleSaveProfile}
+      >
         <Text className="text-[12px] text-gray-800 font-medium">
           {isCreator ? "Switch to Private" : "Switch to Public"}
         </Text>
@@ -182,7 +185,8 @@ export default function SettingsMain() {
   return (
     <View
       className="flex-1 bg-gray-100"
-      style={{ paddingTop: insets.top - 10 }}>
+      style={{ paddingTop: insets.top - 10 }}
+    >
       <ScreenHeaderBack
         title="Settings"
         onBack={() => {
@@ -194,7 +198,8 @@ export default function SettingsMain() {
         style={{
           width: Dimensions.get("window").width * 0.96,
           alignSelf: "center",
-        }}>
+        }}
+      >
         <SettingGroup title="General Settings">
           <SettingItem
             title="Password & Security"
@@ -246,7 +251,7 @@ export default function SettingsMain() {
           <SettingItem
             title="Legal Policies"
             icon="document-text-outline"
-            onPress={() => router.push("/(settings)/legalpolicies")}
+            onPress={() => router.push("/(settings)/legalPolicies")}
           />
           <SettingItem
             title="App Information"

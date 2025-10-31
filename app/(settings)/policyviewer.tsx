@@ -1,7 +1,13 @@
 import ScreenHeaderBack from "@/components/ScreenHeaderBack";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Dimensions, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Dimensions,
+  Platform,
+  Text,
+  View,
+} from "react-native";
 import Pdf from "react-native-pdf";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -66,7 +72,10 @@ const PolicyViewer = () => {
   const [loading, setLoading] = useState(true);
 
   return (
-    <View className="flex-1 bg-gray-100" style={{ paddingTop: insets.top }}>
+    <View
+      className="flex-1 bg-gray-100"
+      style={{ paddingTop: insets.top - 10 }}
+    >
       <ScreenHeaderBack title={headerTitle} onBack={() => router.back()} />
 
       {isInDev && (
@@ -87,7 +96,13 @@ const PolicyViewer = () => {
           </Text>
         </View>
       ) : (
-        <View className="flex-1 items-center justify-start bg-white rounded-xl m-3 overflow-hidden">
+        <View
+          className="flex-1 items-center justify-start bg-white rounded-xl mx-3 overflow-hidden"
+          style={{
+            marginBottom:
+              Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
+          }}
+        >
           {loading && (
             <View className="absolute inset-0 z-10 items-center justify-center bg-white/80">
               <ActivityIndicator size="large" />
@@ -95,17 +110,20 @@ const PolicyViewer = () => {
           )}
 
           {pdfSource ? (
-            <Pdf
-              source={pdfSource}
-              trustAllCerts={false}
-              onLoadComplete={() => setLoading(false)}
-              onError={(error) => {
-                console.log("PDF Error:", error);
-                setLoading(false);
-              }}
-              onPressLink={(uri) => console.log(`Link pressed: ${uri}`)}
-              style={{ flex: 1, width, height }}
-            />
+            <View style={{ flex: 1, overflow: "hidden" }}>
+              <Pdf
+                source={pdfSource}
+                trustAllCerts={false}
+                onLoadComplete={() => setLoading(false)}
+                onError={(error) => {
+                  console.log("PDF Error:", error);
+                  setLoading(false);
+                }}
+                onPressLink={(uri) => console.log(`Link pressed: ${uri}`)}
+                style={{ flex: 1, width, height }}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
           ) : (
             <View className="flex-1 items-center justify-center px-6">
               <Text className="text-center text-[14px] text-gray-700">

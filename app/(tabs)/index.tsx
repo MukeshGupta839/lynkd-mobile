@@ -341,6 +341,7 @@ export default function ConsumerHomeUI() {
 
   const deletePost = useCallback(
     async (postId: string) => {
+      console.log("deletePost:", postId, !user?.id);
       if (!user?.id) return;
 
       try {
