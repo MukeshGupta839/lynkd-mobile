@@ -1,9 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import React, { useEffect, useRef, useState } from "react";
+import { Zoomable } from "@likashefqet/react-native-image-zoom";
+import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
   Dimensions,
   FlatList,
+  Image,
   Modal,
   Platform,
   StatusBar,
@@ -11,72 +12,92 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
-// Individual image item component for horizontal slider
-const ImageItem = ({ uri, onClose }: { uri: string; onClose: () => void }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const [isZoomed, setIsZoomed] = useState(false);
+// shared in-memory zoom cache across ImageItems keyed by uri
+const ZOOM_CACHE = ((global as any).__LYNKD_IMAGE_ZOOM_CACHE__ ||= {});
 
-  // Create pinch gesture using new Gesture API
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate((event) => {
-      scale.setValue(event.scale);
-    })
-    .onEnd((event) => {
-      if (event.scale < 1) {
-        // If zoomed out, reset to normal
-        Animated.parallel([
-          Animated.spring(scale, {
-            toValue: 1,
-            useNativeDriver: true,
-            friction: 8,
-          }),
-          Animated.spring(translateX, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }),
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }),
-        ]).start(() => setIsZoomed(false));
-      } else if (event.scale > 1) {
-        setIsZoomed(true);
+// Individual image item component for horizontal slider using Zoomable
+const ImageItem = ({
+  uri,
+  onClose,
+  onZoomChange,
+}: {
+  uri: string;
+  onClose: () => void;
+  onZoomChange: (z: boolean) => void;
+}) => {
+  const scale = useSharedValue(1);
+  const zoomRef = useRef<any>(null);
+
+  // For behind-notch/fullscreen rendering we'll use the full screen height so
+  // Zoomable and layout cover the notch/status-bar area.
+  const [displayWidth, setDisplayWidth] = useState(screenWidth);
+  const [displayHeight, setDisplayHeight] = useState(screenHeight);
+
+  // restore cached zoom
+  useEffect(() => {
+    if (!uri) return;
+    const cached = ZOOM_CACHE[uri];
+    if (cached) {
+      scale.value = cached.scale ?? 1;
+      if ((cached.scale ?? 1) > 1) onZoomChange(true);
+    } else {
+      scale.value = 1;
+    }
+  }, [uri, scale, onZoomChange]);
+
+  // compute display-fit size
+  useEffect(() => {
+    if (!uri) return;
+    Image.getSize(
+      uri,
+      (w, h) => {
+        // fit inside full-screen width/height so the image can render behind notch
+        const fit = Math.min(screenWidth / w, screenHeight / h);
+        setDisplayWidth(w * fit);
+        setDisplayHeight(h * fit);
+      },
+      () => {
+        setDisplayWidth(screenWidth);
+        setDisplayHeight(screenHeight);
       }
-    });
+    );
+  }, [uri]);
+
+  const handleInteractionStart = () => onZoomChange(true);
+
+  const handleInteractionEnd = () => {
+    try {
+      const info = zoomRef.current?.getInfo?.();
+      const currentScale = info?.transformations?.scale ?? scale.value ?? 1;
+      const tx = info?.transformations?.translateX ?? 0;
+      const ty = info?.transformations?.translateY ?? 0;
+      if (uri) ZOOM_CACHE[uri] = { scale: currentScale, tx, ty };
+      onZoomChange(currentScale > 1);
+      scale.value = currentScale;
+    } catch {
+      // ignore
+      onZoomChange(scale.value > 1);
+    }
+  };
 
   const handleSingleTap = () => {
-    if (isZoomed) {
-      // Reset zoom
-      Animated.parallel([
-        Animated.spring(scale, {
-          toValue: 1,
-          useNativeDriver: true,
-          friction: 8,
-        }),
-        Animated.spring(translateX, {
-          toValue: 0,
-          useNativeDriver: true,
-          friction: 8,
-        }),
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          friction: 8,
-        }),
-      ]).start(() => setIsZoomed(false));
-    } else {
-      // Close modal
+    if ((scale?.value ?? 1) <= 1) {
+      if (uri) delete ZOOM_CACHE[uri];
       onClose();
+    } else {
+      zoomRef.current?.reset?.();
+      if (uri) delete ZOOM_CACHE[uri];
+      onZoomChange(false);
     }
+  };
+
+  const handleDoubleTap = (zoomType?: any) => {
+    onZoomChange(true);
   };
 
   return (
@@ -88,28 +109,50 @@ const ImageItem = ({ uri, onClose }: { uri: string; onClose: () => void }) => {
         alignItems: "center",
       }}
     >
-      <GestureDetector gesture={pinchGesture}>
-        <TouchableOpacity
-          onPress={handleSingleTap}
-          activeOpacity={1}
-          style={{
-            width: screenWidth,
-            height: screenHeight,
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+      <View
+        style={{
+          width: screenWidth,
+          height: screenHeight,
+          justifyContent: "center",
+          alignItems: "center",
+          overflow: "hidden",
+          backgroundColor: "black",
+        }}
+      >
+        <Zoomable
+          ref={zoomRef}
+          minScale={1}
+          maxScale={5}
+          scale={scale}
+          doubleTapScale={3}
+          isSingleTapEnabled
+          isDoubleTapEnabled
+          onInteractionStart={handleInteractionStart}
+          onInteractionEnd={handleInteractionEnd}
+          onPanStart={() => {}}
+          onPanEnd={() => {}}
+          onPinchStart={() => {}}
+          onPinchEnd={() => {}}
+          onSingleTap={handleSingleTap}
+          onDoubleTap={handleDoubleTap}
+          onProgrammaticZoom={() => {}}
+          onResetAnimationEnd={() => {}}
+          style={{ width: screenWidth, height: screenHeight }}
         >
-          <Animated.Image
+          <Image
             source={{ uri }}
             style={{
-              width: "100%",
-              height: "100%",
-              transform: [{ scale }, { translateX }, { translateY }],
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              width: displayWidth,
+              height: displayHeight,
+              alignSelf: "center",
             }}
             resizeMode="contain"
           />
-        </TouchableOpacity>
-      </GestureDetector>
+        </Zoomable>
+      </View>
     </View>
   );
 };
@@ -158,8 +201,14 @@ export const MultiImageViewer = ({
     setCurrentImageIndex(pageIndex);
   };
 
+  const [childZoomed, setChildZoomed] = useState(false);
+
   const renderItem = ({ item }: { item: string }) => (
-    <ImageItem uri={item} onClose={onClose} />
+    <ImageItem
+      uri={item}
+      onClose={onClose}
+      onZoomChange={(z) => setChildZoomed(z)}
+    />
   );
 
   return (
@@ -220,6 +269,7 @@ export const MultiImageViewer = ({
           renderItem={renderItem}
           keyExtractor={(item, index) => `${item}-${index}`}
           horizontal={true}
+          scrollEnabled={!childZoomed}
           pagingEnabled={true}
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={onMomentumScrollEnd}

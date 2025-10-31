@@ -16,22 +16,27 @@
       "supportsTablet": true,
       "requireFullScreen": false,
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSAllowsArbitraryLoadsForMedia": true
         },
-        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload profile and banner images.",
-        "NSCameraUsageDescription": "This app needs access to your camera to take profile and banner photos.",
-        "NSPhotoLibraryAddUsageDescription": "This app needs access to save photos to your library."
+        "NSCameraUsageDescription": "We use the camera only when you choose to take a photo/video for posts, stories, or your profile/banner.",
+        "NSMicrophoneUsageDescription": "We use the microphone only while you record videos or voice notes.",
+        "NSPhotoLibraryUsageDescription": "We access your photo library only when you choose images/videos to upload for posts or your profile/banner. Only the items you select are uploaded.",
+        "NSPhotoLibraryAddUsageDescription": "We save a copy of edited media to your library when you tap Save."
       },
       "podfileProperties": {
         "ios.buildReactNativeFromSource": "true",
         "ios.useModularHeaders": "true"
       },
       "entitlements": {
-        "com.apple.developer.applesignin": ["Default"],
+        "com.apple.developer.applesignin": [
+          "Default"
+        ],
         "aps-environment": "production"
       },
       "usesAppleSignIn": true,
@@ -81,24 +86,27 @@
         "expo-video",
         {
           "supportsBackgroundPlayback": false,
-          "supportsPictureInPicture": true
+          "supportsPictureInPicture": false
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos and record videos. This permission is required to post content on the platform or to upload profile and banner images.",
-          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone record videos and to send voice notes to your friends.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) photos/videos for posts, stories, or your profile/banner.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to record audio while making videos or voice notes.",
           "recordAudioAndroid": true
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
-          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
+          "photosPermission": "Allow $(PRODUCT_NAME) photos/videos to upload for posts or your profile.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) photos/videos back to your library.",
           "isAccessMediaLocationEnabled": true,
-          "granularPermissions": ["audio", "photo"]
+          "granularPermissions": [
+            "audio",
+            "photo"
+          ]
         }
       ],
       [
@@ -146,10 +154,11 @@
       "router": {
         "origin": false
       },
+      "API_URL": "https://api.lynkd.app",
       "eas": {
-        "projectId": "71e00d65-93bb-462f-b62a-4538e8b89aa2"
-      },
-      "API_URL": "https://api.lynkd.app"
-    }
+        "projectId": "5811046d-e73c-4f54-8ee1-1795491f0d16"
+      }
+    },
+    "owner": "mukesh2000"
   }
 }

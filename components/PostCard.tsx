@@ -263,6 +263,7 @@ export interface PostCardProps {
   onToggleLike?: (postId: string) => void;
   toggleLike?: (postId: string) => void; // Backward compatibility
   onUpdatePost?: (postId: string, updates: any) => void;
+  profilePostsMode?: boolean;
 }
 
 /* ===========================
@@ -279,6 +280,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   onToggleLike,
   toggleLike: toggleLikeProp, // Support both prop names
   onUpdatePost,
+  profilePostsMode = false,
 }) => {
   const router = useRouter();
   const navigating = useRef(false);
@@ -303,7 +305,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   }, [item, onLongPress]);
 
   const handleUserPressSafe = () => {
-    if (isGestureActive) return;
+    if (profilePostsMode || isGestureActive) return;
     router.push({
       pathname: "/(profiles)" as any,
       params: { user: item.user_id as number },
@@ -440,7 +442,8 @@ export const PostCard: React.FC<PostCardProps> = ({
     <TouchableOpacity
       activeOpacity={1}
       onLongPress={() => onLongPress?.(item)}
-      delayLongPress={500}>
+      delayLongPress={500}
+    >
       <View className="px-3 mt-2 bg-gray-100">
         <View
           style={{
@@ -450,17 +453,16 @@ export const PostCard: React.FC<PostCardProps> = ({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.12,
             shadowRadius: 8,
-          }}>
+          }}
+        >
           <View
             className="bg-white py-3 gap-1.5"
-            style={{ borderRadius: 16, overflow: "hidden" }}>
+            style={{ borderRadius: 16, overflow: "hidden" }}
+          >
             {/* Header */}
-            <View className="flex-row px-3 items-center py-2 ">
-              <GestureDetector gesture={openProfileTap}>
-                <TouchableOpacity
-                  className="flex-row items-center flex-1 mr-2"
-                  activeOpacity={0.7}
-                  disabled={isGestureActive}>
+            <View className="flex-row px-3 items-center h-10">
+              {profilePostsMode ? (
+                <View className="flex-row items-center flex-1 mr-2">
                   <Image
                     source={{ uri: item.userProfilePic }}
                     className="w-10 h-10 rounded-full mr-2"
@@ -500,8 +502,56 @@ export const PostCard: React.FC<PostCardProps> = ({
                       </View>
                     )}
                   </View>
-                </TouchableOpacity>
-              </GestureDetector>
+                </View>
+              ) : (
+                <GestureDetector gesture={openProfileTap}>
+                  <TouchableOpacity
+                    className="flex-row items-center flex-1 mr-2"
+                    activeOpacity={0.7}
+                    disabled={isGestureActive}
+                  >
+                    <Image
+                      source={{ uri: item.userProfilePic }}
+                      className="w-10 h-10 rounded-full mr-2"
+                    />
+                    <View>
+                      <View className="flex-row items-center">
+                        <Text className="font-semibold text-lg">
+                          {item.username}
+                        </Text>
+                        {Boolean(
+                          item?.is_creator ||
+                            item?.verified ||
+                            item?.user?.verified ||
+                            item?.user?.isVerified
+                        ) && (
+                          <Octicons
+                            name="verified"
+                            size={14}
+                            color="#000"
+                            style={{ marginLeft: 4 }}
+                          />
+                        )}
+                      </View>
+                      {item.location && item.postDate && (
+                        <View className="flex-row items-center">
+                          {item.location && (
+                            <Text className="text-xs text-[#257AF1] mr-2 font-opensans-regular">
+                              {item.location}
+                            </Text>
+                          )}
+                          <View className="w-1 h-1 rounded-full bg-black mr-1.5" />
+                          {item.postDate && (
+                            <Text className="text-xs text-black font-opensans-regular">
+                              {item.postDate}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                </GestureDetector>
+              )}
               {item.affiliated && item.affiliation && <View />}
             </View>
 
@@ -550,7 +600,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                           },
                                         })
                                 }
-                                onLongPress={openPostOptions}>
+                                onLongPress={openPostOptions}
+                              >
                                 {part}
                               </Text>
                             );
@@ -571,7 +622,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                           params: { tag: part },
                                         })
                                 }
-                                onLongPress={openPostOptions}>
+                                onLongPress={openPostOptions}
+                              >
                                 {part}
                               </Text>
                             );
@@ -590,7 +642,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                     ? undefined
                                     : () => Linking.openURL(url)
                                 }
-                                onLongPress={openPostOptions}>
+                                onLongPress={openPostOptions}
+                              >
                                 {part}
                               </Text>
                             );
@@ -598,7 +651,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                           return (
                             <Text
                               key={`cap-plain-${index}`}
-                              className="text-gray-900">
+                              className="text-gray-900"
+                            >
                               {part}
                             </Text>
                           );
@@ -615,7 +669,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}>
+                        delayLongPress={500}
+                      >
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show more
                         </Text>
@@ -632,7 +687,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                         hitSlop={8}
                         style={{ marginLeft: 2, alignSelf: "baseline" }}
                         onLongPress={openPostOptions}
-                        delayLongPress={500}>
+                        delayLongPress={500}
+                      >
                         <Text className="text-sm text-gray-500 px-3 font-medium">
                           Show less
                         </Text>
@@ -655,7 +711,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                                 pathname: "/(search)/tagPostSearch" as any,
                                 params: { tag: "#" + tag },
                               })
-                      }>
+                      }
+                    >
                       #{tag}
                       {i < neededHashtags.length - 1 ? <Text> </Text> : null}
                     </Text>
@@ -671,7 +728,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                   className="px-3"
                   onLongPress={() => onLongPress?.(item)}
                   delayLongPress={500}
-                  disabled={isGestureActive}>
+                  disabled={isGestureActive}
+                >
                   <View className="flex-row gap-x-3 rounded-lg border border-gray-200">
                     <View
                       className="basis-1/4 self-stretch relative"
@@ -679,7 +737,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                         borderTopLeftRadius: 6,
                         borderBottomLeftRadius: 6,
                         overflow: "hidden",
-                      }}>
+                      }}
+                    >
                       <Image
                         source={{ uri: item.affiliation.productImage }}
                         style={{ position: "absolute", inset: 0 as any }}
@@ -705,7 +764,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                         </View>
                         <TouchableOpacity
                           className="self-start"
-                          disabled={isGestureActive}>
+                          disabled={isGestureActive}
+                        >
                           <MaterialIcons
                             name="add-shopping-cart"
                             size={24}
@@ -738,7 +798,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                   className="flex-row items-center"
                   disabled={isGestureActive}
                   onPress={toggleLike}
-                  activeOpacity={0.8}>
+                  activeOpacity={0.8}
+                >
                   <Ionicons
                     name={liked ? "heart" : "heart-outline"}
                     size={20}
@@ -754,7 +815,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                   onPress={
                     isGestureActive ? undefined : () => onPressComments?.(item)
                   }
-                  activeOpacity={0.8}>
+                  activeOpacity={0.8}
+                >
                   <Ionicons name="chatbubble-outline" size={18} color="#000" />
                   <Text className="ml-1 text-sm font-medium">
                     {item.comments_count}
@@ -766,7 +828,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                   disabled={isGestureActive}
                   onPress={() => setShareOpen(true)}
                   activeOpacity={0.8}
-                  className="flex-row items-center">
+                  className="flex-row items-center"
+                >
                   {/* wrapper lets us rotate + offset without affecting layout */}
                   <View
                     style={{
@@ -776,7 +839,8 @@ export const PostCard: React.FC<PostCardProps> = ({
 
                       // fine-tune here:
                       transform: [{ rotate: "15deg" }], // tilt to the right
-                    }}>
+                    }}
+                  >
                     <Send
                       width={18}
                       height={18}

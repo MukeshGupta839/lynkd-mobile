@@ -1,6 +1,6 @@
 import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -182,6 +182,23 @@ const ProfileScreen = ({
   const router = useRouter();
   const params = useLocalSearchParams();
   const isFocused = useIsFocused(); // Track if screen is focused
+
+  // Prevent double navigation on rapid taps. Use a ref so re-renders don't reset it.
+  const isNavigatingRef = useRef(false);
+
+  const safePush = (to: any) => {
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
+    try {
+      router.push(to);
+    } catch (err) {
+      console.error("Navigation error:", err);
+    }
+    // Reset after a short delay — router.push doesn't return a promise in expo-router
+    setTimeout(() => {
+      isNavigatingRef.current = false;
+    }, 800);
+  };
 
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [activeTab, setActiveTab] = useState("All");
@@ -531,7 +548,7 @@ const ProfileScreen = ({
     return (
       <View>
         {Object.entries(groupedImages).map(([date, dateImages]) => (
-          <View key={date} className="mb-6">
+          <View key={date}>
             <Text className="text-base font-semibold text-gray-900 mb-3">
               {date}
             </Text>
@@ -541,15 +558,16 @@ const ProfileScreen = ({
                 <TouchableOpacity
                   className="w-full rounded-xl overflow-hidden"
                   style={{ height: imageHeight }}
-                  onPress={() => {
-                    router.push({
+                  onPress={() =>
+                    safePush({
                       pathname: "/(profiles)/profilePosts",
                       params: {
                         posts: JSON.stringify(posts),
                         focusedIndexPost: dateImages[0].id,
                       },
-                    });
-                  }}>
+                    })
+                  }
+                >
                   <Image
                     source={{ uri: dateImages[0].media_url }}
                     className="w-full h-full"
@@ -578,15 +596,16 @@ const ProfileScreen = ({
                         width: (containerWidth - gap) / 2,
                         height: imageHeight * 0.8, // Slightly shorter for better proportion
                       }}
-                      onPress={() => {
-                        router.push({
+                      onPress={() =>
+                        safePush({
                           pathname: "/(profiles)/profilePosts",
                           params: {
                             posts: JSON.stringify(posts),
                             focusedIndexPost: image.id,
                           },
-                        });
-                      }}>
+                        })
+                      }
+                    >
                       <Image
                         source={{ uri: image.media_url }}
                         className="w-full h-full"
@@ -618,15 +637,16 @@ const ProfileScreen = ({
                       width: (containerWidth - gap) * 0.6,
                       height: imageHeight,
                     }}
-                    onPress={() => {
-                      router.push({
+                    onPress={() =>
+                      safePush({
                         pathname: "/(profiles)/profilePosts",
                         params: {
                           posts: JSON.stringify(posts),
                           focusedIndexPost: dateImages[0].id,
                         },
-                      });
-                    }}>
+                      })
+                    }
+                  >
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -646,15 +666,16 @@ const ProfileScreen = ({
                         style={{
                           height: (imageHeight - gap) / 2,
                         }}
-                        onPress={() => {
-                          router.push({
+                        onPress={() =>
+                          safePush({
                             pathname: "/(profiles)/profilePosts",
                             params: {
                               posts: JSON.stringify(posts),
                               focusedIndexPost: image.id,
                             },
-                          });
-                        }}>
+                          })
+                        }
+                      >
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -676,15 +697,16 @@ const ProfileScreen = ({
                   <TouchableOpacity
                     className="w-full rounded-xl overflow-hidden mb-1"
                     style={{ height: imageHeight }}
-                    onPress={() => {
-                      router.push({
+                    onPress={() =>
+                      safePush({
                         pathname: "/(profiles)/profilePosts",
                         params: {
                           posts: JSON.stringify(posts),
                           focusedIndexPost: dateImages[0].id,
                         },
-                      });
-                    }}>
+                      })
+                    }
+                  >
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -705,15 +727,16 @@ const ProfileScreen = ({
                           width: (containerWidth - gap * 2) / 3,
                           height: (containerWidth - gap * 2) / 3,
                         }}
-                        onPress={() => {
-                          router.push({
+                        onPress={() =>
+                          safePush({
                             pathname: "/(profiles)/profilePosts",
                             params: {
                               posts: JSON.stringify(posts),
                               focusedIndexPost: image.id,
                             },
-                          });
-                        }}>
+                          })
+                        }
+                      >
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -785,15 +808,16 @@ const ProfileScreen = ({
                   width: imageSize,
                   height: imageSize,
                 }}
-                onPress={() => {
-                  router.push({
+                onPress={() =>
+                  safePush({
                     pathname: "/(profiles)/profilePosts",
                     params: {
                       posts: JSON.stringify(posts),
                       focusedIndexPost: image.id,
                     },
-                  });
-                }}>
+                  })
+                }
+              >
                 <Image
                   source={{ uri: image.media_url }}
                   className="w-full h-full"
@@ -848,7 +872,8 @@ const ProfileScreen = ({
           <View
             key={rowIndex}
             className="flex-row mb-1 gap-1"
-            style={{ gap: gap }}>
+            style={{ gap: gap }}
+          >
             {row.map((video, videoIndex) => (
               <TouchableOpacity
                 key={video.id}
@@ -857,7 +882,8 @@ const ProfileScreen = ({
                   width: videoWidth,
                   height: videoHeight,
                 }}
-                onPress={() => router.navigate("/(tabs)/posts")}>
+                onPress={() => router.navigate("/(tabs)/posts")}
+              >
                 <Image
                   source={{ uri: video.thumbnail_url }}
                   className="w-full h-full"
@@ -905,7 +931,8 @@ const ProfileScreen = ({
           <TouchableOpacity
             key={product.id}
             className="mb-4 rounded-xl overflow-hidden bg-gray-50 border border-gray-200"
-            style={{ width: (width - 40) / 2 }}>
+            style={{ width: (width - 40) / 2 }}
+          >
             <Image
               source={{ uri: product.main_image }}
               className="w-full h-40"
@@ -947,15 +974,15 @@ const ProfileScreen = ({
           <TextPost
             key={item.id}
             item={item}
-            onPress={() => {
-              router.push({
+            onPress={() =>
+              safePush({
                 pathname: "/(profiles)/profilePosts",
                 params: {
                   posts: JSON.stringify(posts),
                   focusedIndexPost: item.id,
                 },
-              });
-            }}
+              })
+            }
             likedPosts={[]}
             likedPostIDs={[]}
             handleShare={() => {}}
@@ -998,9 +1025,10 @@ const ProfileScreen = ({
         contentContainerStyle={{
           flexGrow: 1,
           paddingBottom:
-            Platform.OS === "ios" ? insets.bottom + 20 : insets.bottom + 30, // Tab bar height + extra space
+            Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom, // Tab bar height + extra space
         }}
-        nestedScrollEnabled={true}>
+        nestedScrollEnabled={true}
+      >
         {/* Header with Banner - Fixed height */}
         <View className="relative h-52">
           <Image
@@ -1021,19 +1049,20 @@ const ProfileScreen = ({
 
           <View
             className="absolute inset-0 flex-row justify-between px-4"
-            style={{ paddingTop: insets.top - 10 }}>
+            style={{ paddingTop: insets.top - 10 }}
+          >
             <TouchableOpacity
               className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-              onPress={() => router.back()}>
+              onPress={() => router.back()}
+            >
               <MaterialIcons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
 
             {userID === currentUserId && (
               <TouchableOpacity
                 className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-                onPress={() => {
-                  router.push("/(settings)");
-                }}>
+                onPress={() => safePush("/(settings)")}
+              >
                 <Ionicons name="settings-outline" size={24} color="#fff" />
               </TouchableOpacity>
             )}
@@ -1053,7 +1082,8 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://instagram.com/${userDetails.social_media_accounts![0].instagram_username}`
                           )
-                        }>
+                        }
+                      >
                         <FontAwesome5 name="instagram" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1066,7 +1096,8 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://twitter.com/${userDetails.social_media_accounts![0].twitter_username}`
                           )
-                        }>
+                        }
+                      >
                         <FontAwesome5 name="twitter" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1079,7 +1110,8 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://youtube.com/${userDetails.social_media_accounts![0].youtube_username}`
                           )
-                        }>
+                        }
+                      >
                         <FontAwesome5 name="youtube" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1096,7 +1128,8 @@ const ProfileScreen = ({
               onPress={async () => {
                 // Copy profile link functionality
                 console.log("Profile link copied");
-              }}>
+              }}
+            >
               <Image
                 source={{
                   uri:
@@ -1138,7 +1171,8 @@ const ProfileScreen = ({
           {/* Bio Section - Optimized for expansion */}
           <TouchableOpacity
             onPress={() => setBioExpanded(!bioExpanded)}
-            className="py-2">
+            className="py-2"
+          >
             {userDetails?.bio && (
               <Text className="text-base text-gray-700 leading-5">
                 {bioExpanded
@@ -1157,7 +1191,8 @@ const ProfileScreen = ({
                 key={index}
                 className="items-center"
                 onPress={() => handleOpenSheet(stat.label)}
-                disabled={userID !== currentUserId || stat.label === "Posts"}>
+                disabled={userID !== currentUserId || stat.label === "Posts"}
+              >
                 <Text className="text-sm font-bold text-gray-900">
                   {kFormatter(stat.value)}
                 </Text>
@@ -1172,16 +1207,16 @@ const ProfileScreen = ({
               <>
                 <TouchableOpacity
                   className="flex-1 h-10 rounded-full justify-center items-center bg-white mr-2"
-                  onPress={() => {
-                    router.push("/(profiles)/editProfile");
-                  }}>
+                  onPress={() => safePush("/(profiles)/editProfile")}
+                >
                   <Text className="text-sm font-semibold text-gray-900">
                     Edit Profile
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 h-10 rounded-full justify-center items-center bg-gray-900 ml-2"
-                  onPress={() => router.push("/(profiles)/InviteHome")}>
+                  onPress={() => safePush("/(profiles)/InviteHome")}
+                >
                   <Text className="text-sm font-semibold text-white">
                     Invite
                   </Text>
@@ -1193,11 +1228,13 @@ const ProfileScreen = ({
                   className={`flex-1 h-10 rounded-full justify-center items-center ${
                     following === "followed" ? "bg-white" : "bg-gray-900"
                   }`}
-                  onPress={toggleFollow}>
+                  onPress={toggleFollow}
+                >
                   <Text
                     className={`text-sm font-semibold ${
                       following === "followed" ? "text-gray-900" : "text-white"
-                    }`}>
+                    }`}
+                  >
                     {following === "followed"
                       ? "Following"
                       : following === "pending"
@@ -1229,7 +1266,8 @@ const ProfileScreen = ({
                     className={`w-12 h-12 rounded-full justify-center items-center ${
                       activeTab === tab ? "bg-gray-900" : "bg-white"
                     }`}
-                    onPress={() => setActiveTab(tab)}>
+                    onPress={() => setActiveTab(tab)}
+                  >
                     {tab === "All" && (
                       <FontAwesome
                         name="snowflake-o"
@@ -1269,7 +1307,7 @@ const ProfileScreen = ({
                 ))}
               </View>
 
-              <View className="mb-6">
+              <View>
                 {activeTab === "All" && renderGridLayout()}
                 {activeTab === "Photos" && renderSquareGrid()}
                 {activeTab === "Videos" && renderVideosGrid()}
@@ -1304,12 +1342,12 @@ const ProfileScreen = ({
         activeTab={activeFFTab}
         loading={ffLoading} // ⬅️ pass loader state
         error={ffError} // ⬅️ pass error state (sheet shows red text)
-        onUserPress={(u) => {
-          router.push({
+        onUserPress={(u) =>
+          safePush({
             pathname: "/(profiles)",
             params: { username: u.username },
-          });
-        }}
+          })
+        }
       />
     </View>
   );

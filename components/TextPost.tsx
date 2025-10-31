@@ -100,16 +100,16 @@ const TextPost: React.FC<TextPostProps> = ({
           >
             {/* Header */}
             <View className="flex-row px-3 items-center h-10">
-              <TouchableOpacity
+              <View
                 className="flex-row items-center flex-1 mr-2"
-                onPress={() => router.push(`/(profiles)?user=${item?.user_id}`)}
-                activeOpacity={0.7}
+                // onPress={() => router.push(`/(profiles)?user=${item?.user_id}`)}
+                // activeOpacity={0.7}
               >
                 <Image
                   source={{
                     uri:
                       item?.userProfilePic ||
-                      "https://randomuser.me/api/portraits/men/32.jpg",
+                      "https://media.istockphoto.com/id/1223671392/vector/default-profile-picture-avatar-photo-placeholder-vector-illustration.jpg?s=612x612&w=0&k=20&c=s0aTdmT5aU6b8ot7VKm11DeID6NctRCpB755rA1BIP0=",
                   }}
                   className="w-10 h-10 rounded-full mr-2"
                 />
@@ -128,7 +128,7 @@ const TextPost: React.FC<TextPostProps> = ({
                     )}
                   </View>
                 </View>
-              </TouchableOpacity>
+              </View>
             </View>
 
             {/* Caption */}
