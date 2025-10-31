@@ -59,6 +59,8 @@ interface FormContentProps {
   passwordError: string;
   setPasswordError: (error: string) => void;
   disableButton: boolean;
+  disableAppleButton: boolean;
+  disableGoogleButton: boolean;
   validateEmail: (str: string) => boolean;
   isKeyboardVisible: boolean;
   onAppleSignIn: () => void;
@@ -302,6 +304,8 @@ const FormContent = ({
   passwordError,
   setPasswordError,
   disableButton,
+  disableAppleButton,
+  disableGoogleButton,
   validateEmail,
   isKeyboardVisible,
   onAppleSignIn,
@@ -402,10 +406,12 @@ const FormContent = ({
 
       <View className="w-full">
         <TouchableOpacity
-          disabled={disableButton}
+          disabled={disableButton || disableAppleButton || disableGoogleButton}
           activeOpacity={0.8}
           className={`h-13 px-4 items-center justify-center rounded-xl ${
-            disableButton ? "bg-gray-400" : "bg-black"
+            disableButton || disableAppleButton || disableGoogleButton
+              ? "bg-gray-400"
+              : "bg-black"
           } shadow-sm`}
           onPress={onEmailPasswordLogin}
         >
@@ -435,9 +441,11 @@ const FormContent = ({
               activeOpacity={0.8}
               className="flex-1 flex-row items-center justify-center py-2 px-3 rounded-xl bg-gray-200 mr-2"
               onPress={onAppleSignIn}
-              disabled={disableButton}
+              disabled={
+                disableButton || disableAppleButton || disableGoogleButton
+              }
             >
-              {disableButton ? (
+              {disableAppleButton ? (
                 <PaperSpinner size="small" color="#000" />
               ) : (
                 <>
@@ -453,9 +461,11 @@ const FormContent = ({
               activeOpacity={0.8}
               className="flex-1 flex-row items-center justify-center py-2 px-3 rounded-xl bg-gray-200 ml-2"
               onPress={onGoogleSignIn}
-              disabled={disableButton}
+              disabled={
+                disableButton || disableGoogleButton || disableAppleButton
+              }
             >
-              {disableButton ? (
+              {disableGoogleButton ? (
                 <PaperSpinner size="small" color="#000" />
               ) : (
                 <>
@@ -484,6 +494,8 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [disableButton, setDisableButton] = useState(false);
+  const [disableAppleButton, setDisableAppleButton] = useState(false);
+  const [disableGoogleButton, setDisableGoogleButton] = useState(false);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [showUsernameSetup, setShowUsernameSetup] = useState(false);
   const [socialLoginError, setSocialLoginError] = useState("");
@@ -654,37 +666,6 @@ export default function LoginScreen() {
     }, 300);
   };
 
-  // Handle password change with validation
-  const handlePasswordChange = (text: string) => {
-    setSetupPassword(text);
-
-    if (text.trim().length === 0) {
-      setSetupPasswordError("");
-      return;
-    }
-
-    if (!/[A-Z]/.test(text)) {
-      setSetupPasswordError(
-        "Password must contain at least one uppercase letter."
-      );
-      return;
-    }
-
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(text)) {
-      setSetupPasswordError(
-        "Password must contain at least one special character."
-      );
-      return;
-    }
-
-    if (text.length < 6) {
-      setSetupPasswordError("Password must be 6 or more characters.");
-      return;
-    }
-
-    setSetupPasswordError("");
-  };
-
   // Email/Password Login handler
   const handleEmailPasswordLogin = async () => {
     try {
@@ -841,7 +822,7 @@ export default function LoginScreen() {
   const handleGoogleSignIn = async () => {
     try {
       setSocialLoginError("");
-      setDisableButton(true);
+      setDisableGoogleButton(true);
 
       // Ensure Google Play Services are available
       await GoogleSignin.hasPlayServices();
@@ -950,7 +931,7 @@ export default function LoginScreen() {
         message || "Failed to sign in with Google. Please try again."
       );
     } finally {
-      setDisableButton(false);
+      setDisableGoogleButton(false);
     }
   };
 
@@ -959,7 +940,7 @@ export default function LoginScreen() {
   const handleAppleSignIn = async () => {
     try {
       setSocialLoginError("");
-      setDisableButton(true);
+      setDisableAppleButton(true);
 
       // Get Firebase auth instance
       const auth = await getAuth();
@@ -1130,7 +1111,7 @@ export default function LoginScreen() {
         );
       }
     } finally {
-      setDisableButton(false);
+      setDisableAppleButton(false);
     }
   };
 
@@ -1337,6 +1318,8 @@ export default function LoginScreen() {
             passwordError={passwordError}
             setPasswordError={setPasswordError}
             disableButton={disableButton}
+            disableAppleButton={disableAppleButton}
+            disableGoogleButton={disableGoogleButton}
             validateEmail={validateEmail}
             isKeyboardVisible={isKeyboardVisible}
             onAppleSignIn={handleAppleSignIn}

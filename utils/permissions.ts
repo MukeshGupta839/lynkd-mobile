@@ -5,7 +5,6 @@ import {
   registerDeviceForRemoteMessages,
   requestPermission,
 } from "@react-native-firebase/messaging";
-import { Camera } from "expo-camera";
 import * as MediaLibrary from "expo-media-library";
 import { requestTrackingPermissionsAsync } from "expo-tracking-transparency";
 import { PermissionsAndroid, Platform } from "react-native";
@@ -39,17 +38,17 @@ export async function requestAllPermissions(): Promise<void> {
       }
     }
 
-    // 2. Request Camera permissions
-    try {
-      const cameraResponse = await Camera.requestCameraPermissionsAsync();
-      if (cameraResponse.status === "granted") {
-        console.log("✅ Camera permission granted");
-      } else {
-        console.log("❌ Camera permission denied");
-      }
-    } catch (error) {
-      console.error("Error requesting camera permission:", error);
-    }
+    // // 2. Request Camera permissions
+    // try {
+    //   const cameraResponse = await Camera.requestCameraPermissionsAsync();
+    //   if (cameraResponse.status === "granted") {
+    //     console.log("✅ Camera permission granted");
+    //   } else {
+    //     console.log("❌ Camera permission denied");
+    //   }
+    // } catch (error) {
+    //   console.error("Error requesting camera permission:", error);
+    // }
 
     // 3. Request Media Library permissions
     try {
@@ -92,20 +91,20 @@ export async function requestAllPermissions(): Promise<void> {
     }
 
     // 5. Request Microphone permissions (for video recording)
-    if (Platform.OS === "android") {
-      try {
-        const microphoneGranted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
-        );
-        if (microphoneGranted === PermissionsAndroid.RESULTS.GRANTED) {
-          console.log("✅ Microphone permission granted (Android)");
-        } else {
-          console.log("❌ Microphone permission denied (Android)");
-        }
-      } catch (error) {
-        console.error("Error requesting microphone permission:", error);
-      }
-    }
+    // if (Platform.OS === "android") {
+    //   try {
+    //     const microphoneGranted = await PermissionsAndroid.request(
+    //       PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+    //     );
+    //     if (microphoneGranted === PermissionsAndroid.RESULTS.GRANTED) {
+    //       console.log("✅ Microphone permission granted (Android)");
+    //     } else {
+    //       console.log("❌ Microphone permission denied (Android)");
+    //     }
+    //   } catch (error) {
+    //     console.error("Error requesting microphone permission:", error);
+    //   }
+    // }
 
     // 6. Request Location permissions (Android - if needed for notifications)
     if (Platform.OS === "android") {
@@ -133,12 +132,11 @@ export async function requestAllPermissions(): Promise<void> {
  * Check if all critical permissions are granted
  */
 export async function checkPermissionsStatus(): Promise<{
-  camera: boolean;
   mediaLibrary: boolean;
   notifications: boolean;
 }> {
   try {
-    const cameraStatus = await Camera.getCameraPermissionsAsync();
+    // const cameraStatus = await Camera.getCameraPermissionsAsync();
     const mediaLibraryStatus = await MediaLibrary.getPermissionsAsync();
 
     let notificationsGranted = false;
@@ -155,14 +153,14 @@ export async function checkPermissionsStatus(): Promise<{
     }
 
     return {
-      camera: cameraStatus.status === "granted",
+      // camera: cameraStatus.status === "granted",
       mediaLibrary: mediaLibraryStatus.status === "granted",
       notifications: notificationsGranted,
     };
   } catch (error) {
     console.error("Error checking permissions status:", error);
     return {
-      camera: false,
+      // camera: false,
       mediaLibrary: false,
       notifications: false,
     };

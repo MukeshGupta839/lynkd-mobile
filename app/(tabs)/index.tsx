@@ -1,5 +1,4 @@
 import BlockUserPopup from "@/components/BlockUserPopup";
-import CameraPost from "@/components/CameraPost";
 import Chats from "@/components/chat/Chat";
 import CommentsSheet, { CommentsSheetHandle } from "@/components/Comment";
 import CompleteProfilePopup from "@/components/CompleteProfilePopup";
@@ -944,7 +943,7 @@ export default function ConsumerHomeUI() {
           translucent={Platform.OS === "android"}
         />
         {/* UNDERLAYS — rendered first so they sit behind the feed */}
-        <Reanimated.View
+        {/* <Reanimated.View
           style={[
             { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
             rightUnderlayStyle,
@@ -953,7 +952,7 @@ export default function ConsumerHomeUI() {
           pointerEvents="auto"
         >
           <CameraPost onBackToFeed={snapToCenter} active={cameraActive} />
-        </Reanimated.View>
+        </Reanimated.View> */}
 
         <Reanimated.View
           style={[
