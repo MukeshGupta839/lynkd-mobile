@@ -2,25 +2,35 @@
 import { Ionicons } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useRouter } from "expo-router";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  Easing,
   Image,
-  Modal,
-  PanResponder,
   Platform,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { FlatList, TextInput } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ✅ chat store + helpers
+import {
+  BottomSheetBackdrop,
+  BottomSheetFlatList,
+  BottomSheetFooter,
+  BottomSheetModal,
+  BottomSheetTextInput,
+  type BottomSheetBackdropProps,
+  type BottomSheetFooterProps,
+  type BottomSheetModal as BottomSheetModalType,
+} from "@gorhom/bottom-sheet";
+
 import {
   LOGGED_USER,
   PostPreview,
@@ -30,10 +40,9 @@ import {
   USERS,
 } from "@/constants/chat";
 
-/** Small helper: always coerce a preview into the right shape */
+/* ---------- helpers ---------- */
 function normalizePreview(src?: Partial<PostPreview>): PostPreview | undefined {
   if (!src || !src.id || !src.image || !src.author) return undefined;
-
   const v =
     (src as any).verified ??
     (src as any).isVerified ??
@@ -61,38 +70,29 @@ function normalizePreview(src?: Partial<PostPreview>): PostPreview | undefined {
   };
 }
 
-/** Types */
 export type ShareUser = {
   id: string | number;
   username: string;
   profile_picture?: string;
-  is_creator?: boolean; // treated as "verified"
+  is_creator?: boolean;
 };
 
 type Props = {
   show?: boolean;
   setShow: (v: boolean) => void;
-  users?: ShareUser[]; // optional override list
+  users?: ShareUser[];
   postId?: string | number;
-
-  /**
-   * ✅ The preview of the post you're sharing.
-   * Must contain at least: id, image, author.
-   * If verified creator, set verified: true.
-   */
   postPreview?: Partial<PostPreview>;
-
   onSelectUser?: (user: ShareUser) => void;
   onShareImage?: (
     target?: "whatsapp" | "system" | "facebook" | "instagram"
   ) => void;
-
-  initialHeightPct?: number;
-  maxHeightPct?: number;
+  initialHeightPct?: number; // (kept for API compatibility; we’ll use percentages)
+  maxHeightPct?: number; // (kept for API compatibility; we’ll use percentages)
   maxSelect?: number;
 };
 
-/** Local dummy — only used when `users` prop is omitted */
+/* Dummy users */
 const USERNAMES = [
   "emma_w",
   "oliver",
@@ -136,7 +136,7 @@ const filterUsers = (users: ShareUser[] = [], search: string) =>
         u.username.toLowerCase().includes(search.toLowerCase())
       );
 
-/** Grid cell (named + displayName to satisfy react/display-name) */
+/* Grid cell */
 function GridUserComponent({
   user,
   selected,
@@ -148,11 +148,10 @@ function GridUserComponent({
 }) {
   return (
     <TouchableOpacity
-      className="w-1/3 items-center mb-6"
-      style={{ paddingHorizontal: 10 }}
+      className="items-center mb-6"
+      style={{ paddingHorizontal: 10, flex: 1 }}
       activeOpacity={0.9}
-      onPress={() => onPress(user)}
-    >
+      onPress={() => onPress(user)}>
       <View className="relative">
         <Image
           source={{ uri: user.profile_picture }}
@@ -167,14 +166,11 @@ function GridUserComponent({
           </>
         )}
       </View>
-
-      {/* Username + verified EXACTLY like PostCard (size 14, color #000, ml-4) */}
       <View className="flex-row items-center justify-center mt-1 max-w-[92px]">
         <Text
           numberOfLines={1}
           className="text-sm text-gray-900 text-center"
-          style={{ maxWidth: 92 }}
-        >
+          style={{ maxWidth: 92 }}>
           {user.username}
         </Text>
         {user?.is_creator && (
@@ -192,74 +188,241 @@ function GridUserComponent({
 GridUserComponent.displayName = "GridUser";
 const GridUser = memo(GridUserComponent);
 
+/* Footer */
+const ACTION_ICON_SIZE = 42;
+const ACTIONS_BAR_HEIGHT = ACTION_ICON_SIZE + 30;
+const SEND_BAR_HEIGHT = 60;
+const FOOTER_MIN_HEIGHT = 54;
+
+const ShareFooter = memo(function ShareFooter({
+  animatedFooterPosition,
+  showSendBar,
+  selectedCount,
+  maxSelect,
+  onSend,
+  actions,
+}: BottomSheetFooterProps & {
+  showSendBar: boolean;
+  selectedCount: number;
+  maxSelect: number;
+  onSend: () => void;
+  actions: {
+    key: string;
+    label: string;
+    icon: React.ReactNode;
+    onPress: () => void;
+    bg?: string;
+  }[];
+}) {
+  const insets = useSafeAreaInsets();
+  const NAV_SAFE = Math.max(insets.bottom, Platform.OS === "android" ? 24 : 10);
+
+  return (
+    <BottomSheetFooter animatedFooterPosition={animatedFooterPosition}>
+      <View
+        style={{
+          backgroundColor: "#fff",
+          paddingBottom: NAV_SAFE,
+          paddingTop: 8,
+          minHeight: FOOTER_MIN_HEIGHT + NAV_SAFE,
+        }}>
+        {showSendBar ? (
+          <View
+            className="flex-row items-center justify-between px-3"
+            style={{ height: SEND_BAR_HEIGHT }}>
+            <Text className="text-gray-700">
+              Send to {selectedCount}/{maxSelect}
+            </Text>
+            <TouchableOpacity
+              onPress={onSend}
+              disabled={!selectedCount}
+              className={`px-3 py-2 rounded-full ${selectedCount ? "bg-black" : "bg-gray-300"}`}
+              activeOpacity={0.8}>
+              <Text className="text-white font-semibold">Send</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 12,
+              alignItems: "center",
+              height: ACTIONS_BAR_HEIGHT,
+            }}>
+            {actions.map((a) => (
+              <View
+                key={a.key}
+                style={{ alignItems: "center", marginHorizontal: 12 }}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={a.onPress}
+                  className="items-center justify-center rounded-full"
+                  style={{
+                    width: ACTION_ICON_SIZE,
+                    height: ACTION_ICON_SIZE,
+                    backgroundColor: a.bg ?? "#F7F7F9",
+                  }}>
+                  {a.icon}
+                </TouchableOpacity>
+                <Text
+                  style={{ marginTop: 6, fontSize: 12 }}
+                  className="text-black text-center">
+                  {a.label}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    </BottomSheetFooter>
+  );
+});
+
+/* Header = REAL handle (drag zone only) */
+const HeaderHandle = memo(function HeaderHandle({
+  selectedUsers,
+  setSelectedIds,
+  search,
+  setSearch,
+}: {
+  selectedUsers: ShareUser[];
+  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string | number>>>;
+  search: string;
+  setSearch: (v: string) => void;
+}) {
+  return (
+    <View style={{ backgroundColor: "#fff" }}>
+      <View
+        style={{
+          paddingTop: 8,
+          paddingBottom: 10,
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+        <View
+          style={{
+            width: 42,
+            height: 5,
+            borderRadius: 3,
+            backgroundColor: "#cfd2d7",
+          }}
+        />
+      </View>
+
+      <View className="px-3 pb-1 items-center justify-center">
+        <Text className="text-lg font-opensans-semibold text-black">Share</Text>
+      </View>
+
+      <View
+        className="relative mt-2 px-3 mb-1"
+        style={{ backgroundColor: "transparent" }}>
+        <BottomSheetTextInput
+          placeholder="Search"
+          placeholderTextColor="#666"
+          value={search}
+          onChangeText={setSearch}
+          style={{
+            height: 42,
+            paddingHorizontal: 12,
+            borderWidth: 1,
+            borderColor: "#ccc",
+            borderRadius: 10,
+            backgroundColor: "#F7F7F9",
+            fontSize: 14,
+          }}
+        />
+        <Ionicons
+          name="search"
+          size={20}
+          color="#666"
+          style={{ position: "absolute", right: 24, top: 11 }}
+        />
+      </View>
+
+      {selectedUsers.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            alignItems: "center",
+            paddingHorizontal: 10,
+            gap: 8,
+          }}
+          style={{ marginBottom: 4 }}>
+          {selectedUsers.map((u) => (
+            <View
+              key={`chip-${u.id}`}
+              className="flex-row items-center bg-[#F1F2F6]"
+              style={{ height: 28, borderRadius: 14, paddingHorizontal: 10 }}>
+              <Image
+                source={{ uri: u.profile_picture }}
+                className="w-5 h-5 rounded-full mr-2"
+              />
+              <Text className="text-xs text-black" numberOfLines={1}>
+                @{u.username}
+              </Text>
+              <TouchableOpacity
+                onPress={() =>
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(u.id);
+                    return next;
+                  })
+                }>
+                <Ionicons
+                  name="close"
+                  size={14}
+                  color="#333"
+                  style={{ marginLeft: 6 }}
+                />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+});
+
+/* ---------- component ---------- */
 function ShareSectionBottomSheetComponent({
   show = false,
   setShow,
   users = [],
   postId,
-  postPreview, // ✅ will be normalized
+  postPreview,
   onSelectUser,
   onShareImage,
-  initialHeightPct = 0.35,
-  maxHeightPct = 0.95,
+  initialHeightPct = 0.3, // default 30%
+  maxHeightPct = 0.9, // default 90%
   maxSelect = 5,
 }: Props) {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-  const NAV_SAFE = Math.max(insets.bottom, Platform.OS === "android" ? 24 : 10);
-  const ACTION_ICON_SIZE = 42;
-  const ACTIONS_BAR_HEIGHT = ACTION_ICON_SIZE + 30;
-  const SEND_BAR_HEIGHT = 60;
-  const CHIP_HEIGHT = 28;
+  // 👇 Use percentage snap points so 30% always behaves correctly
+  const snapPoints = useMemo<(string | number)[]>(
+    () => [
+      `${Math.round(initialHeightPct * 100)}%`,
+      `${Math.round(maxHeightPct * 100)}%`,
+    ],
+    [initialHeightPct, maxHeightPct]
+  );
 
-  const SCREEN_H = Dimensions.get("window").height;
-  const INITIAL_H = Math.round(SCREEN_H * initialHeightPct);
-  const EXPANDED_H = Math.round(SCREEN_H * maxHeightPct);
-
-  const translateY = useRef(new Animated.Value(SCREEN_H)).current;
-  const sheetHeight = useRef(new Animated.Value(INITIAL_H)).current;
-  const sheetHeightVal = useRef(INITIAL_H);
-  sheetHeight.addListener(({ value }) => (sheetHeightVal.current = value));
-
-  const isAnimating = useRef(false);
-  const dragStartHeight = useRef(INITIAL_H);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_e, g) =>
-        Math.abs(g.dy) > Math.abs(g.dx) && Math.abs(g.dy) > 4,
-      onPanResponderGrant: () => {
-        dragStartHeight.current = sheetHeightVal.current;
-      },
-      onPanResponderMove: (_e, g) => {
-        const next = Math.min(
-          EXPANDED_H,
-          Math.max(INITIAL_H, dragStartHeight.current - g.dy)
-        );
-        sheetHeight.setValue(next);
-      },
-      onPanResponderRelease: (_e, g) => {
-        const current = sheetHeightVal.current;
-        const halfway = INITIAL_H + (EXPANDED_H - INITIAL_H) / 2;
-        if (g.vy > 1.1 && current <= INITIAL_H + 24) {
-          closeSheet();
-          return;
-        }
-        Animated.spring(sheetHeight, {
-          toValue: current >= halfway || g.vy < -0.6 ? EXPANDED_H : INITIAL_H,
-          useNativeDriver: false,
-          bounciness: 0,
-          speed: 20,
-        }).start();
-      },
-    })
-  ).current;
-
+  const sheetRef = useRef<BottomSheetModalType>(null);
   const [search, setSearch] = useState("");
 
-  // ✅ Default to the same USERS used by chat.ts (keeps everything in sync)
+  useEffect(() => {
+    if (show) sheetRef.current?.present();
+    else sheetRef.current?.dismiss();
+  }, [show]);
+
+  const closeSheet = useCallback(() => {
+    sheetRef.current?.dismiss();
+    setShow(false);
+  }, [setShow]);
+
   const baseUsers = useMemo<ShareUser[]>(() => {
     if (users.length) return users;
     if (USERS?.length) {
@@ -287,103 +450,64 @@ function ShareSectionBottomSheetComponent({
   );
   const showSendBar = selectedUsers.length > 0;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  useEffect(() => {
-    if (show && !modalVisible) setModalVisible(true);
-    else if (!show && modalVisible) setModalVisible(false);
-  }, [show, modalVisible]);
-
-  useEffect(() => {
-    if (modalVisible && show) {
-      sheetHeight.setValue(INITIAL_H);
-      translateY.setValue(SCREEN_H);
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 550,
-        easing: Easing.bezier(0.23, 1, 0.32, 1),
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [modalVisible, show, sheetHeight, translateY, SCREEN_H, INITIAL_H]);
-
-  const closeSheet = useCallback(() => {
-    if (isAnimating.current) return;
-    isAnimating.current = true;
-    Animated.timing(translateY, {
-      toValue: SCREEN_H,
-      duration: 420,
-      easing: Easing.bezier(0.23, 1, 0.32, 1),
-      useNativeDriver: true,
-    }).start(() => {
-      isAnimating.current = false;
-      setSelectedIds(new Set());
-      setShow(false);
-    });
-  }, [translateY, SCREEN_H, setShow]);
-
-  const toggleSelect = useCallback(
-    (u: ShareUser) => {
-      onSelectUser?.(u);
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(u.id)) next.delete(u.id);
-        else {
-          if (prev.size >= maxSelect) {
-            Alert.alert(
-              "Limit reached",
-              `You can select up to ${maxSelect} people.`
-            );
-            return prev;
-          }
-          next.add(u.id);
-        }
-        return next;
-      });
-    },
-    [onSelectUser, maxSelect]
+  const actions = useMemo(
+    () => [
+      {
+        key: "copy",
+        label: "Copy link",
+        icon: <Ionicons name="link-outline" size={26} color="#000" />,
+        onPress: () => alert("Copied!"),
+      },
+      {
+        key: "system",
+        label: "Share to",
+        icon: <Ionicons name="share-outline" size={26} color="#000" />,
+        onPress: () => onShareImage?.("system"),
+      },
+      {
+        key: "whatsapp",
+        label: "WhatsApp",
+        icon: <Ionicons name="logo-whatsapp" size={26} color="#fff" />,
+        onPress: () => onShareImage?.("whatsapp"),
+        bg: "#25D366",
+      },
+      {
+        key: "facebook",
+        label: "Facebook",
+        icon: <Ionicons name="logo-facebook" size={26} color="#1877F2" />,
+        onPress: () => onShareImage?.("facebook"),
+      },
+      {
+        key: "instagram",
+        label: "Instagram",
+        icon: <Ionicons name="logo-instagram" size={26} color="#C13584" />,
+        onPress: () => onShareImage?.("instagram"),
+      },
+    ],
+    [onShareImage]
   );
 
-  // 🔒 simple re-entrancy guard to avoid double-taps
   const isSendingRef = useRef(false);
-
-  // ✅ The sheet is the ONLY place that sends.
   const handleSend = useCallback(() => {
-    if (isSendingRef.current) return; // guard double-tap
+    if (isSendingRef.current) return;
     if (!selectedUsers.length) return;
-
     if (postId == null || postId === "") {
-      Alert.alert("Nothing to send", "Missing post id.");
+      alert("Nothing to send: missing post id.");
       return;
     }
-
     isSendingRef.current = true;
-
     try {
-      // Build a normalized preview we can safely pass to stores
       const normalized = normalizePreview(postPreview);
-
-      // ✅ Ensure preview is registered so chat/inbox can render it next time
-      if (normalized) {
-        registerPost(normalized);
-      }
-
-      // 1) Insert the post into each selected DM (thread store)
-      selectedUsers.forEach((u) => {
-        // pass a fully normalized preview or undefined
-        sendPostToChat(String(u.id), String(postId), normalized);
-      });
-
-      // 2) Update inbox preview/badges
+      if (normalized) registerPost(normalized);
+      selectedUsers.forEach((u) =>
+        sendPostToChat(String(u.id), String(postId), normalized)
+      );
       sharePostToUsers(
         String(postId),
         selectedUsers.map((u) => String(u.id)),
         normalized
       );
-
-      // 3) Close sheet
       closeSheet();
-
-      // 4) Navigate into the first chat (IG behavior)
       const first = selectedUsers[0];
       router.push({
         pathname: "/chat/UserChatScreen",
@@ -403,266 +527,114 @@ function ShareSectionBottomSheetComponent({
     }
   }, [selectedUsers, postId, postPreview, router, closeSheet]);
 
-  const actions = [
-    {
-      key: "copy",
-      label: "Copy link",
-      icon: <Ionicons name="link-outline" size={26} color="#000" />,
-      onPress: () => Alert.alert("Link", "Copied!"),
-    },
-    {
-      key: "system",
-      label: "Share to",
-      icon: <Ionicons name="share-outline" size={26} color="#000" />,
-      onPress: () => onShareImage?.("system"),
-    },
-    {
-      key: "whatsapp",
-      label: "WhatsApp",
-      icon: <Ionicons name="logo-whatsapp" size={26} color="#fff" />,
-      onPress: () => onShareImage?.("whatsapp"),
-      bg: "#25D366",
-    },
-    {
-      key: "facebook",
-      label: "Facebook",
-      icon: <Ionicons name="logo-facebook" size={26} color="#1877F2" />,
-      onPress: () => onShareImage?.("facebook"),
-    },
-    {
-      key: "instagram",
-      label: "Instagram",
-      icon: <Ionicons name="logo-instagram" size={26} color="#C13584" />,
-      onPress: () => onShareImage?.("instagram"),
-    },
-  ];
+  const DefaultBackdrop = (props: BottomSheetBackdropProps) => (
+    <BottomSheetBackdrop
+      {...props}
+      appearsOnIndex={0}
+      disappearsOnIndex={-1}
+      pressBehavior="close"
+    />
+  );
 
-  const RESERVED_BOTTOM =
-    NAV_SAFE + (showSendBar ? SEND_BAR_HEIGHT : ACTIONS_BAR_HEIGHT);
-  const SHEET_EXTRA = NAV_SAFE;
+  const keyExtractor = useCallback((it: ShareUser) => String(it.id), []);
+  const renderItem = useCallback(
+    ({ item }: { item: ShareUser }) => (
+      <GridUser
+        user={item}
+        selected={selectedIds.has(item.id)}
+        onPress={(u) => {
+          onSelectUser?.(u);
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(u.id)) next.delete(u.id);
+            else {
+              if (prev.size >= (maxSelect ?? 5)) {
+                alert(`You can select up to ${maxSelect ?? 5} people.`);
+                return prev;
+              }
+              next.add(u.id);
+            }
+            return next;
+          });
+        }}
+      />
+    ),
+    [onSelectUser, selectedIds, maxSelect]
+  );
+
+  const renderFooter = useCallback(
+    (fp: BottomSheetFooterProps) => (
+      <ShareFooter
+        {...fp}
+        showSendBar={showSendBar}
+        selectedCount={selectedUsers.length}
+        maxSelect={maxSelect ?? 5}
+        onSend={handleSend}
+        actions={actions}
+      />
+    ),
+    [showSendBar, selectedUsers.length, maxSelect, handleSend, actions]
+  );
+
+  // ensure last row is reachable behind footer
+  const NAV_SAFE = Math.max(insets.bottom, Platform.OS === "android" ? 24 : 10);
+  const reservedBottom =
+    (showSendBar ? SEND_BAR_HEIGHT : ACTIONS_BAR_HEIGHT) + NAV_SAFE + 6;
 
   return (
-    <Modal
-      animationType="none"
-      transparent
-      visible={modalVisible}
-      onRequestClose={closeSheet}
-    >
-      <TouchableOpacity
-        activeOpacity={1}
-        onPress={closeSheet}
-        className="flex-1 bg-black/50 justify-end"
-      >
-        <Animated.View style={{ transform: [{ translateY }] }}>
-          <Animated.View
-            style={{
-              height: Animated.add(
-                sheetHeight,
-                new Animated.Value(SHEET_EXTRA)
-              ),
-            }}
-            className="bg-white rounded-t-2xl w-full px-3 pt-2"
-          >
-            {/* Handle */}
-            <View
-              {...panResponder.panHandlers}
-              className="w-full items-center mb-2"
-            >
-              <View className="w-12 h-1.5 rounded-full bg-gray-300" />
-            </View>
-
-            {/* Search */}
-            <View className="relative  mb-2">
-              <TextInput
-                placeholder="Search"
-                placeholderTextColor="#666"
-                value={search}
-                onChangeText={setSearch}
-                className="h-11 bg-white border border-gray-300 rounded-xl px-3 pr-11 text-base text-black"
-                style={{
-                  paddingVertical: Platform.OS === "android" ? 0 : undefined,
-                }}
-              />
-              <Ionicons
-                name="search"
-                size={20}
-                color="#666"
-                style={{
-                  position: "absolute",
-                  right: 14,
-                  top: "50%",
-                  marginTop: -10,
-                }}
-              />
-            </View>
-
-            {/* Sticky horizontal chips */}
-            {selectedUsers.length > 0 && (
-              <View style={{ height: CHIP_HEIGHT + 14, marginBottom: 4 }}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{
-                    alignItems: "center",
-                    paddingHorizontal: 10,
-                    gap: 8,
-                  }}
-                >
-                  {selectedUsers.map((u) => (
-                    <View
-                      key={`chip-${u.id}`}
-                      className="flex-row items-center bg-[#F1F2F6]"
-                      style={{
-                        height: CHIP_HEIGHT,
-                        borderRadius: CHIP_HEIGHT / 2,
-                        paddingHorizontal: 10,
-                      }}
-                    >
-                      <Image
-                        source={{ uri: u.profile_picture }}
-                        className="w-5 h-5 rounded-full mr-2"
-                      />
-                      <Text className="text-xs text-black" numberOfLines={1}>
-                        @{u.username}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setSelectedIds((prev) => {
-                            const next = new Set(prev);
-                            next.delete(u.id);
-                            return next;
-                          })
-                        }
-                      >
-                        <Ionicons
-                          name="close"
-                          size={14}
-                          color="#333"
-                          style={{ marginLeft: 6 }}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Scrollable users grid */}
-            <FlatList
-              data={filteredUsers}
-              keyExtractor={(it) => String(it.id)}
-              renderItem={({ item }) => (
-                <GridUser
-                  user={item}
-                  selected={selectedIds.has(item.id)}
-                  onPress={toggleSelect}
-                />
-              )}
-              numColumns={3}
-              contentContainerStyle={{
-                paddingHorizontal: 6,
-                paddingTop: 6,
-                paddingBottom: RESERVED_BOTTOM,
-              }}
-              columnWrapperStyle={{ justifyContent: "space-between" }}
-              showsVerticalScrollIndicator={false}
-            />
-
-            {/* Bottom actions — hidden when Send bar visible */}
-            {!showSendBar && (
-              <View
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: ACTIONS_BAR_HEIGHT + NAV_SAFE,
-                  paddingBottom: NAV_SAFE,
-                  backgroundColor: "white",
-                }}
-              >
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{
-                    paddingHorizontal: 12,
-                    alignItems: "center",
-                    height: ACTIONS_BAR_HEIGHT,
-                  }}
-                >
-                  {actions.map((a) => (
-                    <View
-                      key={a.key}
-                      style={{ alignItems: "center", marginHorizontal: 12 }}
-                    >
-                      <TouchableOpacity
-                        activeOpacity={0.9}
-                        onPress={a.onPress}
-                        className="items-center justify-center rounded-full"
-                        style={{
-                          width: ACTION_ICON_SIZE,
-                          height: ACTION_ICON_SIZE,
-                          backgroundColor: a.bg ?? "#F7F7F9",
-                        }}
-                      >
-                        {a.icon}
-                      </TouchableOpacity>
-                      <Text
-                        style={{ marginTop: 6, fontSize: 12 }}
-                        className="text-black text-center"
-                      >
-                        {a.label}
-                      </Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Send bar */}
-            {showSendBar && (
-              <View
-                className="absolute left-0 right-0 bg-white border-t border-gray-200"
-                style={{
-                  bottom: 0,
-                  height: SEND_BAR_HEIGHT + NAV_SAFE,
-                  paddingBottom: NAV_SAFE,
-                }}
-              >
-                <View
-                  className="flex-row items-center justify-between px-3"
-                  style={{ height: SEND_BAR_HEIGHT }}
-                >
-                  <Text className="text-gray-700">
-                    Send to {selectedUsers.length}/{maxSelect}
-                  </Text>
-                  <TouchableOpacity
-                    disabled={!selectedUsers.length || isSendingRef.current}
-                    onPress={handleSend}
-                    className={`px-3 py-2 rounded-full ${
-                      selectedUsers.length && !isSendingRef.current
-                        ? "bg-black"
-                        : "bg-gray-300"
-                    }`}
-                    activeOpacity={0.8}
-                  >
-                    <Text className="text-white font-semibold">
-                      {isSendingRef.current ? "Sending..." : "Send"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </Animated.View>
-        </Animated.View>
-      </TouchableOpacity>
-    </Modal>
+    <BottomSheetModal
+      ref={sheetRef}
+      index={0}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      backdropComponent={DefaultBackdrop}
+      enableDynamicSizing={false}
+      enableOverDrag={false}
+      enableContentPanningGesture={false}
+      enableHandlePanningGesture
+      handleComponent={() => (
+        <HeaderHandle
+          selectedUsers={selectedUsers}
+          setSelectedIds={setSelectedIds}
+          search={search}
+          setSearch={setSearch}
+        />
+      )}
+      keyboardBehavior="extend"
+      keyboardBlurBehavior="none"
+      onDismiss={() => setShow(false)}
+      backgroundStyle={{ backgroundColor: "#fff" }}
+      handleIndicatorStyle={{ backgroundColor: "#cfd2d7" }}
+      footerComponent={renderFooter}>
+      {/* BODY — scrolls fully at ANY snap (incl. 30%) */}
+      <BottomSheetFlatList
+        style={{ flex: 1 }}
+        data={filteredUsers}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        numColumns={3}
+        columnWrapperStyle={{ justifyContent: "space-between" }}
+        contentContainerStyle={{
+          paddingHorizontal: 6,
+          paddingTop: 6,
+          paddingBottom: reservedBottom,
+          backgroundColor: "#fff",
+        }}
+        // Make sure it owns the vertical scroll
+        scrollEnabled
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="always"
+        bounces
+        overScrollMode="always"
+        showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={{ bottom: reservedBottom }}
+      />
+    </BottomSheetModal>
   );
 }
+
 ShareSectionBottomSheetComponent.displayName =
   "ShareSectionBottomSheetComponent";
-
 const ShareSectionBottomSheet = memo(ShareSectionBottomSheetComponent);
 ShareSectionBottomSheet.displayName = "ShareSectionBottomSheet";
-
 export default ShareSectionBottomSheet;

@@ -1,26 +1,36 @@
 // components/FollowersFollowingSheet.tsx
 import SearchBar from "@/components/Searchbar";
-// (Octicons removed)
-import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  BottomSheetView,
+  type BottomSheetModal as BottomSheetModalType,
+} from "@gorhom/bottom-sheet";
+import { LinearGradient } from "expo-linear-gradient";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
   Alert,
   Animated,
   Dimensions,
-  Easing,
   Image,
-  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  PanResponder,
-  PanResponderGestureState,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+/* ======================== Types ======================== */
 type FollowUser = {
   user_id: number | string;
   username: string;
@@ -41,9 +51,9 @@ interface FollowersFollowingSheetProps {
   setShow: (show: boolean) => void;
   followers: FollowUser[];
   followings: FollowUser[];
-  activeTab?: TabKey;
+  activeTab?: TabKey; // which tab to open on
   onUserPress?: (user: FollowUser) => void;
-  loading?: boolean;
+  loading?: boolean; // show skeletons when true
   error?: string | null;
   onFollow?: (userId: string | number) => Promise<void> | void;
   onUnfollow?: (userId: string | number) => Promise<void> | void;
@@ -52,16 +62,111 @@ interface FollowersFollowingSheetProps {
   enableDemoData?: boolean;
 }
 
+/* ======================== Constants / Helpers ======================== */
 const { height: WIN_H, width: WIN_W } = Dimensions.get("window");
-const clamp = (v: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, v));
+const SCREEN_W = WIN_W;
 
+// Put demo rows OUTSIDE component to silence react-hooks exhaustive-deps.
+const DEMO_MUTUAL: FollowUser = {
+  user_id: "demo_mutual",
+  username: "mutual_guy",
+  first_name: "Mutual",
+  last_name: "Guy",
+  is_creator: true,
+};
+const DEMO_I_FOLLOW_ONLY: FollowUser = {
+  user_id: "demo_i_follow_only",
+  username: "solo_follow",
+  first_name: "Solo",
+  last_name: "Follow",
+};
+const DEMO_THEY_FOLLOW_ONLY: FollowUser = {
+  user_id: "demo_they_follow_only",
+  username: "follow_me_back",
+  first_name: "Follow",
+  last_name: "MeBack",
+  isVerified: true,
+};
+
+/* ======================== Skeleton Loader ======================== */
+const Shimmer: React.FC<{
+  height: number;
+  borderRadius?: number;
+  style?: any;
+}> = ({ height, borderRadius = 8, style }) => {
+  const translateX = useRef(new Animated.Value(-SCREEN_W)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(translateX, {
+        toValue: SCREEN_W,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [translateX]);
+
+  return (
+    <View
+      style={[
+        {
+          overflow: "hidden",
+          backgroundColor: "#ECEFF3",
+          height,
+          borderRadius,
+        },
+        style,
+      ]}>
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFillObject,
+          { transform: [{ translateX }] },
+        ]}>
+        <LinearGradient
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          colors={["transparent", "rgba(255,255,255,0.65)", "transparent"]}
+          style={{ width: 120, height: "100%" }}
+        />
+      </Animated.View>
+    </View>
+  );
+};
+
+const SkeletonRow: React.FC = () => (
+  <View
+    style={{
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 10,
+    }}>
+    <Shimmer height={40} borderRadius={20} style={{ width: 40 }} />
+    <View style={{ flex: 1, gap: 6 }}>
+      <Shimmer height={14} borderRadius={6} style={{ width: "60%" }} />
+      <Shimmer height={12} borderRadius={6} style={{ width: "40%" }} />
+    </View>
+    <Shimmer height={30} borderRadius={10} style={{ width: 108 }} />
+  </View>
+);
+
+const SkeletonList: React.FC<{ count?: number }> = ({ count = 10 }) => (
+  <View style={{ paddingVertical: 8 }}>
+    {Array.from({ length: count }).map((_, i) => (
+      <SkeletonRow key={i} />
+    ))}
+  </View>
+);
+
+/* ======================== Component ======================== */
 const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   show,
   setShow,
   followers,
   followings,
-  activeTab: activeTabProp = "following",
+  activeTab: activeTabProp = "followers", // default to followers tab
   onUserPress,
   loading = false,
   error = null,
@@ -72,125 +177,64 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   enableDemoData = false,
 }) => {
   const insets = useSafeAreaInsets();
+  const modalRef = useRef<BottomSheetModalType>(null);
 
-  /** Sheet sizing/animation */
-  const SHEET_H = Math.round(WIN_H * 0.9);
-  const OPEN_Y = 0;
-  const CLOSED_Y = SHEET_H;
-  const slideY = useRef(new Animated.Value(CLOSED_Y)).current;
+  // Snap points: 50%, 80%, 90%
+  const snapPoints = useMemo(() => [WIN_H * 0.5, WIN_H * 0.8, WIN_H * 0.9], []);
+  const initialIndex = 2; // open near-full
 
+  // Present/dismiss
   useEffect(() => {
-    Animated.timing(slideY, {
-      toValue: show ? OPEN_Y : CLOSED_Y,
-      duration: show ? 260 : 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    if (show) {
+      modalRef.current?.present();
+    } else {
+      modalRef.current?.dismiss();
+    }
   }, [show]);
 
-  const close = () => setShow(false);
+  const close = useCallback(() => setShow(false), [setShow]);
 
-  /** Pan to close/open */
-  const dragStartYRef = useRef(0);
-  const snapOpen = () =>
-    Animated.spring(slideY, {
-      toValue: OPEN_Y,
-      useNativeDriver: true,
-      bounciness: 0,
-      speed: 14,
-    }).start();
-
-  const snapClose = () =>
-    Animated.spring(slideY, {
-      toValue: CLOSED_Y,
-      useNativeDriver: true,
-      bounciness: 0,
-      speed: 14,
-    }).start(({ finished }) => finished && close());
-
-  const decideSnap = (finalY: number, vy: number) => {
-    const distanceThreshold = SHEET_H * 0.35;
-    const velocityThreshold = 1.0;
-    if (vy > velocityThreshold) return snapClose();
-    if (vy < -velocityThreshold) return snapOpen();
-    return finalY > distanceThreshold ? snapClose() : snapOpen();
-  };
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_e, g) => {
-        const vx = Math.abs(g.dx);
-        const vy = Math.abs(g.dy);
-        return vy > 4 && vy > vx;
-      },
-      onPanResponderGrant: () => {
-        slideY.stopAnimation((cur: number) => {
-          dragStartYRef.current = cur;
-        });
-      },
-      onPanResponderMove: (_e, g: PanResponderGestureState) => {
-        const next = clamp(dragStartYRef.current + g.dy, OPEN_Y, CLOSED_Y);
-        slideY.setValue(next);
-      },
-      onPanResponderRelease: (_e, g) => {
-        const next = clamp(dragStartYRef.current + g.dy, OPEN_Y, CLOSED_Y);
-        decideSnap(next, g.vy);
-      },
-      onPanResponderTerminate: (_e, g) => {
-        const next = clamp(dragStartYRef.current + g.dy, OPEN_Y, CLOSED_Y);
-        decideSnap(next, g.vy);
-      },
-    })
-  ).current;
-
-  /** Demo data */
-  const DEMO_MUTUAL: FollowUser = {
-    user_id: "demo_mutual",
-    username: "mutual_guy",
-    first_name: "Mutual",
-    last_name: "Guy",
-    is_creator: true,
-  };
-  const DEMO_I_FOLLOW_ONLY: FollowUser = {
-    user_id: "demo_i_follow_only",
-    username: "solo_follow",
-    first_name: "Solo",
-    last_name: "Follow",
-  };
-  const DEMO_THEY_FOLLOW_ONLY: FollowUser = {
-    user_id: "demo_they_follow_only",
-    username: "follow_me_back",
-    first_name: "Follow",
-    last_name: "MeBack",
-    isVerified: true,
-  };
-
-  const safeFollowers = useMemo(
-    () =>
-      enableDemoData
-        ? [...followers, DEMO_MUTUAL, DEMO_THEY_FOLLOW_ONLY]
-        : followers,
-    [enableDemoData, followers]
-  );
-  const safeFollowings = useMemo(
-    () =>
-      enableDemoData
-        ? [...followings, DEMO_MUTUAL, DEMO_I_FOLLOW_ONLY]
-        : followings,
-    [enableDemoData, followings]
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        pressBehavior="close"
+      />
+    ),
+    []
   );
 
-  /** Tabs + pager */
+  /* ======================== Demo augment ======================== */
+  const safeFollowers: FollowUser[] = useMemo(() => {
+    if (!followers) return [];
+    return enableDemoData
+      ? [...followers, DEMO_MUTUAL, DEMO_THEY_FOLLOW_ONLY]
+      : followers;
+  }, [followers, enableDemoData]);
+
+  const safeFollowings: FollowUser[] = useMemo(() => {
+    if (!followings) return [];
+    return enableDemoData
+      ? [...followings, DEMO_MUTUAL, DEMO_I_FOLLOW_ONLY]
+      : followings;
+  }, [followings, enableDemoData]);
+
+  /* ======================== Tabs / Pager ======================== */
+  // Pages order: [Followers (0), Following (1)]
+  const PAGE_FOLLOWERS = 0;
+  const PAGE_FOLLOWING = 1;
+
   const [activeTab, setActiveTab] = useState<TabKey>(activeTabProp);
   useEffect(() => setActiveTab(activeTabProp), [activeTabProp]);
 
   const pagerRef = useRef<ScrollView>(null);
   const [pageW, setPageW] = useState<number>(WIN_W);
   const [pagerReady, setPagerReady] = useState(false);
-  const [pagerVisible, setPagerVisible] = useState(false);
-  const initialIndex = activeTabProp === "following" ? 0 : 1;
-  const pagerKey = `pager-${show ? 1 : 0}-${pageW}-${initialIndex}`;
+
+  // Keep a key tied to target tab to ensure initial contentOffset applies
+  const pagerKey = `pager-${pageW}-${activeTabProp}`;
 
   const onPagerLayout = (e: any) => {
     const w = e.nativeEvent.layout.width;
@@ -198,45 +242,50 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
     setPagerReady(true);
   };
 
-  useEffect(() => {
-    if (show) setPagerVisible(false);
-  }, [show]);
+  // Type-safe timer ref
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const raf1Ref = useRef<number | null>(null);
-  const raf2Ref = useRef<number | null>(null);
+  const syncToTab = useCallback(
+    (animate = false) => {
+      if (!pagerReady || !show) return;
+      const index =
+        activeTabProp === "following" ? PAGE_FOLLOWING : PAGE_FOLLOWERS;
+      pagerRef.current?.scrollTo({ x: index * pageW, y: 0, animated: animate });
+    },
+    [pagerReady, show, activeTabProp, pageW]
+  );
 
+  // Align pager after sheet opens & whenever target tab prop changes
   useEffect(() => {
     if (!show || !pagerReady) return;
-
-    const index = activeTabProp === "following" ? 0 : 1;
-
-    raf1Ref.current = requestAnimationFrame(() => {
-      raf2Ref.current = requestAnimationFrame(() => {
-        pagerRef.current?.scrollTo({ x: index * pageW, y: 0, animated: false });
-        setPagerVisible(true);
-      });
-    });
-
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    // Wait a bit so BottomSheet can finish its opening animation/layout
+    syncTimeoutRef.current = setTimeout(() => syncToTab(false), 300);
     return () => {
-      if (raf1Ref.current) cancelAnimationFrame(raf1Ref.current);
-      if (raf2Ref.current) cancelAnimationFrame(raf2Ref.current);
-      raf1Ref.current = null;
-      raf2Ref.current = null;
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
-  }, [show, pagerReady, pageW, activeTabProp]);
+  }, [show, pagerReady, activeTabProp, syncToTab]);
+
+  // Re-sync once loader flips off (layout/content height changes can nudge)
+  useEffect(() => {
+    if (!loading && show && pagerReady) {
+      const t = setTimeout(() => syncToTab(false), 50);
+      return () => clearTimeout(t);
+    }
+  }, [loading, show, pagerReady, syncToTab]);
 
   const goToTab = (tab: TabKey, animated = true) => {
     setActiveTab(tab);
-    const index = tab === "following" ? 0 : 1;
+    const index = tab === "following" ? PAGE_FOLLOWING : PAGE_FOLLOWERS;
     pagerRef.current?.scrollTo({ x: index * pageW, y: 0, animated });
   };
 
   const onPageScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const index = Math.round(e.nativeEvent.contentOffset.x / pageW);
-    setActiveTab(index === 0 ? "following" : "followers");
+    setActiveTab(index === PAGE_FOLLOWING ? "following" : "followers");
   };
 
-  /** Search */
+  /* ======================== Search / Filtering ======================== */
   const [query, setQuery] = useState("");
   useEffect(() => {
     if (!show) setQuery("");
@@ -245,14 +294,27 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
     setQuery("");
   }, [activeTab]);
 
-  /** Relationship state */
-  const userMap = useMemo(() => {
-    const m = new Map<string | number, FollowUser>();
-    safeFollowers?.forEach((u) => m.set(u.user_id, u));
-    safeFollowings?.forEach((u) => m.set(u.user_id, u));
-    return m;
-  }, [safeFollowers, safeFollowings]);
+  const filterList = useCallback(
+    (list: FollowUser[]) => {
+      const q = query.trim().toLowerCase();
+      if (!q) return list;
+      return list.filter((u) => {
+        const username = u.username?.toLowerCase() ?? "";
+        const first = u.first_name?.toLowerCase() ?? "";
+        const last = u.last_name?.toLowerCase() ?? "";
+        const full = `${first} ${last}`.trim();
+        return (
+          username.includes(q) ||
+          first.includes(q) ||
+          last.includes(q) ||
+          full.includes(q)
+        );
+      });
+    },
+    [query]
+  );
 
+  // Relationship sets for fast lookups (who I follow, who follows me)
   const makeIdSet = (arr?: FollowUser[]) => {
     const s = new Set<string | number>();
     (arr || []).forEach((u) => s.add(u.user_id));
@@ -280,6 +342,40 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
     setTheyFollowMeSet((prev) => (setsEqual(prev, next) ? prev : next));
   }, [safeFollowers]);
 
+  // Map for quick user lookups
+  const userMap = useMemo(() => {
+    const m = new Map<string | number, FollowUser>();
+    safeFollowers?.forEach((u) => m.set(u.user_id, u));
+    safeFollowings?.forEach((u) => m.set(u.user_id, u));
+    return m;
+  }, [safeFollowers, safeFollowings]);
+
+  // Ordered following list (preserve original followings order)
+  const followingList: FollowUser[] = useMemo(() => {
+    const arr: FollowUser[] = [];
+    iFollowSet.forEach((id) => {
+      const u = userMap.get(id);
+      if (u) arr.push(u);
+    });
+    const order = new Map((safeFollowings || []).map((u, i) => [u.user_id, i]));
+    arr.sort(
+      (a, b) => (order.get(a.user_id) ?? 9999) - (order.get(b.user_id) ?? 9999)
+    );
+    return arr;
+  }, [iFollowSet, safeFollowings, userMap]);
+
+  const followersList: FollowUser[] = useMemo(
+    () => safeFollowers || [],
+    [safeFollowers]
+  );
+
+  const dataFollowing = filterList(followingList);
+  const dataFollowers = filterList(followersList);
+
+  const followingCount = iFollowSet.size;
+  const followersCount = theyFollowMeSet.size;
+
+  /* ======================== Follow / Unfollow handlers ======================== */
   const isIFollowing = (id: string | number) => iFollowSet.has(id);
   const isTheyFollowMe = (id: string | number) => theyFollowMeSet.has(id);
 
@@ -295,10 +391,11 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   const doFollow = async (id: string | number) => {
     if (isIFollowing(id) || isPending(id)) return;
     setPendingFollow((s) => new Set(s).add(id));
-    setIFollowSet((prev) => new Set(prev).add(id));
+    setIFollowSet((prev) => new Set(prev).add(id)); // optimistic
     try {
       await onFollow?.(id);
     } catch {
+      // revert
       setIFollowSet((prev) => {
         const n = new Set(prev);
         n.delete(id);
@@ -315,8 +412,10 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
 
   const doUnfollow = async (id: string | number) => {
     if (!isIFollowing(id) || isPending(id)) return;
+
     const run = async () => {
       setPendingUnfollow((s) => new Set(s).add(id));
+      // optimistic remove
       setIFollowSet((prev) => {
         const n = new Set(prev);
         n.delete(id);
@@ -325,6 +424,7 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
       try {
         await onUnfollow?.(id);
       } catch {
+        // revert
         setIFollowSet((prev) => new Set(prev).add(id));
       } finally {
         setPendingUnfollow((s) => {
@@ -334,6 +434,7 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
         });
       }
     };
+
     if (confirmUnfollow) {
       Alert.alert("Unfollow?", "You will stop seeing their posts.", [
         { text: "Cancel", style: "cancel" },
@@ -344,11 +445,10 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
     }
   };
 
-  /** Buttons — smaller but consistent */
-  const BTN_H = 30; // ↓ a bit
-  const BTN_W = 108; // still fits "Follow back"
+  /* ======================== UI Atoms ======================== */
+  const BTN_H = 30;
+  const BTN_W = 108;
   const ACTIONS_GAP = 8;
-
   const btnBase = {
     height: BTN_H,
     width: BTN_W,
@@ -367,7 +467,6 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   const btnTextOutline = "text-[12px] text-black";
   const btnTextFill = "text-[12px] text-white font-semibold";
 
-  /** Row */
   const UserRow = ({ u }: { u: FollowUser }) => {
     const fullName = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim();
     const displayName = fullName || u.username;
@@ -395,12 +494,11 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
           source={{
             uri:
               u.profile_picture ||
-              "https://lynkd-all-media-storage.s3.amazonaws.com/profile-pictures/FFT5JanXZoVDyZKpwtXC2mwXevy1/pic_1734432687555.jpeg",
+              "https://cdn-icons-png.flaticon.com/512/149/149071.png",
           }}
           className="w-10 h-10 rounded-full"
         />
 
-        {/* Only bold name */}
         <TouchableOpacity
           style={{ flex: 1 }}
           activeOpacity={0.7}
@@ -412,7 +510,6 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
           </Text>
         </TouchableOpacity>
 
-        {/* Actions */}
         <View
           style={{
             flexShrink: 0,
@@ -453,100 +550,41 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
     );
   };
 
-  /** Lists */
-  const followingList: FollowUser[] = useMemo(() => {
-    const arr: FollowUser[] = [];
-    iFollowSet.forEach((id) => {
-      const u = userMap.get(id);
-      if (u) arr.push(u);
-    });
-    const order = new Map((safeFollowings || []).map((u, i) => [u.user_id, i]));
-    arr.sort(
-      (a, b) => (order.get(a.user_id) ?? 9999) - (order.get(b.user_id) ?? 9999)
-    );
-    return arr;
-  }, [iFollowSet, safeFollowings, userMap]);
-
-  const followersList: FollowUser[] = useMemo(
-    () => safeFollowers || [],
-    [safeFollowers]
-  );
-
-  const filterList = (list: FollowUser[]) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((u) => {
-      const username = u.username?.toLowerCase() ?? "";
-      const first = u.first_name?.toLowerCase() ?? "";
-      const last = u.last_name?.toLowerCase() ?? "";
-      const full = `${first} ${last}`.trim();
-      return (
-        username.includes(q) ||
-        first.includes(q) ||
-        last.includes(q) ||
-        full.includes(q)
-      );
-    });
-  };
-
-  const dataFollowing = filterList(followingList);
-  const dataFollowers = filterList(followersList);
-
-  const followingCount = iFollowSet.size;
-  const followersCount = theyFollowMeSet.size;
-
-  /** Render */
+  /* ======================== Render ======================== */
   return (
-    <Modal
-      visible={show}
-      transparent
-      animationType="none"
-      statusBarTranslucent
-      hardwareAccelerated
-      onRequestClose={close}>
-      <TouchableOpacity
-        activeOpacity={1}
-        onPress={close}
-        className="flex-1 bg-black/25"
-      />
-
-      <Animated.View
-        className="absolute left-0 right-0 bottom-0 w-full rounded-t-2xl bg-white shadow-lg"
+    <BottomSheetModal
+      ref={modalRef}
+      index={initialIndex}
+      snapPoints={snapPoints}
+      backdropComponent={renderBackdrop}
+      onDismiss={close}
+      enablePanDownToClose
+      enableHandlePanningGesture
+      enableContentPanningGesture
+      enableOverDrag={false}
+      keyboardBehavior="extend"
+      keyboardBlurBehavior="none"
+      handleIndicatorStyle={{ backgroundColor: "#cfd2d7" }}
+      backgroundStyle={{ backgroundColor: "#fff" }}
+      topInset={0}>
+      <BottomSheetView
         style={{
-          height: SHEET_H - Math.max(insets.bottom, 0),
-          transform: [{ translateY: slideY }],
           paddingBottom: Math.max(insets.bottom, 12),
-          paddingHorizontal: 16,
-          paddingTop: 16,
-        }}>
-        {/* Header: handle + tabs + search */}
-        <View {...panResponder.panHandlers}>
-          <View className="items-center mb-3">
-            <View className="w-10 h-1.5 rounded-full bg-gray-300" />
-          </View>
 
-          <View className="flex-row mb-2 border-b border-gray-100">
+          paddingTop: 12,
+          flex: 1,
+        }}>
+        {/* Header (built-in handle only) */}
+        <View>
+          {/* Tabs: order matches swipe pages (Followers | Following) */}
+          <View className="flex-row mb-2  px-3">
             <TouchableOpacity
-              className={`flex-1 items-center py-2 ${
-                activeTab === "following" ? "border-b-2 border-black" : ""
-              }`}
-              onPress={() => goToTab("following")}>
-              <Text
-                className={`text-[13px] ${
-                  activeTab === "following"
-                    ? "text-black font-semibold"
-                    : "text-gray-500"
-                }`}>
-                Following ({followingCount})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className={`flex-1 items-center py-2 ${
+              className={`flex-1 items-center  py-2 ${
                 activeTab === "followers" ? "border-b-2 border-black" : ""
               }`}
               onPress={() => goToTab("followers")}>
               <Text
-                className={`text-[13px] ${
+                className={`text-base ${
                   activeTab === "followers"
                     ? "text-black font-semibold"
                     : "text-gray-500"
@@ -554,76 +592,106 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
                 Followers ({followersCount})
               </Text>
             </TouchableOpacity>
-          </View>
 
-          <SearchBar
-            placeholder="Search"
-            value={query}
-            onChangeText={setQuery}
-          />
+            <TouchableOpacity
+              className={`flex-1 items-center py-2 ${
+                activeTab === "following" ? "border-b-2 border-black" : ""
+              }`}
+              onPress={() => goToTab("following")}>
+              <Text
+                className={`text-base ${
+                  activeTab === "following"
+                    ? "text-black font-semibold"
+                    : "text-gray-500"
+                }`}>
+                Following ({followingCount})
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <View className="px-3 mt-2">
+            <SearchBar
+              placeholder="Search"
+              value={query}
+              onChangeText={setQuery}
+            />
+          </View>
         </View>
 
-        {loading ? (
-          <View className="flex-1 justify-center items-center py-6">
-            <ActivityIndicator size="small" color="#000" />
-            <Text className="text-gray-500 mt-2 text-sm">
-              Loading {activeTab}...
-            </Text>
-          </View>
-        ) : error ? (
-          <View className="flex-1 justify-center items-center py-6">
+        {/* Body */}
+        {error ? (
+          <View className="flex-1 justify-center items-center  py-6">
             <Text className="text-red-500 text-sm">{error}</Text>
           </View>
         ) : (
-          <ScrollView
-            key={pagerKey}
-            ref={pagerRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={onPageScrollEnd}
-            onLayout={onPagerLayout}
-            keyboardShouldPersistTaps="handled"
-            contentOffset={{
-              x: (activeTabProp === "following" ? 0 : 1) * pageW,
-              y: 0,
-            }}
-            style={{ flex: 1, marginTop: 8 }}>
-            {/* Following */}
+          <Animated.View style={{ flex: 1, opacity: loading ? 0.35 : 1 }}>
             <ScrollView
-              style={{ width: pageW }}
-              contentContainerStyle={{ paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled">
-              {dataFollowing.length === 0 ? (
-                <View className="items-center py-8">
-                  <Text className="text-gray-500">No following users</Text>
-                </View>
-              ) : (
-                dataFollowing.map((u) => (
-                  <UserRow key={String(u.user_id)} u={u} />
-                ))
-              )}
-            </ScrollView>
+              key={pagerKey}
+              ref={pagerRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={onPageScrollEnd}
+              onLayout={onPagerLayout}
+              keyboardShouldPersistTaps="handled"
+              contentOffset={{
+                x:
+                  (activeTabProp === "following"
+                    ? PAGE_FOLLOWING
+                    : PAGE_FOLLOWERS) * pageW,
+                y: 0,
+              }}
+              style={{ flex: 1, marginTop: 8 }}
+              decelerationRate="fast"
+              disableIntervalMomentum
+              scrollEventThrottle={16}>
+              {/* Followers page (index 0) */}
+              <BottomSheetScrollView
+                style={{ width: pageW }}
+                contentContainerStyle={{
+                  paddingBottom: 24,
+                  paddingHorizontal: 12,
+                }}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled>
+                {loading ? (
+                  <SkeletonList />
+                ) : dataFollowers.length === 0 ? (
+                  <View className="items-center py-8">
+                    <Text className="text-gray-500">No followers found</Text>
+                  </View>
+                ) : (
+                  dataFollowers.map((u) => (
+                    <UserRow key={String(u.user_id)} u={u} />
+                  ))
+                )}
+              </BottomSheetScrollView>
 
-            {/* Followers */}
-            <ScrollView
-              style={{ width: pageW }}
-              contentContainerStyle={{ paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled">
-              {dataFollowers.length === 0 ? (
-                <View className="items-center py-8">
-                  <Text className="text-gray-500">No followers found</Text>
-                </View>
-              ) : (
-                dataFollowers.map((u) => (
-                  <UserRow key={String(u.user_id)} u={u} />
-                ))
-              )}
+              {/* Following page (index 1) */}
+              <BottomSheetScrollView
+                style={{ width: pageW }}
+                contentContainerStyle={{
+                  paddingBottom: 24,
+                  paddingHorizontal: 12,
+                }}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled>
+                {loading ? (
+                  <SkeletonList />
+                ) : dataFollowing.length === 0 ? (
+                  <View className="items-center py-8">
+                    <Text className="text-gray-500">No following users</Text>
+                  </View>
+                ) : (
+                  dataFollowing.map((u) => (
+                    <UserRow key={String(u.user_id)} u={u} />
+                  ))
+                )}
+              </BottomSheetScrollView>
             </ScrollView>
-          </ScrollView>
+          </Animated.View>
         )}
-      </Animated.View>
-    </Modal>
+      </BottomSheetView>
+    </BottomSheetModal>
   );
 };
 

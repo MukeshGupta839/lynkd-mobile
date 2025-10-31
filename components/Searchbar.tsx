@@ -28,11 +28,11 @@ export default function SearchBar({
       ].join(" ")}>
       <View
         className={[
-          "flex-1 flex-row items-center justify-between px-2 mt-1",
+          "flex-1 flex-row items-center justify-between px-3",
           innerClassName,
         ].join(" ")}>
         {readOnly ? (
-          <Text className="flex-1 mr-2 text-lg text-gray-400">
+          <Text className="flex-1 mr-2 text-base text-gray-400">
             {placeholder}
           </Text>
         ) : (
@@ -42,7 +42,10 @@ export default function SearchBar({
             onSubmitEditing={onSubmitEditing}
             placeholder={placeholder}
             placeholderTextColor="#6B7280"
-            className="flex-1 mr-2 text-lg leading-none text-gray-700"
+            className="flex-1 mr-2 text-base text-gray-700"
+            style={{
+              paddingVertical: 0, // ensures caret is vertically centered
+            }}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
