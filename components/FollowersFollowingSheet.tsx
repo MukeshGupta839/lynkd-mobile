@@ -66,28 +66,6 @@ interface FollowersFollowingSheetProps {
 const { height: WIN_H, width: WIN_W } = Dimensions.get("window");
 const SCREEN_W = WIN_W;
 
-// Put demo rows OUTSIDE component to silence react-hooks exhaustive-deps.
-const DEMO_MUTUAL: FollowUser = {
-  user_id: "demo_mutual",
-  username: "mutual_guy",
-  first_name: "Mutual",
-  last_name: "Guy",
-  is_creator: true,
-};
-const DEMO_I_FOLLOW_ONLY: FollowUser = {
-  user_id: "demo_i_follow_only",
-  username: "solo_follow",
-  first_name: "Solo",
-  last_name: "Follow",
-};
-const DEMO_THEY_FOLLOW_ONLY: FollowUser = {
-  user_id: "demo_they_follow_only",
-  username: "follow_me_back",
-  first_name: "Follow",
-  last_name: "MeBack",
-  isVerified: true,
-};
-
 /* ======================== Skeleton Loader ======================== */
 const Shimmer: React.FC<{
   height: number;
@@ -118,12 +96,11 @@ const Shimmer: React.FC<{
           borderRadius,
         },
         style,
-      ]}>
+      ]}
+    >
       <Animated.View
-        style={[
-          StyleSheet.absoluteFillObject,
-          { transform: [{ translateX }] },
-        ]}>
+        style={[StyleSheet.absoluteFillObject, { transform: [{ translateX }] }]}
+      >
         <LinearGradient
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
@@ -142,7 +119,8 @@ const SkeletonRow: React.FC = () => (
       alignItems: "center",
       gap: 12,
       paddingVertical: 10,
-    }}>
+    }}
+  >
     <Shimmer height={40} borderRadius={20} style={{ width: 40 }} />
     <View style={{ flex: 1, gap: 6 }}>
       <Shimmer height={14} borderRadius={6} style={{ width: "60%" }} />
@@ -209,16 +187,12 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   /* ======================== Demo augment ======================== */
   const safeFollowers: FollowUser[] = useMemo(() => {
     if (!followers) return [];
-    return enableDemoData
-      ? [...followers, DEMO_MUTUAL, DEMO_THEY_FOLLOW_ONLY]
-      : followers;
+    return enableDemoData ? [...followers] : followers;
   }, [followers, enableDemoData]);
 
   const safeFollowings: FollowUser[] = useMemo(() => {
     if (!followings) return [];
-    return enableDemoData
-      ? [...followings, DEMO_MUTUAL, DEMO_I_FOLLOW_ONLY]
-      : followings;
+    return enableDemoData ? [...followings] : followings;
   }, [followings, enableDemoData]);
 
   /* ======================== Tabs / Pager ======================== */
@@ -463,7 +437,7 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
     borderColor: "#D1D5DB",
     backgroundColor: "transparent",
   };
-  const btnFill = { ...btnBase, backgroundColor: "#0095F6" };
+  const btnFill = { ...btnBase, backgroundColor: "#000" };
   const btnTextOutline = "text-[12px] text-black";
   const btnTextFill = "text-[12px] text-white font-semibold";
 
@@ -502,10 +476,12 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
         <TouchableOpacity
           style={{ flex: 1 }}
           activeOpacity={0.7}
-          onPress={() => (onMessage ? onMessage(u) : onUserPress?.(u))}>
+          onPress={() => (onMessage ? onMessage(u) : onUserPress?.(u))}
+        >
           <Text
             className="text-[14px] font-semibold text-black"
-            numberOfLines={1}>
+            numberOfLines={1}
+          >
             {displayName}
           </Text>
         </TouchableOpacity>
@@ -516,16 +492,19 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
             flexDirection: "row",
             alignItems: "center",
             columnGap: ACTIONS_GAP,
-          }}>
+          }}
+        >
           <TouchableOpacity
             onPress={() => (onMessage ? onMessage(u) : onUserPress?.(u))}
             disabled={pending}
             activeOpacity={0.9}
-            style={[btnOutline, { opacity: pending ? 0.5 : 1 }]}>
+            style={[btnOutline, { opacity: pending ? 0.5 : 1 }]}
+          >
             <Text
               className={btnTextOutline}
               numberOfLines={1}
-              allowFontScaling={false}>
+              allowFontScaling={false}
+            >
               Message
             </Text>
           </TouchableOpacity>
@@ -537,11 +516,13 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
             style={[
               outline ? btnOutline : btnFill,
               { opacity: pending ? 0.5 : 1 },
-            ]}>
+            ]}
+          >
             <Text
               className={outline ? btnTextOutline : btnTextFill}
               numberOfLines={1}
-              allowFontScaling={false}>
+              allowFontScaling={false}
+            >
               {isPendingNow ? pendingText : buttonLabel}
             </Text>
           </TouchableOpacity>
@@ -566,14 +547,16 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
       keyboardBlurBehavior="none"
       handleIndicatorStyle={{ backgroundColor: "#cfd2d7" }}
       backgroundStyle={{ backgroundColor: "#fff" }}
-      topInset={0}>
+      topInset={0}
+    >
       <BottomSheetView
         style={{
           paddingBottom: Math.max(insets.bottom, 12),
 
           paddingTop: 12,
           flex: 1,
-        }}>
+        }}
+      >
         {/* Header (built-in handle only) */}
         <View>
           {/* Tabs: order matches swipe pages (Followers | Following) */}
@@ -582,13 +565,15 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
               className={`flex-1 items-center  py-2 ${
                 activeTab === "followers" ? "border-b-2 border-black" : ""
               }`}
-              onPress={() => goToTab("followers")}>
+              onPress={() => goToTab("followers")}
+            >
               <Text
                 className={`text-base ${
                   activeTab === "followers"
                     ? "text-black font-semibold"
                     : "text-gray-500"
-                }`}>
+                }`}
+              >
                 Followers ({followersCount})
               </Text>
             </TouchableOpacity>
@@ -597,13 +582,15 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
               className={`flex-1 items-center py-2 ${
                 activeTab === "following" ? "border-b-2 border-black" : ""
               }`}
-              onPress={() => goToTab("following")}>
+              onPress={() => goToTab("following")}
+            >
               <Text
                 className={`text-base ${
                   activeTab === "following"
                     ? "text-black font-semibold"
                     : "text-gray-500"
-                }`}>
+                }`}
+              >
                 Following ({followingCount})
               </Text>
             </TouchableOpacity>
@@ -643,7 +630,8 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
               style={{ flex: 1, marginTop: 8 }}
               decelerationRate="fast"
               disableIntervalMomentum
-              scrollEventThrottle={16}>
+              scrollEventThrottle={16}
+            >
               {/* Followers page (index 0) */}
               <BottomSheetScrollView
                 style={{ width: pageW }}
@@ -652,7 +640,8 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
                   paddingHorizontal: 12,
                 }}
                 keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled>
+                nestedScrollEnabled
+              >
                 {loading ? (
                   <SkeletonList />
                 ) : dataFollowers.length === 0 ? (
@@ -674,7 +663,8 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
                   paddingHorizontal: 12,
                 }}
                 keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled>
+                nestedScrollEnabled
+              >
                 {loading ? (
                   <SkeletonList />
                 ) : dataFollowing.length === 0 ? (
