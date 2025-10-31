@@ -16,7 +16,9 @@
       "supportsTablet": true,
       "requireFullScreen": false,
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
@@ -30,7 +32,9 @@
         "ios.useModularHeaders": "true"
       },
       "entitlements": {
-        "com.apple.developer.applesignin": ["Default"],
+        "com.apple.developer.applesignin": [
+          "Default"
+        ],
         "aps-environment": "production"
       },
       "usesAppleSignIn": true,
@@ -53,7 +57,8 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
         "android.permission.ACCESS_MEDIA_LOCATION",
-        "com.google.android.gms.permission.AD_ID"
+        "com.google.android.gms.permission.AD_ID",
+        "android.permission.RECORD_AUDIO"
       ],
       "googleServicesFile": "./google-services.json"
     },
@@ -87,7 +92,10 @@
           "photosPermission": "Allow $(PRODUCT_NAME) photos/videos to upload for posts or your profile.",
           "savePhotosPermission": "Allow $(PRODUCT_NAME) photos/videos back to your library.",
           "isAccessMediaLocationEnabled": true,
-          "granularPermissions": ["audio", "photo"]
+          "granularPermissions": [
+            "audio",
+            "photo"
+          ]
         }
       ],
       [
@@ -137,9 +145,8 @@
       },
       "API_URL": "https://api.lynkd.app",
       "eas": {
-        "projectId": "5811046d-e73c-4f54-8ee1-1795491f0d16"
+        "projectId": "71e00d65-93bb-462f-b62a-4538e8b89aa2"
       }
-    },
-    "owner": "mukesh2000"
+    }
   }
 }
