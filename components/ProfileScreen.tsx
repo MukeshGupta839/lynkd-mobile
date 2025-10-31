@@ -416,22 +416,22 @@ const ProfileScreen = ({
     if (userID !== currentUserId || label === "Posts") return;
 
     const tab = label.toLowerCase() as "followers" | "following";
-    setActiveFFTab(tab);
+
+    // ✅ Step 1: set tab, show sheet, and start loader
     setShowFFSheet(true);
+    setActiveFFTab(tab);
     setFfLoading(true);
     setFfError(null);
-    setActiveFFTab(tab);
-    setFfKey((k) => k + 1);
-    setShowFFSheet(true);
+    setFollowersList([]);
+    setFollowingList([]);
+
     try {
-      // Expected response from backend:
-      // { followers: FollowUser[], following: FollowUser[] }
+      // ✅ Step 2: fetch API data
       const res = await apiCall(
         `/api/follows/followFollowing/${userID}`,
         "GET"
       );
 
-      // Map to the shape our sheet expects (defensive for alternate keys)
       const apiFollowers: FollowUser[] =
         res?.followers?.map((u: any) => ({
           user_id: u.user_id ?? u.id ?? u.userId,
@@ -452,15 +452,15 @@ const ProfileScreen = ({
           profile_picture: u.profile_picture ?? u.photoURL,
         })) ?? [];
 
-      // Set lists from API (or []) — no mock fallback here
-      setFollowersList(apiFollowers ?? []);
-      setFollowingList(apiFollowing ?? []);
+      // ✅ Step 3: update data (sheet will re-render live)
+
+      setFollowersList(apiFollowers);
+      setFollowingList(apiFollowing);
     } catch (err) {
       console.error("Failed to fetch follow lists:", err);
-      // Keep whatever is already in state; optionally clear:
-      // setFollowersList([]);
-      // setFollowingList([]);
+      setFfError("Failed to load followers/following data");
     } finally {
+      // ✅ Step 4: stop loader once done
       setFfLoading(false);
     }
   };
@@ -1296,7 +1296,6 @@ const ProfileScreen = ({
 
       {/* ⬇️ ADDED: Followers / Following Bottom Sheet */}
       <FollowersFollowingSheet
-        key={`ff-${activeFFTab}-${showFFSheet ? 1 : 0}`}
         show={showFFSheet}
         setShow={closeSheet}
         followers={followersList}
