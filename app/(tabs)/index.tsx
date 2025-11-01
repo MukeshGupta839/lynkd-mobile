@@ -108,7 +108,9 @@ export default function ConsumerHomeUI() {
   // Camera active state: only mount/start CameraPost when true
   const [cameraActive, setCameraActive] = useState(false);
   const [page, setPage] = useState(2);
-  const [posts, setPosts] = useState<Post[]>([]);
+  // posts is null while loading to avoid rendering an empty list then
+  // re-rendering with data (prevents the double-render flash)
+  const [posts, setPosts] = useState<Post[] | null>(null);
   const [likedPostIDs, setLikedPostIDs] = useState<string[]>([]);
 
   // Mock user data - replace with your actual user context
@@ -349,8 +351,10 @@ export default function ConsumerHomeUI() {
 
         await apiCall(`/api/posts/${postId}`, "DELETE");
 
-        // Remove from local state
-        setPosts((prevPosts) => prevPosts.filter((post) => post.id !== postId));
+        // Remove from local state (handle null -> treat as empty array)
+        setPosts((prevPosts) =>
+          (prevPosts ?? []).filter((post) => post.id !== postId)
+        );
         setPostOptionsVisible(false);
 
         console.log("✅ Post deleted successfully");
@@ -689,7 +693,7 @@ export default function ConsumerHomeUI() {
 
         // Update posts state first - compare ids as strings
         setPosts((prevPosts) =>
-          prevPosts.map((post) =>
+          (prevPosts ?? []).map((post) =>
             String(post.id) === pid
               ? {
                   ...post,
@@ -712,7 +716,7 @@ export default function ConsumerHomeUI() {
             : prev.filter((id) => String(id) !== pid)
         );
         setPosts((prevPosts) =>
-          prevPosts.map((post) =>
+          (prevPosts ?? []).map((post) =>
             String(post.id) === pid
               ? {
                   ...post,
@@ -906,10 +910,12 @@ export default function ConsumerHomeUI() {
       });
       // setPosts([...posts, ...postsData]);
       // check for duplicates
+      // posts may be null while initial load hasn't completed; treat as []
+      const existing = posts ?? [];
       const combinedResponse = [
-        ...posts,
+        ...existing,
         ...postsData.filter(
-          (item) => !posts.some((item2) => item.id === item2.id)
+          (item) => !existing.some((item2) => item.id === item2.id)
         ),
       ];
       setPosts(combinedResponse);
@@ -1022,103 +1028,122 @@ export default function ConsumerHomeUI() {
             </Reanimated.View>
 
             {/* Feed list */}
-            <FlatList
-              ref={flatListRef}
-              data={posts}
-              showsVerticalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
-              scrollEventThrottle={16}
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                { useNativeDriver: false, listener: handleOnScroll }
-              )}
-              onEndReached={() => {
-                console.log("📍 onEndReached triggered");
-                fetchMorePostsAPI();
-              }}
-              contentContainerStyle={{
-                paddingTop: Platform.OS === "android" ? TOP_BAR_HEIGHT : 0,
-                paddingBottom:
-                  Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
-                backgroundColor: "#F3F4F8",
-              }}
-              contentInset={
-                Platform.OS === "ios" ? { top: TOP_BAR_HEIGHT } : undefined
-              }
-              contentOffset={
-                Platform.OS === "ios" ? { x: 0, y: -TOP_BAR_HEIGHT } : undefined
-              }
-              // iOS-specific behaviour to keep the refresh spinner visible
-              contentInsetAdjustmentBehavior={
-                Platform.OS === "ios" ? "never" : undefined
-              }
-              bounces={true}
-              alwaysBounceVertical={true}
-              style={{ backgroundColor: "#F3F4F8" }}
-              ListHeaderComponent={
-                user &&
-                (!user.username ||
-                  !user.profile_picture ||
-                  !user.bio ||
-                  !user.first_name ||
-                  !user.last_name) ? (
-                  <CompleteProfilePopup user={user} />
-                ) : null
-              }
-              renderItem={({ item }) => (
-                <PostCard
-                  item={item}
-                  isVisible={visibleItems.includes(item.id)}
-                  onLongPress={handleLongPress}
-                  isGestureActive={isGestureActiveState}
-                  panGesture={panGesture}
-                  onPressComments={openComments}
-                  toggleLike={toggleLike}
-                  likedPostIDs={likedPostIDs}
-                />
-              )}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={() => {
-                    setPage(2);
-                    onRefresh();
-                  }}
-                  colors={["#4D70D1"]}
-                  tintColor={"#4D70D1"}
-                  progressBackgroundColor={"#F3F4F8"}
-                  // On iOS we offset the progress so the spinner appears below
-                  // the header; on Android the value is used as a fallback.
-                  progressViewOffset={
-                    Platform.OS === "ios" ? TOP_BAR_HEIGHT + 8 : TOP_BAR_HEIGHT
-                  }
-                />
-              }
-              onViewableItemsChanged={onViewableItemsChanged}
-              viewabilityConfig={viewabilityConfig}
-              removeClippedSubviews
-              maxToRenderPerBatch={2}
-              windowSize={3}
-              initialNumToRender={2}
-              onEndReachedThreshold={0.5}
-              ListFooterComponent={
-                isFetchingNextPage ? (
-                  <View
-                    style={{
-                      paddingBottom: Platform.OS === "android" ? 20 : 0,
+            {posts === null ? (
+              // Still loading initial posts: show skeleton placeholders
+              <View
+                style={{
+                  paddingTop: Platform.OS === "android" ? TOP_BAR_HEIGHT : 0,
+                  paddingBottom:
+                    Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
+                  backgroundColor: "#F3F4F8",
+                }}
+              >
+                <FeedSkeletonPlaceholder />
+                <FeedSkeletonPlaceholder />
+              </View>
+            ) : (
+              <FlatList
+                ref={flatListRef}
+                data={posts}
+                showsVerticalScrollIndicator={false}
+                keyExtractor={(item) => item.id}
+                scrollEventThrottle={16}
+                onScroll={Animated.event(
+                  [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                  { useNativeDriver: false, listener: handleOnScroll }
+                )}
+                onEndReached={() => {
+                  console.log("📍 onEndReached triggered");
+                  fetchMorePostsAPI();
+                }}
+                contentContainerStyle={{
+                  paddingTop: Platform.OS === "android" ? TOP_BAR_HEIGHT : 0,
+                  paddingBottom:
+                    Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
+                  backgroundColor: "#F3F4F8",
+                }}
+                contentInset={
+                  Platform.OS === "ios" ? { top: TOP_BAR_HEIGHT } : undefined
+                }
+                contentOffset={
+                  Platform.OS === "ios"
+                    ? { x: 0, y: -TOP_BAR_HEIGHT }
+                    : undefined
+                }
+                // iOS-specific behaviour to keep the refresh spinner visible
+                contentInsetAdjustmentBehavior={
+                  Platform.OS === "ios" ? "never" : undefined
+                }
+                bounces={true}
+                alwaysBounceVertical={true}
+                style={{ backgroundColor: "#F3F4F8" }}
+                ListHeaderComponent={
+                  user &&
+                  (!user.username ||
+                    !user.profile_picture ||
+                    !user.bio ||
+                    !user.first_name ||
+                    !user.last_name) ? (
+                    <CompleteProfilePopup user={user} />
+                  ) : null
+                }
+                renderItem={({ item }) => (
+                  <PostCard
+                    item={item}
+                    isVisible={visibleItems.includes(item.id)}
+                    onLongPress={handleLongPress}
+                    isGestureActive={isGestureActiveState}
+                    panGesture={panGesture}
+                    onPressComments={openComments}
+                    toggleLike={toggleLike}
+                    likedPostIDs={likedPostIDs}
+                  />
+                )}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={() => {
+                      setPage(2);
+                      onRefresh();
                     }}
-                  >
+                    colors={["#4D70D1"]}
+                    tintColor={"#4D70D1"}
+                    progressBackgroundColor={"#F3F4F8"}
+                    // On iOS we offset the progress so the spinner appears below
+                    // the header; on Android the value is used as a fallback.
+                    progressViewOffset={
+                      Platform.OS === "ios"
+                        ? TOP_BAR_HEIGHT + 8
+                        : TOP_BAR_HEIGHT
+                    }
+                  />
+                }
+                onViewableItemsChanged={onViewableItemsChanged}
+                viewabilityConfig={viewabilityConfig}
+                removeClippedSubviews
+                maxToRenderPerBatch={2}
+                windowSize={3}
+                initialNumToRender={2}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                  isFetchingNextPage ? (
+                    <View
+                      style={{
+                        paddingBottom: Platform.OS === "android" ? 20 : 0,
+                      }}
+                    >
+                      <FeedSkeletonPlaceholder />
+                    </View>
+                  ) : null
+                }
+                ListEmptyComponent={
+                  <>
                     <FeedSkeletonPlaceholder />
-                  </View>
-                ) : null
-              }
-              ListEmptyComponent={
-                <>
-                  <FeedSkeletonPlaceholder />
-                  <FeedSkeletonPlaceholder />
-                </>
-              }
-            />
+                    <FeedSkeletonPlaceholder />
+                  </>
+                }
+              />
+            )}
 
             {/* Bottom sheets / popups */}
             <PostOptionsBottomSheet
