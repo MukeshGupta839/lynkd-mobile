@@ -18,13 +18,14 @@ export default function TabLayout() {
             {...props}
             avatarUri={user?.profile_picture}
             onDisabledTabPress={() => setStatusOpen(true)}
-            //disabledTabs={["product"]}
+            disabledTabs={["product"]}
           />
         )}
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: false,
-        }}>
+        }}
+      >
         {/* === Main App Tabs === */}
         <Tabs.Screen
           name="index"
