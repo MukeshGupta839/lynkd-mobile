@@ -1032,7 +1032,7 @@ export default function ConsumerHomeUI() {
               // Still loading initial posts: show skeleton placeholders
               <View
                 style={{
-                  paddingTop: Platform.OS === "android" ? TOP_BAR_HEIGHT : 0,
+                  paddingTop: TOP_BAR_HEIGHT,
                   paddingBottom:
                     Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
                   backgroundColor: "#F3F4F8",
