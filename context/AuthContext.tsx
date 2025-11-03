@@ -1,4 +1,5 @@
 import { onAuthStateChanged } from "@react-native-firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import {
   createContext,
@@ -94,6 +95,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSignedInWithGoogle(false);
           setJustLoggedIn(false); // Reset fresh login flag
           await SecureStore.deleteItemAsync("user");
+          // Clear AsyncStorage install flag so next login is treated as fresh install
+          await AsyncStorage.removeItem("app_installed");
+          console.log("🔐 [Auth] Cleared app install flag on logout");
         };
 
         // Handle sign out
@@ -148,6 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setCompletedRegistration(false);
         setInstagramData(null);
         await SecureStore.deleteItemAsync("user").catch(console.error);
+        await AsyncStorage.removeItem("app_installed").catch(console.error);
       }
     },
     [signedInWithGoogle]
@@ -159,8 +164,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const initializeAuth = async () => {
       try {
+        // Check if this is a fresh install by looking at AsyncStorage
+        // AsyncStorage is cleared on app uninstall, unlike SecureStore/Keychain
+        const appInstallFlag = await AsyncStorage.getItem("app_installed");
+        const auth = await getAuth();
         const storedUser = await SecureStore.getItemAsync("user");
-        if (storedUser && isMounted) {
+        
+        if (!appInstallFlag) {
+          // This is a fresh install - clear any stale data from Keychain
+          console.log("🔐 [Auth] Fresh install detected - clearing all persisted data");
+          
+          // Clear SecureStore data
+          try {
+            await SecureStore.deleteItemAsync("user");
+            console.log("🔐 [Auth] Cleared SecureStore user data");
+          } catch {
+            console.log("🔐 [Auth] No SecureStore data to clear");
+          }
+          
+          // Clear Firebase session if exists
+          if (auth?.currentUser) {
+            console.log("🔐 [Auth] Clearing stale Firebase session");
+            await auth.signOut();
+          }
+          
+          // Clear all state
+          setFirebaseUser(null);
+          setUser(null);
+          setIsCreator(false);
+          setCompletedRegistration(false);
+          setInstagramData(null);
+          setSignedInWithGoogle(false);
+          setJustLoggedIn(false);
+          
+          // Mark app as installed for future launches
+          await AsyncStorage.setItem("app_installed", "true");
+          console.log("🔐 [Auth] App install flag set - clean state ready");
+        } else if (storedUser && isMounted) {
+          // Not a fresh install and valid user data exists
           const parsedUser = JSON.parse(storedUser);
           setUser(parsedUser);
           setIsCreator(parsedUser.is_creator);
@@ -169,6 +210,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.log(
             "🔐 [Auth] User loaded from SecureStore (already logged in)"
           );
+        } else {
+          console.log("🔐 [Auth] No stored user - clean state");
         }
 
         // Only setup the listener if user creation or storage is complete
@@ -232,6 +275,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   "user",
                   JSON.stringify(userData)
                 );
+
+                // Set app installed flag on successful login
+                await AsyncStorage.setItem("app_installed", "true");
 
                 // Set justLoggedIn flag only for fresh logins
                 if (isNewLogin) {
