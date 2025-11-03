@@ -164,12 +164,12 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
     );
 
     const onProfileTap = useCallback(
-      () => handleTap(() => {}, handleDoubleTapLike),
+      () => handleTap(() => { }, handleDoubleTapLike),
       [handleTap, handleDoubleTapLike]
     );
 
     const onMediaTap = useCallback(
-      () => handleTap(() => {}, handleDoubleTapLike),
+      () => handleTap(() => { }, handleDoubleTapLike),
       [handleTap, handleDoubleTapLike]
     );
 
@@ -524,7 +524,7 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
       prevProps.item.likes_count === nextProps.item.likes_count &&
       prevProps.item.comments_count === nextProps.item.comments_count &&
       prevProps.likedPostIDs.includes(String(prevProps.item.id)) ===
-        nextProps.likedPostIDs.includes(String(nextProps.item.id))
+      nextProps.likedPostIDs.includes(String(nextProps.item.id))
     );
   }
 );
@@ -539,6 +539,7 @@ export default function ProfilePosts() {
   const postsParam = typeof params.posts === "string" ? params.posts : "";
   const focusParam =
     params.focusedIndexPost != null ? Number(params.focusedIndexPost) : null;
+  const showOnlyPostParam = params.showOnlyPost ? String(params.showOnlyPost) : null;
 
   const [reportVisible, setReportVisible] = useState(false);
   const [blockUser, setBlockUser] = useState(false);
@@ -598,11 +599,68 @@ export default function ProfilePosts() {
     }
   }, [fetchUserLikedPostsData, user?.id]);
 
+  // Fetch single post for notifications
+  const fetchSinglePost = useCallback(async (postId: string) => {
+    try {
+      const response = await apiCall(`/api/posts/${postId}`, "GET");
+      console.log("Single Post:", response.data);
+
+      const formattedPost: Post = {
+        id: response.data.id,
+        user_id: response.data.user_id,
+        caption: response.data.caption,
+        created_at: response.data.created_at,
+        username: response.data.user.username,
+        userProfilePic: response.data.user.profile_picture,
+        postImage: response.data.media_url,
+        media_url: response.data.media_url,
+        aspect_ratio: response.data.aspect_ratio,
+        affiliated: response.data?.affiliated,
+        affiliation: {
+          affiliationID: response.data.PostToPostAffliation?.id,
+          brandName: response.data.PostToPostAffliation?.brand?.brand_name,
+          productID: response.data.PostToPostAffliation?.productID,
+          productURL: response.data.PostToPostAffliation?.productURL,
+          productName: response.data.PostToPostAffliation?.product?.name,
+          productImage: response.data.PostToPostAffliation?.product?.main_image,
+          brandLogo: response.data.PostToPostAffliation?.brand?.brandLogoURL,
+          productDescription:
+            response.data.PostToPostAffliation?.product?.description,
+          productRegularPrice:
+            response.data.PostToPostAffliation?.product?.regular_price,
+          productSalePrice:
+            response.data.PostToPostAffliation?.product?.sale_price,
+        },
+        likes_count: response.data.likes_aggregate?.aggregate?.count || 0,
+        comments_count: response.data.comments_aggregate?.aggregate?.count || 0,
+        text_post: response.data.text_post,
+        post_hashtags: response.data.PostToTagsMultiple?.map((tag: any) => {
+          return tag.tag.name;
+        }),
+      };
+
+      setPosts([formattedPost]);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching single post:", error);
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
+    // If showOnlyPost param exists, fetch only that post
+    if (showOnlyPostParam) {
+      setLoading(true);
+      fetchSinglePost(showOnlyPostParam);
+      return;
+    }
+
+    // Otherwise, parse posts from params
     if (!postsParam) {
       setLoading(false);
       return;
     }
+
     try {
       const parsed: Post[] = JSON.parse(postsParam);
 
@@ -622,7 +680,7 @@ export default function ProfilePosts() {
       console.error("Error parsing posts:", e);
     }
     setLoading(false);
-  }, [postsParam, focusParam]); // 👈 stable deps only
+  }, [postsParam, focusParam, showOnlyPostParam, fetchSinglePost]);
 
   const focusedPost = useMemo(
     () => posts.find((p) => p.id === Number(focusedPostID)) ?? null,
@@ -693,9 +751,9 @@ export default function ProfilePosts() {
           prevPosts.map((post) =>
             post.id === Number(pid)
               ? {
-                  ...post,
-                  likes_count: (post.likes_count || 0) + (isLiked ? -1 : 1),
-                }
+                ...post,
+                likes_count: (post.likes_count || 0) + (isLiked ? -1 : 1),
+              }
               : post
           )
         );
@@ -717,9 +775,9 @@ export default function ProfilePosts() {
           prevPosts.map((post) =>
             post.id === Number(pid)
               ? {
-                  ...post,
-                  likes_count: (post.likes_count || 0) + (isLiked ? 1 : -1),
-                }
+                ...post,
+                likes_count: (post.likes_count || 0) + (isLiked ? 1 : -1),
+              }
               : post
           )
         );
@@ -787,9 +845,9 @@ export default function ProfilePosts() {
           prevPosts.map((post) =>
             post.id === commentsPost.id
               ? {
-                  ...post,
-                  comments_count: (post.comments_count || 0) + 1,
-                }
+                ...post,
+                comments_count: (post.comments_count || 0) + 1,
+              }
               : post
           )
         );
@@ -922,7 +980,7 @@ export default function ProfilePosts() {
       <BlockUserPopup
         show={blockUser}
         setShow={setBlockUser}
-        post={focusedPost}
+        post={focusedPost || undefined}
       />
 
       <PostOptionsBottomSheet
