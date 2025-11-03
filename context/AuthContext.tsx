@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { apiCall } from "../lib/api/apiService"; // Your utility for API calls
+import { useInitializeFCM } from "../utils/fcm";
 import { getAuth } from "../utils/firebase";
 
 // Minimal context typing. Use `any` where the exact shape isn't necessary yet.
@@ -52,6 +53,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [instagramData, setInstagramData] = useState<any | null>(null); // Instagram data state
   const [loading, setLoading] = useState<boolean>(true); // Track loading state
   const [signedInWithGoogle, setSignedInWithGoogle] = useState<boolean>(false);
+  const [authInitialized, setAuthInitialized] = useState<boolean>(false); // Track if auth state is loaded
+  const [justLoggedIn, setJustLoggedIn] = useState<boolean>(false); // Track if user just logged in (not from app restart)
+
+  // Log when FCM initialization conditions are met
+  useEffect(() => {
+    console.log(
+      "🔐 [Auth] State check - authInitialized:",
+      authInitialized,
+      "firebaseUser:",
+      firebaseUser?.uid || "null",
+      "justLoggedIn:",
+      justLoggedIn
+    );
+    if (authInitialized && firebaseUser?.uid && justLoggedIn) {
+      console.log("✅ [Auth] Fresh login detected - FCMInitializer will mount");
+    } else if (authInitialized && firebaseUser?.uid && !justLoggedIn) {
+      console.log(
+        "⏭️ [Auth] User already logged in (app restart) - Skipping FCM initialization"
+      );
+    } else if (authInitialized && !firebaseUser?.uid) {
+      console.log("⏳ [Auth] Auth initialized but no firebaseUser yet");
+    } else {
+      console.log("⏳ [Auth] Waiting for auth initialization...");
+    }
+  }, [authInitialized, firebaseUser, justLoggedIn]);
 
   // Combine Firebase and SecureStore loading
   // Move resetUserState above the effect and memoize to satisfy hooks lint rules
@@ -66,6 +92,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setCompletedRegistration(false);
           setInstagramData(null);
           setSignedInWithGoogle(false);
+          setJustLoggedIn(false); // Reset fresh login flag
           await SecureStore.deleteItemAsync("user");
         };
 
@@ -138,6 +165,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(parsedUser);
           setIsCreator(parsedUser.is_creator);
           setCompletedRegistration(true);
+          // User was already logged in (app restart) - don't set justLoggedIn
+          console.log(
+            "🔐 [Auth] User loaded from SecureStore (already logged in)"
+          );
         }
 
         // Only setup the listener if user creation or storage is complete
@@ -150,7 +181,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           error instanceof Error ? error.message : String(error)
         );
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setAuthInitialized(true); // Mark auth as initialized
+          console.log("🔐 [Auth] Auth initialization complete");
+        }
       }
     };
 
@@ -168,6 +203,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (!isMounted) return;
 
           if (firebaseAuthUser) {
+            console.log(
+              "🔐 [Auth] Firebase user authenticated:",
+              firebaseAuthUser.uid
+            );
+
+            // Check if user data already exists in SecureStore
+            const existingUser = await SecureStore.getItemAsync("user");
+            const isNewLogin = !existingUser; // If no stored user, this is a fresh login
+
             setFirebaseUser(firebaseAuthUser);
 
             try {
@@ -188,6 +232,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   "user",
                   JSON.stringify(userData)
                 );
+
+                // Set justLoggedIn flag only for fresh logins
+                if (isNewLogin) {
+                  console.log(
+                    "✅ [Auth] Fresh login detected - FCM will initialize"
+                  );
+                  setJustLoggedIn(true);
+                } else {
+                  console.log(
+                    "⏭️ [Auth] Existing session restored - Skipping FCM"
+                  );
+                }
               }
             } catch (error) {
               console.error(
@@ -358,7 +414,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         refetchAuthContext,
       }}
     >
+      {/* Initialize FCM only during fresh login/signup, not on app restart */}
+      {authInitialized && firebaseUser?.uid && justLoggedIn && (
+        <FCMInitializer />
+      )}
       {children}
     </AuthContext.Provider>
   );
+};
+
+/**
+ * Separate component to initialize FCM after AuthContext is ready.
+ * This ensures firebaseUser is available when FCM tries to register.
+ * Only mounts during fresh login/signup, not on app restart.
+ */
+const FCMInitializer = () => {
+  console.log(
+    "🎯 [FCMInitializer] Component mounted - initializing FCM for fresh login..."
+  );
+  useInitializeFCM();
+  return null; // This component doesn't render anything
 };

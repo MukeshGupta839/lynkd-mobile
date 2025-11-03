@@ -211,6 +211,7 @@ export default function PostCreate() {
   const [aspectRatio, setAspectRatio] = useState<string | null>(null);
   const [barH, setBarH] = useState(0);
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
+  const [ecommerceStatusOpen, setEcommerceStatusOpen] = useState(false);
 
   // Refs for managing transitions
   const keyboardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1205,10 +1206,11 @@ export default function PostCreate() {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
+                    className={`items-center justify-center bg-gray-200 p-2.5 rounded-full`}
                     onPress={() => {
                       Keyboard.dismiss();
-                      openProductModal();
+                      // openProductModal();
+                      setEcommerceStatusOpen(true);
                     }}
                     disabled={loader}
                   >
@@ -1263,25 +1265,16 @@ export default function PostCreate() {
         description="This feature is not available right now"
         showButton={false}
       />
-      {/* <StatusModal
-        visible={statusOpen}
-        onClose={() => setStatusOpen(false)}
-        // image
-        showImage={true}
-        // imageSource={failImg} // or leave undefined to use the red X fallback
 
-        // heading
-        showHeading={true}
-        heading="Posting is Failed"
-        // description
+      <StatusModal
+        visible={ecommerceStatusOpen}
+        onClose={() => setEcommerceStatusOpen(false)}
+        showImage={false}
+        showHeading={false}
         showDescription={true}
-        description="Due to some technical issue your post failed to upload. Please try again."
-        // button
-        showButton={true}
-        buttonText="Okay"
-        // close when tapping the dim background
-        closeOnBackdrop={true}
-      /> */}
+        description="E-commerce feature is not available right now it will be available soon"
+        showButton={false}
+      />
 
       {/* Stories Camera Modal */}
       {cameraModalVisible && (

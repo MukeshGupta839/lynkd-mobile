@@ -15,7 +15,6 @@ import "../global.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { useInitializeFCM } from "@/utils/fcm";
 import { requestAllPermissions } from "@/utils/permissions";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { setVideoCacheSizeAsync } from "expo-video";
@@ -69,8 +68,6 @@ export default function RootLayout() {
       }
     })();
   }, []);
-
-  useInitializeFCM();
 
   // Hide splash screen when fonts are loaded
   useEffect(() => {

@@ -1,0 +1,456 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useEffect, useRef, useState } from "react";
+import {
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useMicrophonePermission,
+} from "react-native-vision-camera";
+
+interface StoriesCameraProps {
+  onMediaCaptured: (mediaUri: string, isVideo: boolean) => void;
+  onClose: () => void;
+}
+
+export default function StoriesCamera({
+  onMediaCaptured,
+  onClose,
+}: StoriesCameraProps) {
+  const camera = useRef<Camera>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [cameraPosition, setCameraPosition] = useState<"back" | "front">("back");
+  const [flash, setFlash] = useState<"off" | "on">("off");
+  const [isVideo, setIsVideo] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const recordingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [galleryPermission, requestGalleryPermission] =
+    ImagePicker.useMediaLibraryPermissions();
+  const [flashMode, setFlashMode] = useState<"off" | "on">("off");
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<"4:3" | "16:9" | "1:1">("4:3");
+  const [pictureSize, setPictureSize] = useState<string | undefined>(undefined);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [availableSizes, setAvailableSizes] = useState<string[]>([]);
+
+  // Animated values for smooth transitions using Reanimated
+  const { width, height } = Dimensions.get("window");
+  const initialHeight = (width * 4) / 3; // Start with 4:3 aspect ratio
+  const initialTop = Math.max(0, (height - initialHeight) / 2);
+
+  const screenWidth = useSharedValue(width);
+  const animatedHeight = useSharedValue(initialHeight);
+  const animatedTop = useSharedValue(initialTop);
+
+  // Get animated camera style using Reanimated (must be before early returns)
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      position: "absolute" as const,
+      width: screenWidth.value,
+      height: animatedHeight.value,
+      top: animatedTop.value,
+      overflow: "hidden" as const,
+    };
+  });
+
+  useEffect(() => {
+    if (isRecording) {
+      recordingInterval.current = setInterval(() => {
+        setRecordingTime((prevTime) => prevTime + 1);
+      }, 1000);
+    } else {
+      if (recordingInterval.current) {
+        clearInterval(recordingInterval.current);
+      }
+      setRecordingTime(0);
+    }
+
+    return () => {
+      if (recordingInterval.current) {
+        clearInterval(recordingInterval.current);
+      }
+    };
+  }, [isRecording]);
+
+  // Animate camera dimensions when aspect ratio changes
+  useEffect(() => {
+    const { width, height } = Dimensions.get("window");
+
+    let targetHeight = height;
+    if (aspectRatio === "4:3") {
+      targetHeight = (width * 4) / 3;
+    } else if (aspectRatio === "16:9") {
+      targetHeight = (width * 16) / 9;
+    } else if (aspectRatio === "1:1") {
+      targetHeight = width;
+    }
+
+    const targetTop = Math.max(0, (height - targetHeight) / 2);
+
+    // Animate with timing for smooth transition without bounce
+    animatedHeight.value = withTiming(targetHeight, {
+      duration: 200,
+      easing: Easing.out(Easing.ease),
+    });
+    animatedTop.value = withTiming(targetTop, {
+      duration: 200,
+      easing: Easing.out(Easing.ease),
+    });
+  }, [aspectRatio, animatedHeight, animatedTop]);
+
+  // Reset camera ready state when facing changes
+  useEffect(() => {
+    setIsCameraReady(false);
+    const timer = setTimeout(() => {
+      setIsCameraReady(true);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [facing]);
+
+  useEffect(() => {
+    (async () => {
+      await requestPermission();
+      await requestMicPermission();
+    })();
+  }, [requestPermission, requestMicPermission]);
+
+  // Cleanup: Ensure camera is properly released when component unmounts
+  useEffect(() => {
+    const camera = cameraRef.current;
+    const interval = recordingInterval.current;
+
+    return () => {
+      // Stop any ongoing recording when component unmounts
+      if (isRecording && camera) {
+        try {
+          camera.stopRecording();
+        } catch (error) {
+          console.error("Error stopping recording on unmount:", error);
+        }
+      }
+      // Clear recording interval
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isRecording]);
+
+  // Fetch available picture sizes when camera is ready
+  useEffect(() => {
+    const fetchPictureSizes = async () => {
+      if (cameraRef.current && isCameraReady) {
+        try {
+          const sizes = await cameraRef.current.getAvailablePictureSizesAsync();
+          setAvailableSizes(sizes);
+
+          // Helper function to calculate aspect ratio from size string (e.g., "1920x1080")
+          const getAspectRatioFromSize = (size: string): number => {
+            const [w, h] = size.split("x").map(Number);
+            return w / h;
+          };
+
+          // Target aspect ratios
+          const targetRatios: Record<string, number> = {
+            "4:3": 4 / 3,
+            "16:9": 16 / 9,
+            "1:1": 1,
+          };
+
+          const targetRatio = targetRatios[aspectRatio];
+
+          // Find the size that best matches our target aspect ratio
+          let bestSize = sizes[0];
+          let minDiff = Infinity;
+
+          for (const size of sizes) {
+            const ratio = getAspectRatioFromSize(size);
+            const diff = Math.abs(ratio - targetRatio);
+            if (diff < minDiff) {
+              minDiff = diff;
+              bestSize = size;
+            }
+          }
+
+          setPictureSize(bestSize);
+        } catch (error) {
+          console.error("Error fetching picture sizes:", error);
+        }
+      }
+    };
+
+    fetchPictureSizes();
+  }, [aspectRatio, isCameraReady]);
+
+  // Check and request camera and microphone permissions
+  if (!permission || !micPermission) {
+    return <View className="flex-1 bg-black" />;
+  }
+
+  if (!permission.granted || !micPermission.granted) {
+    const handlePermissionRequest = async () => {
+      await requestPermission();
+      await requestMicPermission();
+    };
+
+    return (
+      <View className="flex-1 justify-center bg-black">
+        <Text className="text-white text-base text-center w-4/5 self-center">
+          Camera and Microphone permissions are required to take photos and
+          record videos.
+        </Text>
+        <TouchableOpacity
+          onPress={handlePermissionRequest}
+          className="p-3 bg-white rounded-lg mt-4 w-52 self-center"
+        >
+          <Text className="text-black text-base text-center font-semibold">
+            Continue to Use Camera
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Function to stop recording
+  const stopRecording = async () => {
+    if (cameraRef.current && isRecording) {
+      try {
+        cameraRef.current.stopRecording();
+        setIsRecording(false);
+      } catch (error) {
+        console.error("Error stopping recording:", error);
+      }
+    }
+  };
+
+  // Function to start recording a video
+  const handleStartRecording = async () => {
+    if (cameraRef.current) {
+      try {
+        const videoRecordPromise = cameraRef.current.recordAsync();
+        setIsRecording(true);
+        const data = await videoRecordPromise;
+        console.log("Video recording completed", data?.uri);
+        if (data?.uri) {
+          onMediaCaptured(data.uri, true);
+          onClose(); // Close the camera modal after recording video
+        }
+      } catch (error) {
+        console.error("Error recording video:", error);
+      }
+    }
+  };
+
+  // Function to take a picture
+  const handleTakePicture = async () => {
+    if (!isRecording && cameraRef.current && isCameraReady) {
+      try {
+        // Add a small delay to ensure camera is fully ready
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const photo = await cameraRef.current.takePictureAsync({
+          quality: 1,
+          skipProcessing: false,
+        });
+        if (photo?.uri) {
+          onMediaCaptured(photo.uri, false);
+          onClose(); // Close the camera modal after taking picture
+        }
+      } catch (error) {
+        console.error("Error taking picture:", error);
+        // Retry once after a delay
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const photo = await cameraRef.current?.takePictureAsync({
+            quality: 1,
+            skipProcessing: false,
+          });
+          if (photo?.uri) {
+            onMediaCaptured(photo.uri, false);
+            onClose(); // Close the camera modal after taking picture
+          }
+        } catch (retryError) {
+          console.error("Retry failed:", retryError);
+        }
+      }
+    }
+  };
+
+  // Gallery picker
+  const handleGalleryPick = async () => {
+    if (!galleryPermission?.granted) {
+      const permission = await requestGalleryPermission();
+      if (!permission.granted) {
+        return;
+      }
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images", "videos"],
+        allowsEditing: Platform.OS === "ios" ? false : true,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets[0]?.uri) {
+        const isVideo = result.assets[0].type === "video";
+        onMediaCaptured(result.assets[0].uri, isVideo);
+        onClose(); // Close the camera modal after selecting media
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+    }
+  };
+
+  const toggleFlash = () => {
+    setFlashMode((current) => (current === "off" ? "on" : "off"));
+  };
+
+  const toggleAspectRatio = () => {
+    setAspectRatio((current) => {
+      if (current === "4:3") return "16:9";
+      if (current === "16:9") return "1:1";
+      return "4:3";
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      <Animated.View style={animatedStyle}>
+        <CameraView
+          key={`camera-${facing}`}
+          style={styles.camera}
+          facing={facing}
+          ref={cameraRef}
+          mode={isVideo ? "video" : "picture"}
+          pictureSize={pictureSize}
+          videoQuality="720p"
+          mute={false}
+          flash={flashMode}
+          mirror={facing === "front"}
+          zoom={0}
+          autofocus="on"
+          onCameraReady={() => setIsCameraReady(true)}
+        />
+        {/* Recording Timer */}
+        {isRecording && (
+          <View style={styles.recordingTimer}>
+            <Text className="text-white text-base">{recordingTime}s</Text>
+          </View>
+        )}
+      </Animated.View>
+
+      {/* Capture Button */}
+      {!isVideo ? (
+        <TouchableOpacity
+          className="absolute bottom-safe self-center"
+          onPress={handleTakePicture}
+          disabled={!isCameraReady}
+        >
+          <View
+            className="w-[70px] h-[70px] rounded-full bg-white border-4 border-gray-300"
+            style={{ opacity: isCameraReady ? 1 : 0.5 }}
+          />
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          className="absolute bottom-safe self-center"
+          onPress={handleStartRecording}
+          onLongPress={handleStartRecording}
+          onPressOut={stopRecording}
+          disabled={!isCameraReady}
+        >
+          {!isRecording ? (
+            <View
+              className="w-[70px] h-[70px] rounded-full bg-red-600 border-[5px] border-black"
+              style={{ opacity: isCameraReady ? 1 : 0.5 }}
+            />
+          ) : (
+            <View className="w-[70px] h-[70px] rounded-full bg-white border-[5px] border-red-600 items-center justify-center">
+              <Ionicons name="stop" size={30} color="black" />
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* Back button */}
+      <View className="absolute top-safe left-5">
+        <TouchableOpacity onPress={onClose}>
+          <Ionicons name="close" size={30} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Aspect Ratio Button */}
+      <View className="absolute top-safe right-5 p-2 rounded-full bg-black/40">
+        <TouchableOpacity onPress={toggleAspectRatio}>
+          <Text className="text-white text-sm font-semibold">
+            {aspectRatio}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Flip Camera */}
+      <View className="absolute bottom-safe right-5 p-2.5 rounded">
+        <TouchableOpacity
+          onPress={() => {
+            setFacing((prev) => (prev === "back" ? "front" : "back"));
+          }}
+        >
+          <Ionicons name="camera-reverse" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Button to change camera mode from photo to video */}
+      <View className="absolute bottom-safe left-5 p-2.5 rounded">
+        <TouchableOpacity onPress={() => setIsVideo((prev) => !prev)}>
+          {!isVideo ? (
+            <Ionicons name="videocam" size={24} color="white" />
+          ) : (
+            <Ionicons name="camera" size={24} color="white" />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Gallery Button */}
+      <View className="absolute bottom-safe left-24 p-2.5 rounded">
+        <TouchableOpacity onPress={handleGalleryPick}>
+          <Ionicons name="images" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Flash Button */}
+      <View className="absolute bottom-safe right-24 p-2.5 rounded">
+        <TouchableOpacity onPress={toggleFlash}>
+          <Ionicons
+            name={flashMode === "off" ? "flash-off" : "flash"}
+            size={24}
+            color="white"
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "black",
+  },
+  camera: {
+    flex: 1,
+  },
+  recordingTimer: {
+    position: "absolute",
+    top: 20,
+    alignSelf: "center",
+    padding: 10,
+    borderRadius: 8,
+  },
+});

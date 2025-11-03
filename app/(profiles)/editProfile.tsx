@@ -195,6 +195,7 @@ export default function EditProfile() {
 
       let result;
       if (imageSelector === "profile") {
+        // Profile Image - 1:1 square aspect ratio for both iOS and Android
         if (source === "launchCameraAsync") {
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
@@ -212,10 +213,26 @@ export default function EditProfile() {
         }
 
         if (!result.canceled) {
+          const { width, height } = result.assets[0];
           const manipulatorContext = ImageManipulator.manipulate(
             result.assets[0].uri
           );
+
+          // Ensure perfect square by cropping if needed (in case aspect ratio wasn't exact)
+          const minDimension = Math.min(width, height);
+          const originX = (width - minDimension) / 2;
+          const originY = (height - minDimension) / 2;
+
+          manipulatorContext.crop({
+            originX,
+            originY,
+            width: minDimension,
+            height: minDimension,
+          });
+
+          // Resize to optimal display size (500x500)
           manipulatorContext.resize({ width: 500, height: 500 });
+
           const compressed = await manipulatorContext.renderAsync();
           const savedImage = await compressed.saveAsync({
             compress: 0.7,
@@ -224,56 +241,69 @@ export default function EditProfile() {
           setImage(savedImage.uri);
         }
       } else {
-        // Banner image - use 16:9 aspect ratio to match banner dimensions (h-52 height)
-        // This ensures the crop perfectly fits the banner display area
+        // Banner Image - Using wider aspect ratio that matches the display area better
+        // The banner display is h-52 (208px) with full width
+        // Using 3:1 aspect ratio (equivalent to 300:100) for wider banner
+        const bannerAspect: [number, number] = [300, 100];
+
         if (source === "launchCameraAsync") {
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
-            allowsEditing: Platform.OS !== "ios",
-            aspect: Platform.OS !== "ios" ? [206, 75] : [1, 1],
-            quality: 0.75,
+            allowsEditing: true, // Enable crop UI so user can choose what to show
+            aspect: bannerAspect,
+            quality: 0.9,
           });
         } else {
           result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
-            allowsEditing: Platform.OS !== "ios",
-            aspect: Platform.OS !== "ios" ? [206, 75] : [1, 1],
-            quality: 0.75,
+            allowsEditing: true, // Enable crop UI so user can choose what to show
+            aspect: bannerAspect,
+            quality: 0.9,
           });
         }
 
         if (!result.canceled) {
-          let savedImage;
-          if (Platform.OS === "ios") {
-            const { width, height } = result.assets[0];
-            const cropWidth = width;
-            const cropHeight = (width * 75) / 206;
-            const originY = (height - cropHeight) / 2;
-            const manipulatorContext = ImageManipulator.manipulate(
-              result.assets[0].uri
-            );
+          const { width, height } = result.assets[0];
+          const manipulatorContext = ImageManipulator.manipulate(
+            result.assets[0].uri
+          );
+
+          // Ensure perfect 3:1 aspect ratio after user's crop selection
+          const targetAspectRatio = 3;
+          const currentAspectRatio = width / height;
+
+          // Only apply additional cropping if the aspect ratio is significantly off
+          // (in case the native picker didn't enforce it perfectly)
+          if (Math.abs(currentAspectRatio - targetAspectRatio) > 0.1) {
+            let cropWidth = width;
+            let cropHeight = height;
+            let originX = 0;
+            let originY = 0;
+
+            if (currentAspectRatio > targetAspectRatio) {
+              cropWidth = height * targetAspectRatio;
+              originX = (width - cropWidth) / 2;
+            } else {
+              cropHeight = width / targetAspectRatio;
+              originY = (height - cropHeight) / 2;
+            }
+
             manipulatorContext.crop({
-              originX: 0,
-              originY,
+              originX: Math.max(0, originX),
+              originY: Math.max(0, originY),
               width: cropWidth,
               height: cropHeight,
             });
-            const compressed = await manipulatorContext.renderAsync();
-            savedImage = await compressed.saveAsync({
-              compress: 0.7,
-              format: SaveFormat.JPEG,
-            });
-          } else {
-            const manipulatorContext = ImageManipulator.manipulate(
-              result.assets[0].uri
-            );
-            manipulatorContext.resize({ width: 412, height: 150 });
-            const compressed = await manipulatorContext.renderAsync();
-            savedImage = await compressed.saveAsync({
-              compress: 0.7,
-              format: SaveFormat.JPEG,
-            });
           }
+
+          // Resize to optimal display size (1200x400 maintains 3:1)
+          manipulatorContext.resize({ width: 1200, height: 400 });
+
+          const compressed = await manipulatorContext.renderAsync();
+          const savedImage = await compressed.saveAsync({
+            compress: 0.75,
+            format: SaveFormat.JPEG,
+          });
           setBannerImage(savedImage.uri);
         }
       }

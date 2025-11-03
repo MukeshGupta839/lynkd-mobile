@@ -27,6 +27,7 @@ import {
 } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import ShareSectionBottomSheet from "./ShareSectionBottomSheet";
+import StatusModal from "./StatusModal";
 
 /* ===========================
    Media renderer (single opens; double toggles like via JS debounce + hard lock)
@@ -286,6 +287,8 @@ export const PostCard: React.FC<PostCardProps> = ({
   const navigating = useRef(false);
   const [showFullCaption, setShowFullCaption] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [ecommerceStatusOpen, setEcommerceStatusOpen] = useState(false);
   const authContext = useContext(AuthContext);
   const user = authContext?.user;
 
@@ -326,7 +329,8 @@ export const PostCard: React.FC<PostCardProps> = ({
     if (isGestureActive) return;
     if (navigating.current) return;
     navigating.current = true;
-    router.push("/Product/Productview");
+    // router.push("/Product/Productview");
+    setEcommerceStatusOpen(true);
     setTimeout(() => {
       navigating.current = false;
     }, 600);
@@ -777,11 +781,11 @@ export const PostCard: React.FC<PostCardProps> = ({
                         {item.affiliation.productDescription}
                       </Text>
                       <View className="flex-row items-center">
-                        <Text className="text-sm text-gray-400 line-through mr-2">
-                          ₹{item.affiliation.productRegularPrice}
-                        </Text>
-                        <Text className="text-sm font-bold text-green-600">
+                        <Text className="text-sm font-bold text-green-600 mr-2">
                           ₹{item.affiliation.productSalePrice}
+                        </Text>
+                        <Text className="text-sm text-gray-400 line-through">
+                          ₹{item.affiliation.productRegularPrice}
                         </Text>
                       </View>
                     </View>
@@ -826,7 +830,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                 {/* Share */}
                 <TouchableOpacity
                   disabled={isGestureActive}
-                  onPress={() => setShareOpen(true)}
+                  // onPress={() => setShareOpen(true)}
+                  onPress={() => setStatusOpen(true)}
                   activeOpacity={0.8}
                   className="flex-row items-center"
                 >
@@ -866,6 +871,25 @@ export const PostCard: React.FC<PostCardProps> = ({
         initialHeightPct={0.4}
         maxHeightPct={0.9}
         maxSelect={5}
+      />
+      <StatusModal
+        visible={statusOpen}
+        onClose={() => setStatusOpen(false)}
+        showImage={false}
+        showHeading={false}
+        showDescription={true}
+        description="Share feature is not available right now it will be available soon"
+        showButton={false}
+      />
+
+      <StatusModal
+        visible={ecommerceStatusOpen}
+        onClose={() => setEcommerceStatusOpen(false)}
+        showImage={false}
+        showHeading={false}
+        showDescription={true}
+        description="E-commerce feature is not available right now it will be available soon"
+        showButton={false}
       />
     </TouchableOpacity>
   );

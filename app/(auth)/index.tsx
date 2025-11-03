@@ -1044,6 +1044,7 @@ export default function LoginScreen() {
 
         // Open the browser window for user sign in
         const response = await appleAuthAndroid.signIn();
+        console.log("apple signIn res:", response);
         if (!response.id_token) {
           throw new Error("Apple Sign-In failed: No id_token received");
         }
@@ -1075,6 +1076,8 @@ export default function LoginScreen() {
       const appleCredential = AppleAuthProvider.credential(idToken, nonce);
       const userCredential = await auth.signInWithCredential(appleCredential);
       const firebaseUser = userCredential.user;
+
+      console.log("apple signIn Firebase User:", firebaseUser);
 
       if (!firebaseUser) {
         throw new Error("User information is missing after Apple Sign-In.");
