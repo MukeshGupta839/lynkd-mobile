@@ -1,5 +1,5 @@
-import { onAuthStateChanged } from "@react-native-firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { onAuthStateChanged } from "@react-native-firebase/auth";
 import * as SecureStore from "expo-secure-store";
 import {
   createContext,
@@ -169,11 +169,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const appInstallFlag = await AsyncStorage.getItem("app_installed");
         const auth = await getAuth();
         const storedUser = await SecureStore.getItemAsync("user");
-        
+
         if (!appInstallFlag) {
           // This is a fresh install - clear any stale data from Keychain
-          console.log("🔐 [Auth] Fresh install detected - clearing all persisted data");
-          
+          console.log(
+            "🔐 [Auth] Fresh install detected - clearing all persisted data"
+          );
+
           // Clear SecureStore data
           try {
             await SecureStore.deleteItemAsync("user");
@@ -181,13 +183,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           } catch {
             console.log("🔐 [Auth] No SecureStore data to clear");
           }
-          
+
           // Clear Firebase session if exists
           if (auth?.currentUser) {
             console.log("🔐 [Auth] Clearing stale Firebase session");
             await auth.signOut();
           }
-          
+
           // Clear all state
           setFirebaseUser(null);
           setUser(null);
@@ -196,7 +198,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setInstagramData(null);
           setSignedInWithGoogle(false);
           setJustLoggedIn(false);
-          
+
           // Mark app as installed for future launches
           await AsyncStorage.setItem("app_installed", "true");
           console.log("🔐 [Auth] App install flag set - clean state ready");
