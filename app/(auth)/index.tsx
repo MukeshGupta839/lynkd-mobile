@@ -428,54 +428,108 @@ const FormContent = ({
           <OrDivider />
 
           {/* Social Login Error Display */}
-          {socialLoginError && (
+          {/* {socialLoginError && (
             <View className="mb-3">
               <Text style={{ color: "red", textAlign: "center", fontSize: 14 }}>
                 {socialLoginError}
               </Text>
             </View>
-          )}
+          )} */}
 
-          <View className="flex-row">
-            <TouchableOpacity
-              activeOpacity={0.8}
-              className="flex-1 flex-row items-center justify-center py-2 px-3 rounded-xl bg-gray-200 mr-2"
-              onPress={onAppleSignIn}
-              disabled={
-                disableButton || disableAppleButton || disableGoogleButton
-              }
-            >
-              {disableAppleButton ? (
-                <PaperSpinner size="small" color="#000" />
-              ) : (
-                <>
-                  <FontAwesome5 name="apple" size={22} color="#000" />
-                  <RNText className="ml-2 text-black text-sm">
-                    Sign in with Apple
-                  </RNText>
-                </>
-              )}
-            </TouchableOpacity>
+          <View className="flex-row gap-2">
+            {Platform.OS === "ios" ? (
+              <View className="flex-1" style={{ minHeight: 44 }}>
+                {disableAppleButton ? (
+                  <View
+                    style={{ height: 44 }}
+                    className="bg-black justify-center items-center rounded-md"
+                  >
+                    <PaperSpinner size="small" color="#fff" />
+                  </View>
+                ) : (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={
+                      AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+                    }
+                    buttonStyle={
+                      AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                    }
+                    cornerRadius={6}
+                    style={{
+                      width: "100%",
+                      height: 44,
+                    }}
+                    onPress={onAppleSignIn}
+                  />
+                )}
+              </View>
+            ) : (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                className="flex-1 flex-row items-center justify-center py-2 px-3 rounded-md bg-black"
+                onPress={onAppleSignIn}
+                disabled={
+                  disableButton || disableAppleButton || disableGoogleButton
+                }
+              >
+                {disableAppleButton ? (
+                  <PaperSpinner size="small" color="#fff" />
+                ) : (
+                  <>
+                    <FontAwesome5 name="apple" size={22} color="#fff" />
+                    <RNText className="ml-2 text-white text-sm font-worksans-400">
+                      Sign in with Apple
+                    </RNText>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              activeOpacity={0.8}
-              className="flex-1 flex-row items-center justify-center py-2 px-3 rounded-xl bg-gray-200 ml-2"
-              onPress={onGoogleSignIn}
-              disabled={
-                disableButton || disableGoogleButton || disableAppleButton
-              }
-            >
-              {disableGoogleButton ? (
-                <PaperSpinner size="small" color="#000" />
-              ) : (
-                <>
-                  <GoogleLogo width={22} height={22} />
-                  <RNText className="ml-2 text-black text-sm">
-                    Sign in with Google
-                  </RNText>
-                </>
-              )}
-            </TouchableOpacity>
+            {Platform.OS === "ios" ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                className="flex-1 flex-row items-center justify-center rounded-md bg-black"
+                style={{ height: 44 }}
+                onPress={onGoogleSignIn}
+                disabled={
+                  disableButton || disableGoogleButton || disableAppleButton
+                }
+              >
+                {disableGoogleButton ? (
+                  <PaperSpinner size="small" color="#fff" />
+                ) : (
+                  <>
+                    <GoogleLogo width={14} height={14} />
+                    <RNText
+                      style={{ fontSize: 15 }}
+                      className="ml-2 text-white font-medium"
+                    >
+                      Sign in with Google
+                    </RNText>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                className="flex-1 flex-row items-center justify-center py-2 px-3 rounded-md bg-black"
+                onPress={onGoogleSignIn}
+                disabled={
+                  disableButton || disableGoogleButton || disableAppleButton
+                }
+              >
+                {disableGoogleButton ? (
+                  <PaperSpinner size="small" color="#fff" />
+                ) : (
+                  <>
+                    <GoogleLogo width={22} height={22} />
+                    <RNText className="ml-2 text-white text-sm font-worksans-400">
+                      Sign in with Google
+                    </RNText>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </>
       )}

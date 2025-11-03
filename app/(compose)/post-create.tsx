@@ -6,6 +6,7 @@ import ProductModal from "@/components/PostCreation/ProductModal";
 import CreatePostImageViewer from "@/components/Product/CreatePostImageViewer";
 import CircularProgress from "@/components/ProgressBar/CircularProgress";
 import StatusModal from "@/components/StatusModal";
+import StoriesCamera from "@/components/StoriesCamera";
 import { TAGS } from "@/constants/PostCreation";
 import { AuthContext } from "@/context/AuthContext";
 import { apiCall } from "@/lib/api/apiService";
@@ -24,10 +25,12 @@ import {
   useState,
 } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
   ImageSourcePropType,
   Keyboard,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -207,6 +210,7 @@ export default function PostCreate() {
   );
   const [aspectRatio, setAspectRatio] = useState<string | null>(null);
   const [barH, setBarH] = useState(0);
+  const [cameraModalVisible, setCameraModalVisible] = useState(false);
 
   // Refs for managing transitions
   const keyboardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -404,6 +408,15 @@ export default function PostCreate() {
     // Dismiss keyboard immediately without waiting
     Keyboard.dismiss();
 
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Denied",
+        "Photo library permissions are required to choose a photo."
+      );
+      return;
+    }
+
     // If images are already selected, we *disable* video picking by only allowing images
     const mediaTypes: ImagePicker.MediaType[] =
       mediaLock === "image" ? ["images"] : ["images", "videos"];
@@ -478,6 +491,50 @@ export default function PostCreate() {
 
     setDisablePostButton(false);
   };
+
+  // Handle media captured from camera
+  const handleMediaCaptured = useCallback(
+    async (mediaUri: string, isVideo: boolean) => {
+      setCameraModalVisible(false);
+
+      // Create an RNFile from the captured media
+      const nameFromUri = mediaUri.split("/").pop() || "media";
+      const ext = (nameFromUri.split(".").pop() || "").toLowerCase();
+      const mime = isVideo ? `video/${ext || "mp4"}` : `image/${ext || "jpeg"}`;
+
+      const capturedFile: RNFile = {
+        id: `captured-${Date.now()}`,
+        uri: mediaUri,
+        name: nameFromUri,
+        type: mime,
+        isVideo: isVideo,
+      };
+
+      // Apply the same media lock rules as pickMedia
+      if (isVideo) {
+        // Only one video allowed → replace any previous media
+        setImage([capturedFile]);
+        setMediaLock("video");
+      } else {
+        // Image captured
+        if (hasVideo) {
+          // Replace video with image and disable video
+          setImage([capturedFile]);
+          setMediaLock("image");
+        } else if (mediaLock === "image") {
+          // Already in image mode → append image
+          setImage((prev) => [...prev, capturedFile]);
+        } else {
+          // No media yet → start image mode
+          setImage([capturedFile]);
+          setMediaLock("image");
+        }
+      }
+
+      setDisablePostButton(false);
+    },
+    [hasVideo, mediaLock]
+  );
 
   // Enhanced bottom padding calculation
   const getBottomPadding = useCallback(() => {
@@ -1132,7 +1189,7 @@ export default function PostCreate() {
                     className={`items-center justify-center ${loader ? "bg-gray-200" : "bg-white"} p-2.5 rounded-full`}
                     onPress={() => {
                       Keyboard.dismiss();
-                      console.log("Camera");
+                      setCameraModalVisible(true);
                     }}
                     disabled={loader}
                   >
@@ -1225,6 +1282,21 @@ export default function PostCreate() {
         // close when tapping the dim background
         closeOnBackdrop={true}
       /> */}
+
+      {/* Stories Camera Modal */}
+      {cameraModalVisible && (
+        <Modal
+          visible={cameraModalVisible}
+          transparent={false}
+          animationType="slide"
+          onRequestClose={() => setCameraModalVisible(false)}
+        >
+          <StoriesCamera
+            onMediaCaptured={handleMediaCaptured}
+            onClose={() => setCameraModalVisible(false)}
+          />
+        </Modal>
+      )}
     </View>
   );
 }

@@ -874,29 +874,46 @@ const ProfileScreen = ({
             className="flex-row mb-1 gap-1"
             style={{ gap: gap }}
           >
-            {row.map((video, videoIndex) => (
-              <TouchableOpacity
-                key={video.id}
-                className="rounded-xl overflow-hidden relative"
-                style={{
-                  width: videoWidth,
-                  height: videoHeight,
-                }}
-                onPress={() => router.navigate("/(tabs)/posts")}
-              >
-                <Image
-                  source={{ uri: video.thumbnail_url }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-                <View className="absolute bottom-2 left-2 flex-row items-center bg-black/50 px-2 py-1 rounded-xl">
-                  <Feather name="play" size={16} color="#fff" />
-                  <Text className="text-white text-xs ml-1">
-                    {kFormatter(video?.reels_views_aggregate.aggregate.count)}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {row.map((video, videoIndex) => {
+              return (
+                <TouchableOpacity
+                  key={video.id}
+                  className="rounded-xl overflow-hidden relative"
+                  style={{
+                    width: videoWidth,
+                    height: videoHeight,
+                  }}
+                  onPress={() => {
+                    // Find the index of the clicked video
+                    const clickedIndex = userReels.findIndex(
+                      (r) => r.id === video.id
+                    );
+
+                    safePush({
+                      pathname: "/(profiles)/userReels",
+                      params: {
+                        userReelsData: JSON.stringify(userReels), // Pass all reels data
+                        initialIndex:
+                          clickedIndex >= 0 ? clickedIndex.toString() : "0", // Pass the clicked reel index
+                        username: userDetails?.username || "",
+                      },
+                    });
+                  }}
+                >
+                  <Image
+                    source={{ uri: video.thumbnail_url }}
+                    className="w-full h-full"
+                    resizeMode="cover"
+                  />
+                  <View className="absolute bottom-2 left-2 flex-row items-center bg-black/50 px-2 py-1 rounded-xl">
+                    <Feather name="play" size={16} color="#fff" />
+                    <Text className="text-white text-xs ml-1">
+                      {kFormatter(video?.reels_views_aggregate.aggregate.count)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
 
             {/* Fill remaining space if row has less than 3 videos */}
             {row.length < 3 && (

@@ -7,6 +7,7 @@ export default function ProfileLayout() {
       <Stack.Screen name="editProfile" options={{ headerShown: false }} />
       <Stack.Screen name="InviteHome" options={{ headerShown: false }} />
       <Stack.Screen name="ViewInvites" options={{ headerShown: false }} />
+      <Stack.Screen name="userReels" options={{ headerShown: false }} />
     </Stack>
   );
 }

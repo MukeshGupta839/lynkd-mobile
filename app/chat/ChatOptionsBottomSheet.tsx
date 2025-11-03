@@ -34,7 +34,12 @@ function OptionRow({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      className="flex-row items-center px-4 py-3">
+      className="flex-row items-center px-4 py-3"
+      hitSlop={8}
+      style={({ pressed }) => ({
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
       <View className="w-10 h-10 rounded-xl items-center justify-center bg-white border border-gray-200">
         {icon}
       </View>
@@ -58,16 +63,22 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
       visible={show}
       transparent
       animationType="slide"
-      onRequestClose={() => setShow(false)}>
+      onRequestClose={() => setShow(false)}
+      supportedOrientations={["portrait", "landscape"]}
+      statusBarTranslucent
+    >
       {/* Backdrop */}
       <Pressable
         className="flex-1 bg-[rgba(0,0,0,0.4)]"
         onPress={() => setShow(false)}
+        style={{ flex: 1 }}
+        accessible={false}
       />
 
       {/* Sheet */}
       <View
-        className={`bg-white rounded-t-2xl shadow-xl ${Platform.OS === "ios" ? "pb-6" : "pb-4"}`}>
+        className={`bg-white rounded-t-2xl shadow-xl ${Platform.OS === "ios" ? "pb-6" : "pb-4"}`}
+      >
         {/* Handle */}
         <View className="w-full items-center py-3">
           <View className="w-12 h-1.5 bg-gray-300 rounded-full" />
@@ -133,8 +144,13 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
           <Pressable
             onPress={() => setShow(false)}
             accessibilityRole="button"
-            className="w-full bg-gray-100 rounded-xl py-3 items-center">
-            <Text className="text-base text-black">Cancel</Text>
+            className="w-full bg-gray-100 rounded-xl py-3 items-center"
+            hitSlop={8}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text className="text-base text-black font-medium">Cancel</Text>
           </Pressable>
         </View>
       </View>

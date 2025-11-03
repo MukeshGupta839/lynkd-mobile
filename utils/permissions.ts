@@ -51,16 +51,16 @@ export async function requestAllPermissions(): Promise<void> {
     // }
 
     // 3. Request Media Library permissions
-    try {
-      const mediaLibraryResponse = await MediaLibrary.requestPermissionsAsync();
-      if (mediaLibraryResponse.status === "granted") {
-        console.log("✅ Media Library permission granted");
-      } else {
-        console.log("❌ Media Library permission denied");
-      }
-    } catch (error) {
-      console.error("Error requesting media library permission:", error);
-    }
+    // try {
+    //   const mediaLibraryResponse = await MediaLibrary.requestPermissionsAsync();
+    //   if (mediaLibraryResponse.status === "granted") {
+    //     console.log("✅ Media Library permission granted");
+    //   } else {
+    //     console.log("❌ Media Library permission denied");
+    //   }
+    // } catch (error) {
+    //   console.error("Error requesting media library permission:", error);
+    // }
 
     // 4. Request Notification permissions
     try {

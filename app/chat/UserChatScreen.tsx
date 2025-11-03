@@ -22,9 +22,7 @@ import {
   Pressable,
   Text,
   TextInput,
-  TextInputContentSizeChangeEventData,
   TextInputKeyPressEventData,
-  TouchableOpacity,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -438,7 +436,6 @@ export default function UserChatScreen() {
   const maxBubbleWidth = Math.round(useWindowDimensions().width * 0.78);
 
   const [composerHeight, setComposerHeight] = useState(0);
-  const [inputHeight, setInputHeight] = useState<number | undefined>(undefined);
   const inputRef = useRef<TextInput | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -448,6 +445,7 @@ export default function UserChatScreen() {
   // measure heights separately (strip vs composer)
   const [stripH, setStripH] = useState(0);
   const [composerH, setComposerH] = useState(0); // stored for diagnostics/future use
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   // Reanimated keyboard height (smooth)
   const kbH = useSharedValue(0);
@@ -456,13 +454,16 @@ export default function UserChatScreen() {
   const { bottom: insetBottom } = useSafeAreaInsets();
   const OPENED_OFFSET = 4;
 
-  const BASE_TRIM = Platform.OS === "android" ? 0 : 6;
+  const BASE_TRIM = 0; // Same for both platforms
 
   const headerSpacerStyle = useAnimatedStyle(() => {
-    const target = Math.max(
-      0,
-      kbH.value + Math.max(0, insetBottom - 5) + OPENED_OFFSET - BASE_TRIM
-    );
+    const target =
+      Platform.OS === "android"
+        ? Math.max(
+            0,
+            kbH.value + Math.max(0, insetBottom + OPENED_OFFSET - BASE_TRIM)
+          )
+        : Math.max(0, kbH.value + OPENED_OFFSET - BASE_TRIM);
     return { height: target };
   }, [stripH, showAttachmentStrip, insetBottom]);
 
@@ -475,11 +476,13 @@ export default function UserChatScreen() {
 
     const onShow = (e: any) => {
       const h = e?.endCoordinates?.height ?? 0;
+      setIsKeyboardOpen(true);
       kbH.value = withTiming(h, {
         duration: Platform.OS === "ios" ? 180 : 120,
       });
     };
     const onHide = () => {
+      setIsKeyboardOpen(false);
       kbH.value = withTiming(0, {
         duration: Platform.OS === "ios" ? 160 : 100,
       });
@@ -813,7 +816,6 @@ export default function UserChatScreen() {
     });
 
     setText("");
-    setInputHeight(undefined);
     setShowAttachmentStrip(false);
 
     InteractionManager.runAfterInteractions(() => {
@@ -1002,82 +1004,24 @@ export default function UserChatScreen() {
     []
   );
 
-  const onContentSizeChange = useCallback(
-    (e: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) => {
-      const h = Math.ceil(e.nativeEvent.contentSize.height);
-      const clamped = Math.min(Math.max(h, 40), 140);
-      setInputHeight(clamped);
-    },
-    []
-  );
-
   const onChangeTextHandle = useCallback(
     (val: string) => {
-      if (val.includes("\n")) {
-        const cleaned = val.replace(/\n+/g, "").trim();
-        if (cleaned.length > 0 && !sendingRef.current) {
-          sendingRef.current = true;
-          const m: Message = {
-            id: Math.random().toString(36).slice(2),
-            text: cleaned,
-            createdAt: new Date().toISOString(),
-            userId: currentUserId,
-            username: currentUsername,
-            messageType: "text",
-          };
-          lastSentRef.current = m.id;
-          setMessages((prev) => {
-            const next = [m, ...prev];
-            persistBatched(next);
-            return next;
-          });
-          setText("");
-          setInputHeight(undefined);
-          setShowAttachmentStrip(false);
-          InteractionManager.runAfterInteractions(() => {
-            setTimeout(() => {
-              scrollToNewest(true);
-              sendingRef.current = false;
-            }, 40);
-          });
-        } else {
-          setText("");
-        }
-        return;
-      }
       setText(val);
       if (showAttachmentStrip) setShowAttachmentStrip(false);
     },
-    [
-      currentUserId,
-      currentUsername,
-      persistBatched,
-      scrollToNewest,
-      showAttachmentStrip,
-    ]
+    [showAttachmentStrip]
   );
 
   const onKeyPress = useCallback(
     (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-      const key = (e as any)?.nativeEvent?.key;
-      const shiftKey = (e as any)?.nativeEvent?.shiftKey;
-      if (key === "Enter") {
-        if (shiftKey) {
-          setText((prev) => prev + "\n");
-          return;
-        }
-        if ((e as any).preventDefault) (e as any).preventDefault();
-        if (text.trim() && !sendingRef.current) handleSend();
-      }
+      // Allow natural multiline input - no special Enter key handling
+      // Users should use the send button to send messages
     },
-    [handleSend, text]
+    []
   );
 
   return (
-    <SafeAreaView
-      edges={["left", "right", "bottom"]}
-      className="flex-1 bg-[#ECE5DD]"
-    >
+    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-[#ECE5DD]">
       <StatusBar style="dark" translucent backgroundColor="transparent" />
       <View style={{ height: insets.top }} className="bg-white" />
 
@@ -1125,10 +1069,17 @@ export default function UserChatScreen() {
           </Pressable>
         ) : (
           <Pressable
-            onPress={() => setShowOptions(true)}
+            onPress={() => {
+              console.log("Ellipsis pressed");
+              setShowOptions(true);
+            }}
             className="px-2"
             accessibilityLabel="Chat options"
             accessibilityHint="Opens chat options"
+            hitSlop={12}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.6 : 1,
+            })}
           >
             <Ionicons name="ellipsis-vertical" size={22} color="#6B7280" />
           </Pressable>
@@ -1222,7 +1173,7 @@ export default function UserChatScreen() {
       </Modal>
 
       {/* Attachment strip + Composer — sticky above the keyboard */}
-      <KeyboardStickyView offset={{ opened: 22, closed: 0 }}>
+      <KeyboardStickyView offset={{ opened: 0, closed: 0 }}>
         <View className="bg-transparent">
           {showAttachmentStrip && (
             <View
@@ -1292,6 +1243,11 @@ export default function UserChatScreen() {
                             <Pressable
                               onPress={pickImage}
                               className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                              hitSlop={8}
+                              style={({ pressed }) => ({
+                                opacity: pressed ? 0.7 : 1,
+                                transform: [{ scale: pressed ? 0.95 : 1 }],
+                              })}
                             >
                               <Gallery width={22} height={22} />
                             </Pressable>
@@ -1301,15 +1257,20 @@ export default function UserChatScreen() {
                           </View>
 
                           <View className="items-center">
-                            <TouchableOpacity
-                              className="items-center justify-center bg-white p-2.5 rounded-full"
+                            <Pressable
+                              className="w-12 h-12 rounded-full items-center justify-center bg-white"
                               onPress={async () => {
                                 await dismissKeyboardAndWait();
                                 await takePhoto();
                               }}
+                              hitSlop={8}
+                              style={({ pressed }) => ({
+                                opacity: pressed ? 0.7 : 1,
+                                transform: [{ scale: pressed ? 0.95 : 1 }],
+                              })}
                             >
                               <Camera width={22} height={22} />
-                            </TouchableOpacity>
+                            </Pressable>
                             <Text className="text-xs text-gray-800 mt-2 font-medium">
                               Camera
                             </Text>
@@ -1319,6 +1280,11 @@ export default function UserChatScreen() {
                             <Pressable
                               onPress={() => setShowProductModal(true)}
                               className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                              hitSlop={8}
+                              style={({ pressed }) => ({
+                                opacity: pressed ? 0.7 : 1,
+                                transform: [{ scale: pressed ? 0.95 : 1 }],
+                              })}
                             >
                               <Cart width={22} height={22} />
                             </Pressable>
@@ -1334,6 +1300,11 @@ export default function UserChatScreen() {
                                 setStatusOpen(true);
                               }}
                               className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                              hitSlop={8}
+                              style={({ pressed }) => ({
+                                opacity: pressed ? 0.7 : 1,
+                                transform: [{ scale: pressed ? 0.95 : 1 }],
+                              })}
                             >
                               <Location width={22} height={22} />
                             </Pressable>
@@ -1350,6 +1321,11 @@ export default function UserChatScreen() {
                                 setStatusOpen(true);
                               }}
                               className="w-12 h-12 rounded-full items-center justify-center bg-white"
+                              hitSlop={8}
+                              style={({ pressed }) => ({
+                                opacity: pressed ? 0.7 : 1,
+                                transform: [{ scale: pressed ? 0.95 : 1 }],
+                              })}
                             >
                               <Document width={22} height={22} />
                             </Pressable>
@@ -1370,6 +1346,13 @@ export default function UserChatScreen() {
           {/* Composer */}
           <View
             className="px-3 bg-transparent"
+            style={{
+              paddingBottom: isKeyboardOpen
+                ? 5
+                : Platform.OS === "ios"
+                  ? insets.bottom - 10
+                  : insets.bottom,
+            }}
             onLayout={(e) => {
               const h = Math.round(e.nativeEvent.layout.height);
               if (h !== composerHeight) setComposerHeight(h);
@@ -1380,16 +1363,23 @@ export default function UserChatScreen() {
               <Pressable
                 onPress={toggleAttachmentStrip}
                 accessibilityLabel="Attach"
+                accessibilityHint="Show attachment options"
                 hitSlop={8}
                 className="w-12 h-12 rounded-full bg-black items-center justify-center"
+                style={({ pressed }) => ({
+                  opacity: pressed ? 0.8 : 1,
+                })}
               >
                 <ShareIcon width={24} height={24} fill="#fff" />
               </Pressable>
 
               <View className="flex-1 mx-3">
                 <View
-                  className="flex-row items-center bg-white rounded-full px-3 border border-gray-200"
-                  style={{ minHeight: 48, maxHeight: 140 }}
+                  className="flex-row items-end bg-white rounded-3xl px-3 py-2 border border-gray-200"
+                  style={{
+                    minHeight: 48,
+                    maxHeight: 120,
+                  }}
                 >
                   <TextInput
                     ref={inputRef}
@@ -1400,30 +1390,38 @@ export default function UserChatScreen() {
                     className="flex-1 text-base text-gray-700"
                     multiline
                     accessibilityLabel="Message input"
-                    returnKeyType="send"
+                    returnKeyType="default"
                     blurOnSubmit={false}
-                    onSubmitEditing={() => {
-                      if (!sendingRef.current && text.trim()) handleSend();
-                    }}
-                    onContentSizeChange={onContentSizeChange}
                     onKeyPress={onKeyPress}
                     onFocus={() => {
                       setTimeout(() => scrollToNewest(true), 60);
                     }}
                     style={{
-                      height: inputHeight ?? undefined,
-                      paddingVertical: 10,
+                      maxHeight: 100,
+                      paddingTop: Platform.OS === "ios" ? 8 : 6,
+                      paddingBottom: Platform.OS === "ios" ? 8 : 6,
+                      paddingHorizontal: 0,
+                      lineHeight: 20,
                       textAlignVertical: "top",
                     }}
                   />
 
                   <Pressable
-                    onPress={() => console.log("Emoji tapped")}
+                    onPress={() => {
+                      console.log("Emoji tapped");
+                      setStatusOpen(true);
+                    }}
                     accessibilityLabel="Emoji"
-                    className="w-8 h-8 rounded-full items-center justify-center"
+                    accessibilityHint="Choose emoji"
+                    className="items-center justify-center ml-2"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      marginBottom: 2,
+                    }}
                     hitSlop={6}
                   >
-                    <Ionicons name="happy-outline" size={20} color="#9CA3AF" />
+                    <Ionicons name="happy-outline" size={22} color="#9CA3AF" />
                   </Pressable>
                 </View>
               </View>
@@ -1436,15 +1434,26 @@ export default function UserChatScreen() {
                   accessibilityLabel="Send message"
                   className="w-12 h-12 rounded-full bg-black items-center justify-center shadow-lg"
                   hitSlop={8}
+                  style={({ pressed }) => ({
+                    opacity: pressed ? 0.8 : 1,
+                  })}
                 >
                   <Ionicons name="paper-plane" size={18} color="#fff" />
                 </Pressable>
               ) : (
                 <Pressable
-                  onPress={() => console.log("Record tapped")}
+                  onPress={() => {
+                    console.log("Record tapped");
+                    setStatusOpen(true);
+                  }}
                   accessibilityLabel="Voice message"
+                  accessibilityHint="Record and send voice message"
                   className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-lg"
                   hitSlop={8}
+                  style={({ pressed }) => ({
+                    opacity: pressed ? 0.8 : 1,
+                    transform: [{ scale: pressed ? 0.95 : 1 }],
+                  })}
                 >
                   <FontAwesome5 name="microphone" size={18} color="#111827" />
                 </Pressable>
@@ -1470,7 +1479,7 @@ export default function UserChatScreen() {
         showImage={false}
         showHeading={false}
         showDescription={true}
-        description="This feature is not available right now"
+        description="This feature is not available right now it will be available soon."
         showButton={false}
       />
     </SafeAreaView>

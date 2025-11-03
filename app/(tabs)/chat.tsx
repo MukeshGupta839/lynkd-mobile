@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -17,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Stories from "@/components/Stories/Stories";
+import StoriesCamera from "@/components/StoriesCamera";
 import {
   CHAT_LIST_DUMMY,
   ChatItem,
@@ -28,16 +28,7 @@ import {
 
 import { Ionicons } from "@expo/vector-icons";
 import { useEventListener } from "expo";
-import * as ImagePicker from "expo-image-picker";
 import { useVideoPlayer, VideoView } from "expo-video";
-
-/* ---------- helpers ---------- */
-function normalizeAssetDuration(raw: any): number | undefined {
-  if (typeof raw !== "number" || !isFinite(raw)) return undefined;
-  if (raw > 1000) return raw / 1000;
-  return raw;
-}
-const MAX_VIDEO_SECONDS = 60;
 
 /* ---------- Story bubble (other users) ---------- */
 type StoryBubbleProps = {
@@ -307,13 +298,6 @@ function PreviewVideo({
   );
 }
 
-/* ---------- ImagePicker compatibility helper ---------- */
-function getPickerMediaTypes(): any {
-  const ip: any = ImagePicker as any;
-  if (ip?.MediaType) return [ip.MediaType.image, ip.MediaType.video];
-  return ip?.MediaTypeOptions?.All ?? ip?.MediaTypeOptions?.All;
-}
-
 /* ---------- Screen ---------- */
 export default function Chats() {
   const router = useRouter();
@@ -328,6 +312,9 @@ export default function Chats() {
   );
 
   const [uploading, setUploading] = useState(false);
+
+  // Camera modal state
+  const [cameraModalVisible, setCameraModalVisible] = useState(false);
 
   const openProfileModal = useCallback((imageUri?: string) => {
     setProfileModalImage(imageUri ?? DEFAULT_AVATAR);
@@ -355,39 +342,21 @@ export default function Chats() {
   // HUD visibility
   const [hudVisible, setHudVisible] = useState(false);
 
-  // === Mixed gallery, SINGLE PICK, then show preview
-  const addYourStoryFromGallery = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: getPickerMediaTypes(),
-      allowsMultipleSelection: false,
-      selectionLimit: 1,
-      quality: 1,
-    });
-    if (result.canceled || !result.assets?.length) return;
-
-    const a = result.assets[0];
-    const isVideo =
-      (a.type?.startsWith("video") ?? false) || a.type === "video";
-
-    // Enforce <= 60 seconds for videos (block longer)
-    if (isVideo) {
-      const durSec = normalizeAssetDuration((a as any).duration);
-      if (typeof durSec === "number" && durSec > MAX_VIDEO_SECONDS) {
-        Alert.alert(
-          "Video too long",
-          "Please pick a video of 60 seconds or less."
-        );
-        return;
-      }
-    }
-
-    setPreviewUri(a.uri);
-    setPreviewIsVideo(!!isVideo);
-    setPreviewOpen(true);
+  // Open camera modal
+  const openCameraModal = useCallback(() => {
+    setCameraModalVisible(true);
   }, []);
+
+  // Handle media captured from camera
+  const handleMediaCaptured = useCallback(
+    (mediaUri: string, isVideo: boolean) => {
+      setCameraModalVisible(false);
+      setPreviewUri(mediaUri);
+      setPreviewIsVideo(isVideo);
+      setPreviewOpen(true);
+    },
+    []
+  );
 
   // Confirm from preview → add to story
   const confirmPreviewAdd = useCallback(async () => {
@@ -610,9 +579,9 @@ export default function Chats() {
                   you={u}
                   uploading={uploading}
                   onOpenStories={() =>
-                    hasStory ? openStoryModal(u) : addYourStoryFromGallery()
+                    hasStory ? openStoryModal(u) : openCameraModal()
                   }
-                  onAdd={addYourStoryFromGallery}
+                  onAdd={openCameraModal}
                 />
               );
             }
@@ -795,6 +764,21 @@ export default function Chats() {
               </Pressable>
             )}
           </View>
+        </Modal>
+      )}
+
+      {/* Stories Camera Modal */}
+      {cameraModalVisible && (
+        <Modal
+          visible={cameraModalVisible}
+          transparent={false}
+          animationType="slide"
+          onRequestClose={() => setCameraModalVisible(false)}
+        >
+          <StoriesCamera
+            onMediaCaptured={handleMediaCaptured}
+            onClose={() => setCameraModalVisible(false)}
+          />
         </Modal>
       )}
     </View>

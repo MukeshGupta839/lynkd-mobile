@@ -404,7 +404,7 @@ export default function CustomTabBar({
                 }
               }}
               activeOpacity={0.9}
-              className="w-14 h-14 rounded-r-none rounded-2xl bg-black border-white items-center justify-center"
+              className="w-14 h-14 rounded-r-none rounded-2xl bg-black items-center justify-center"
               accessibilityRole="button"
               accessibilityLabel={
                 (
@@ -416,10 +416,18 @@ export default function CustomTabBar({
               accessibilityState={profileFocused ? { selected: true } : {}}
             >
               {avatarUri ? (
-                <Image
-                  source={{ uri: avatarUri }}
-                  className="w-10 h-10 rounded-full"
-                />
+                <View
+                  className="rounded-full"
+                  style={{
+                    borderWidth: profileFocused ? 2 : 0,
+                    borderColor: profileFocused ? "#fff" : "transparent",
+                  }}
+                >
+                  <Image
+                    source={{ uri: avatarUri }}
+                    className="w-10 h-10 rounded-full"
+                  />
+                </View>
               ) : (
                 <Ionicons
                   name={SLOT_ICON.profile.filled as any}

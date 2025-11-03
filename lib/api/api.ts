@@ -220,6 +220,47 @@ export const fetchReelsApi = async (
   }
 };
 
+// ✅ Fetch a SPECIFIC user's reels (for profile view)
+// WORKAROUND: Backend /api/reels/user/{id} returns 404, so we use the feed endpoint
+// and filter client-side to show only the target user's reels
+export const fetchUserReelsApi = async (
+  userID: string,
+  currentCursor: number
+): Promise<FetchReelResponse> => {
+  try {
+    const endpoint = `/api/posts/reels/feed/user/${userID}?page=${currentCursor}`;
+
+    console.log(
+      `🎯 Fetching reels (will filter for user ${userID}): ${endpoint}`
+    );
+    const response = (await apiCall(endpoint, "GET")) as FetchReelResponse;
+
+    console.log(
+      `📦 Raw response: ${response?.data?.length || 0} reels from users:`,
+      [...new Set(response?.data?.map((r) => r.user_id) || [])]
+    );
+
+    // ✅ FILTER: Only keep reels from the target user
+    const filteredReels =
+      response?.data?.filter(
+        (reel) => String(reel.user_id) === String(userID)
+      ) || [];
+
+    console.log(
+      `✅ Filtered to ${filteredReels.length} reels from user ${userID}`
+    );
+
+    return {
+      ...response,
+      data: filteredReels,
+      hasMore: filteredReels.length > 0 && response?.hasMore,
+    };
+  } catch (error) {
+    console.error("❌ Error fetching user reels:", error);
+    throw error;
+  }
+};
+
 export const clearReelsCache = async (userID: string): Promise<void> => {
   try {
     console.log("Clearing reels cache for user:", userID);
