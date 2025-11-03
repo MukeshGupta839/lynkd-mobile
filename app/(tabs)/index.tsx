@@ -74,17 +74,16 @@ const NotificationBell = ({
     >
       <Ionicons name="notifications-outline" size={24} color="#000" />
 
-      {count > 0 && (
-        <View
-          className="absolute -top-1 -right-1 bg-black rounded-full h-6 w-6 px-1
+      <View
+        className="absolute top-1 right-1 bg-red-600 rounded-full h-4 w-4 px-1
                      items-center justify-center border border-white"
-          // If your Tailwind doesn't support min-w, use style={{ minWidth: 16 }}
-        >
-          <Text className="text-white text-[10px] font-bold">
-            {count > 99 ? "99+" : count}
-          </Text>
-        </View>
-      )}
+      // If your Tailwind doesn't support min-w, use style={{ minWidth: 16 }}
+      >
+        <Text className="text-white text-[10px] font-bold">
+          {/* {count > 99 ? "99+" : count} */}
+          {count}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 };
@@ -696,9 +695,9 @@ export default function ConsumerHomeUI() {
           (prevPosts ?? []).map((post) =>
             String(post.id) === pid
               ? {
-                  ...post,
-                  likes_count: post.likes_count + (isLiked ? -1 : 1),
-                }
+                ...post,
+                likes_count: post.likes_count + (isLiked ? -1 : 1),
+              }
               : post
           )
         );
@@ -719,9 +718,9 @@ export default function ConsumerHomeUI() {
           (prevPosts ?? []).map((post) =>
             String(post.id) === pid
               ? {
-                  ...post,
-                  likes_count: post.likes_count + (isLiked ? 1 : -1),
-                }
+                ...post,
+                likes_count: post.likes_count + (isLiked ? 1 : -1),
+              }
               : post
           )
         );
@@ -1017,7 +1016,7 @@ export default function ConsumerHomeUI() {
                       <Ionicons name="search-outline" size={24} color="#000" />
                     </TouchableOpacity>
                     <NotificationBell
-                      count={12}
+                      count={""}
                       onPress={() => {
                         router.push("/(notifications)");
                       }}
@@ -1079,11 +1078,11 @@ export default function ConsumerHomeUI() {
                 style={{ backgroundColor: "#F3F4F8" }}
                 ListHeaderComponent={
                   user &&
-                  (!user.username ||
-                    !user.profile_picture ||
-                    !user.bio ||
-                    !user.first_name ||
-                    !user.last_name) ? (
+                    (!user.username ||
+                      !user.profile_picture ||
+                      !user.bio ||
+                      !user.first_name ||
+                      !user.last_name) ? (
                     <CompleteProfilePopup user={user} />
                   ) : null
                 }
