@@ -23,16 +23,13 @@ import QuickActions from "@/components/Product/QuickActions";
 import DealsStrip from "@/components/Product/TopDealsSection";
 import SearchBar from "@/components/Searchbar";
 
-// local fallbacks
 import { homeBannerData } from "@/constants/Banner";
 import { bestDeals as fallbackBestDeals } from "@/constants/BestDeals";
 import { topDeals as fallbackTopDeals } from "@/constants/Deal";
 import { products as fallbackProducts } from "@/constants/Product";
 
-import { useCategoryTheme } from "@/stores/useThemeStore";
-
-// ✅ updated import
 import { useProductDetail } from "@/hooks/useCatalog";
+import { useCategoryTheme } from "@/stores/useThemeStore";
 
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
@@ -79,10 +76,9 @@ export default function ProductHome() {
     }, [setPreset])
   );
 
-  // 🟩 Call single product API here
-  const productId = 1; // <-- replace with any valid product ID from your backend
+  // Single product API (your hook)
+  const productId = 1;
   const { data, loading, error, refresh } = useProductDetail(productId);
-
   const bestProductsData = data ? [data] : fallbackProducts;
 
   const listRef = useRef<FlatList<any> | null>(null);
@@ -107,6 +103,28 @@ export default function ProductHome() {
     { id: "topDeals", type: "topDeals" as const },
   ];
 
+  // 👉 BestDeals onPress: open clothing page if first card, else do a sensible default
+  const handleBestDealPress = (item: any, index: number) => {
+    if (index === 0) {
+      // router.push("/Product/Productview?type=clothing")
+      router.push({
+        pathname: "/Product/Productview",
+        params: { type: "clothing" },
+      });
+      return;
+    }
+
+    // Optional: for other cards, you can route based on item fields if available
+    // (fallback to phone)
+    const typeFromItem =
+      (item?.type as "phone" | "facewash" | "clothing" | undefined) ?? "phone";
+
+    router.push({
+      pathname: "/Product/Productview",
+      params: { type: typeFromItem },
+    });
+  };
+
   const renderContentSection = ({
     item,
   }: {
@@ -122,7 +140,11 @@ export default function ProductHome() {
             <Banner
               variant="home"
               data={homeBannerData}
-              onSlidePress={() => router.push("/Product/Productview")}
+              onSlidePress={() =>
+                router.push({
+                  pathname: "/Product/Productview",
+                })
+              }
             />
           </View>
         );
@@ -154,6 +176,9 @@ export default function ProductHome() {
           <BestDealsGrid
             title="Best Deals for you"
             data={fallbackBestDeals as any}
+            // 👇 Add this prop in your BestDealsGrid (if not present yet):
+            // onItemPress?: (item: any, index: number) => void
+            onItemPress={handleBestDealPress}
           />
         );
 

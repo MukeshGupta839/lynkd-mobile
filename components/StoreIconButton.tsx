@@ -29,7 +29,7 @@ const StoreIconButton = ({
         }
       }}>
       <View
-        className="p-1.5 bg-white rounded-full"
+        className="p-1.5  rounded-full"
         accessibilityLabel="Store"
         accessibilityRole="button">
         <Ionicons name="storefront-outline" size={18} color="black" />

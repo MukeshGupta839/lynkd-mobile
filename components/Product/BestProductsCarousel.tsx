@@ -1,5 +1,6 @@
 // components/Product/BestProductsCarousel.tsx
 import Constants from "expo-constants";
+import { useRouter } from "expo-router";
 import { Star, Truck } from "lucide-react-native";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -153,7 +154,7 @@ export default function BestProductsCarousel({
 }: {
   title?: string;
   /** Can be ProductItem[] or raw ApiProduct[] */
-  data: Array<ProductItem | ApiProduct>;
+  data: (ProductItem | ApiProduct)[];
 }) {
   const { width: sw } = useWindowDimensions();
   const flatListRef = useRef<FlatList>(null);
@@ -189,7 +190,7 @@ export default function BestProductsCarousel({
 
   return (
     <View className="w-full">
-      <Text className="font-bold text-lg px-3 mb-2">{title}</Text>
+      <Text className="font-bold text-lg px-3  mb-2">{title}</Text>
 
       <View className="w-full aspect-[390.5/190]">
         <FlatList
@@ -211,7 +212,7 @@ export default function BestProductsCarousel({
       </View>
 
       {maxScrollDistance > 0 && (
-        <View className="w-full items-center mt-2">
+        <View className="w-full items-center mt-2 mb-2">
           <View className="w-[29.2%] h-1.5 bg-black/10 rounded-full relative overflow-hidden">
             <View
               className="h-full bg-neutral-700 rounded-full absolute"
@@ -236,6 +237,8 @@ function ProductCard({
   item: ProductItem;
   cardWidth: number;
 }) {
+  const router = useRouter();
+
   const {
     name,
     description,
@@ -253,8 +256,16 @@ function ProductCard({
       ? fmtINR(oldPrice)
       : undefined;
 
+  const handlePress = () => {
+    // Exact route requested
+    router.push("/Product/Productview?type=facewash");
+    // If you ever want object form:
+    // router.push({ pathname: "/Product/Productview", params: { type: "facewash" } });
+  };
+
   return (
     <TouchableOpacity
+      onPress={handlePress}
       activeOpacity={0.9}
       style={{
         width: cardWidth,
@@ -292,11 +303,6 @@ function ProductCard({
                   {String(rating)}
                 </Text>
               )}
-              {/* {!!reviews && (
-                <Text className="ml-0.5 text-gray-600 text-xxs" style={{ includeFontPadding: false }}>
-                  ({String(reviews)})
-                </Text>
-              )} */}
             </View>
           )}
         </View>

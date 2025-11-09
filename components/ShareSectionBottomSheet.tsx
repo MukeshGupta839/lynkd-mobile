@@ -25,11 +25,12 @@ import {
   BottomSheetFlatList,
   BottomSheetFooter,
   BottomSheetModal,
-  BottomSheetTextInput,
   type BottomSheetBackdropProps,
   type BottomSheetFooterProps,
   type BottomSheetModal as BottomSheetModalType,
 } from "@gorhom/bottom-sheet";
+
+import SearchBar from "@/components/Searchbar";
 
 import {
   LOGGED_USER,
@@ -87,8 +88,8 @@ type Props = {
   onShareImage?: (
     target?: "whatsapp" | "system" | "facebook" | "instagram"
   ) => void;
-  initialHeightPct?: number; // (kept for API compatibility; we’ll use percentages)
-  maxHeightPct?: number; // (kept for API compatibility; we’ll use percentages)
+  initialHeightPct?: number;
+  maxHeightPct?: number;
   maxSelect?: number;
 };
 
@@ -279,7 +280,7 @@ const ShareFooter = memo(function ShareFooter({
   );
 });
 
-/* Header = REAL handle (drag zone only) */
+/* Header (drag handle + title + SearchBar + selected chips) */
 const HeaderHandle = memo(function HeaderHandle({
   selectedUsers,
   setSelectedIds,
@@ -314,29 +315,12 @@ const HeaderHandle = memo(function HeaderHandle({
         <Text className="text-lg font-opensans-semibold text-black">Share</Text>
       </View>
 
-      <View
-        className="relative mt-2 px-3 mb-1"
-        style={{ backgroundColor: "transparent" }}>
-        <BottomSheetTextInput
+      {/* Use shared SearchBar */}
+      <View className="px-3 mt-2 mb-1">
+        <SearchBar
           placeholder="Search"
-          placeholderTextColor="#666"
           value={search}
           onChangeText={setSearch}
-          style={{
-            height: 42,
-            paddingHorizontal: 12,
-            borderWidth: 1,
-            borderColor: "#ccc",
-            borderRadius: 10,
-            backgroundColor: "#F7F7F9",
-            fontSize: 14,
-          }}
-        />
-        <Ionicons
-          name="search"
-          size={20}
-          color="#666"
-          style={{ position: "absolute", right: 24, top: 11 }}
         />
       </View>
 
@@ -394,14 +378,13 @@ function ShareSectionBottomSheetComponent({
   postPreview,
   onSelectUser,
   onShareImage,
-  initialHeightPct = 0.3, // default 30%
-  maxHeightPct = 0.9, // default 90%
+  initialHeightPct = 0.3,
+  maxHeightPct = 0.9,
   maxSelect = 5,
 }: Props) {
-  const router = useRouter();
+  const router = useRouter(); // ✅ hook at top level
   const insets = useSafeAreaInsets();
 
-  // 👇 Use percentage snap points so 30% always behaves correctly
   const snapPoints = useMemo<(string | number)[]>(
     () => [
       `${Math.round(initialHeightPct * 100)}%`,
@@ -509,6 +492,7 @@ function ShareSectionBottomSheetComponent({
       );
       closeSheet();
       const first = selectedUsers[0];
+      // ✅ use the router instance created at the top
       router.push({
         pathname: "/chat/UserChatScreen",
         params: {
@@ -525,7 +509,7 @@ function ShareSectionBottomSheetComponent({
         isSendingRef.current = false;
       }, 400);
     }
-  }, [selectedUsers, postId, postPreview, router, closeSheet]);
+  }, [selectedUsers, postId, postPreview, closeSheet, router]);
 
   const DefaultBackdrop = (props: BottomSheetBackdropProps) => (
     <BottomSheetBackdrop
@@ -576,7 +560,6 @@ function ShareSectionBottomSheetComponent({
     [showSendBar, selectedUsers.length, maxSelect, handleSend, actions]
   );
 
-  // ensure last row is reachable behind footer
   const NAV_SAFE = Math.max(insets.bottom, Platform.OS === "android" ? 24 : 10);
   const reservedBottom =
     (showSendBar ? SEND_BAR_HEIGHT : ACTIONS_BAR_HEIGHT) + NAV_SAFE + 6;
@@ -606,7 +589,7 @@ function ShareSectionBottomSheetComponent({
       backgroundStyle={{ backgroundColor: "#fff" }}
       handleIndicatorStyle={{ backgroundColor: "#cfd2d7" }}
       footerComponent={renderFooter}>
-      {/* BODY — scrolls fully at ANY snap (incl. 30%) */}
+      {/* BODY */}
       <BottomSheetFlatList
         style={{ flex: 1 }}
         data={filteredUsers}
@@ -620,7 +603,6 @@ function ShareSectionBottomSheetComponent({
           paddingBottom: reservedBottom,
           backgroundColor: "#fff",
         }}
-        // Make sure it owns the vertical scroll
         scrollEnabled
         nestedScrollEnabled
         keyboardShouldPersistTaps="always"

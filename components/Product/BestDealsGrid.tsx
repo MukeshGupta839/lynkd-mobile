@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { Image, Text, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 
 export type DealItem = {
   id?: string | number;
@@ -27,19 +27,15 @@ function DealCard({
   textColor = "text-black",
 }: DealItem) {
   const getBadgeStyle = () => {
-    if (badgeText === "Best Flash Deal") {
-      return { backgroundColor: "#26FF91" }; // Green
-    } else if (badgeText === "Only 1 left") {
-      return { backgroundColor: "#EF4444" }; // Red
-    } else if (badgeText === "LYNKD Choice") {
-      return { backgroundColor: "#26FF91" }; // Green
-    }
+    if (badgeText === "Best Flash Deal") return { backgroundColor: "#26FF91" };
+    if (badgeText === "Only 1 left") return { backgroundColor: "#EF4444" };
+    if (badgeText === "LYNKD Choice") return { backgroundColor: "#26FF91" };
     return { backgroundColor: "#26FF91" };
   };
 
   return (
     <View className="flex-1" style={{ height: "100%" }}>
-      {/* Image Container - Fixed height */}
+      {/* Image Container */}
       <View
         className="w-full relative items-center justify-center"
         style={{ height: "65%" }}>
@@ -55,15 +51,12 @@ function DealCard({
         <Image
           source={image}
           className="w-[85%]"
-          style={{
-            aspectRatio: 1,
-            maxHeight: "85%",
-          }}
+          style={{ aspectRatio: 1, maxHeight: "85%" }}
           resizeMode="contain"
         />
       </View>
 
-      {/* Text Container - Fixed height */}
+      {/* Text Container */}
       <View
         className="w-full justify-center"
         style={{ height: "35%", paddingTop: 4 }}>
@@ -74,6 +67,7 @@ function DealCard({
           style={{ fontSize: 13, lineHeight: 16, marginBottom: 2 }}>
           {name}
         </Text>
+
         {!!subtitle && (
           <Text
             className="text-gray-500"
@@ -143,10 +137,12 @@ export default function BestDealsGrid({
   title = "Best Deals for you",
   data,
   colors = ["#D0FFD4", "#ADF5D1"],
+  onItemPress,
 }: {
   title?: string;
   data: DealItem[];
   colors?: [string, string];
+  onItemPress?: (item: DealItem, index: number) => void;
 }) {
   return (
     <View className="w-full px-3">
@@ -159,31 +155,41 @@ export default function BestDealsGrid({
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}>
           <View className="p-5">
-            {/* Create rows of 2 items each */}
             {Array.from({ length: Math.ceil(data.length / 2) }).map(
               (_, rowIndex) => {
                 const isLastRow = rowIndex === Math.ceil(data.length / 2) - 1;
+                const row = data.slice(rowIndex * 2, rowIndex * 2 + 2);
+
                 return (
                   <View
                     key={rowIndex}
                     className={`flex-row justify-between ${!isLastRow ? "mb-4" : ""}`}>
-                    {data
-                      .slice(rowIndex * 2, rowIndex * 2 + 2)
-                      .map((item, colIndex) => (
-                        <View
-                          key={item.id || rowIndex * 2 + colIndex}
+                    {row.map((item, colIndex) => {
+                      const globalIndex = rowIndex * 2 + colIndex;
+                      return (
+                        <TouchableOpacity
+                          key={item.id ?? globalIndex}
+                          activeOpacity={0.9}
                           className="bg-white rounded-xl w-[48%]"
                           style={{
                             aspectRatio: 0.92,
                             padding: 9,
                             minHeight: 200,
-                          }}>
+                          }}
+                          onPress={() => onItemPress?.(item, globalIndex)}
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            typeof item.name === "string"
+                              ? item.name
+                              : "Deal item"
+                          }>
                           <DealCard {...item} />
-                        </View>
-                      ))}
-                    {/* Add empty spacer if odd number of items in last row */}
-                    {data.slice(rowIndex * 2, rowIndex * 2 + 2).length ===
-                      1 && <View className="w-[48%]" />}
+                        </TouchableOpacity>
+                      );
+                    })}
+
+                    {/* Spacer for odd last row */}
+                    {row.length === 1 && <View className="w-[48%]" />}
                   </View>
                 );
               }

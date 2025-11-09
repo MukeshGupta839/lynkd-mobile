@@ -337,7 +337,7 @@ const SearchScreen = () => {
             </View>
           )}
 
-          {item.brand.brandLogoURL && (
+          {/* {item.brand.brandLogoURL && (
             <View className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white items-center justify-center shadow-sm border border-gray-100">
               <Image
                 source={{ uri: item.brand.brandLogoURL }}
@@ -345,7 +345,7 @@ const SearchScreen = () => {
                 resizeMode="contain"
               />
             </View>
-          )}
+          )} */}
 
           {hasDiscount && discountPercentage > 0 && (
             <View className="absolute top-2 left-2 bg-red-500 px-2 py-1 rounded-md">
@@ -367,14 +367,15 @@ const SearchScreen = () => {
             {item.name}
           </Text>
           <View className="flex-row items-center flex-wrap">
-            {hasDiscount && (
-              <Text className="text-[10px] text-gray-400 line-through mr-2">
-                ₹{item.regular_price}
-              </Text>
-            )}
             <Text className="text-sm font-bold text-gray-900">
               ₹{finalPrice}
             </Text>
+
+            {hasDiscount && (
+              <Text className="text-[10px] text-gray-400 line-through ml-2">
+                ₹{item.regular_price}
+              </Text>
+            )}
           </View>
         </View>
       </TouchableOpacity>
