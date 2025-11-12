@@ -236,6 +236,10 @@ export default function RootLayout() {
                         name="chat/UserChatScreen"
                         options={{ headerShown: false }}
                       />
+                      <Stack.Screen
+                        name="chat/Search"
+                        options={{ headerShown: false }}
+                      />
                       <Stack.Screen name="+not-found" />
                     </Stack>
                   </FavoritesProvider>
