@@ -65,8 +65,6 @@
     <string>LYNKD needs access to your camera so you can take photos and record videos to share in your posts, update your profile picture, or capture content for your store listings.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>LYNKD uses Face ID to securely authenticate your identity and protect your account when accessing sensitive information or making purchases.</string>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>LYNKD may use your location to help you discover nearby stores, products, and services, and to provide location-based features when you choose to share your location in posts or add a location to your store.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>LYNKD needs access to your microphone so you can record audio when creating video posts, live streams, or adding voice content to your stories and messages.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>

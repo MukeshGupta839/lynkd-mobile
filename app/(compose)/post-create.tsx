@@ -16,14 +16,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -128,10 +121,8 @@ function HighlightedText({
   users: { username: string }[]; // same shape as your USERS
   activeHasSuggestions: boolean; // “mentioning && filteredUsers.length > 0”
 }) {
-  const usernameSet = useMemo(
-    () => new Set(users.map((u) => u.username.toLowerCase())),
-    [users]
-  );
+  // ✅ React Compiler Compatible: Removed useMemo - compiler auto-memoizes
+  const usernameSet = new Set(users.map((u) => u.username.toLowerCase()));
 
   const parts: { text: string; isBlue: boolean }[] = [];
   const re = new RegExp(MENTION_PATTERN, "g");
@@ -298,47 +289,77 @@ export default function PostCreate() {
     };
   }, [mode]);
 
-  const fetchUsersbySearch = useCallback(
-    async (searchQuery: string) => {
-      try {
-        const response = await apiCall(
-          `/api/search/${user?.id}/users?search=${searchQuery}`,
-          "GET"
-        );
-        const data = await response.data;
-        // Normalize API payload to the MentionUser shape. Be defensive about missing fields.
-        const users: MentionUserType[] = (data || []).map((u: any) => ({
-          id: u.id ?? u._id ?? String(u.username || ""),
-          first_name: u.first_name ?? u.firstName ?? "",
-          last_name: u.last_name ?? u.lastName ?? "",
-          username: u.username ?? u.user_name ?? u.handle ?? "",
-          // pick likely image fields if present
-          image: u.profile_picture ?? u.image ?? u.avatar ?? undefined,
-          avatar: u.profile_picture ?? u.image ?? u.avatar ?? undefined,
-        }));
-        users.sort((a: MentionUserType, b: MentionUserType) => {
-          const query = searchQuery.toLowerCase();
-          const aUsername = a.username.toLowerCase();
-          const bUsername = b.username.toLowerCase();
+  // ✅ React Compiler Compatible: Removed useCallback - compiler auto-memoizes
+  const fetchUsersbySearch = async (searchQuery: string) => {
+    // ✅ React Compiler Compatible: Extract optional chaining before try block
+    // This avoids "value blocks within try/catch" issue
+    const userId = user?.id;
+    if (!userId) {
+      console.warn("No user ID available for search");
+      return;
+    }
 
-          if (aUsername === query) return -1;
-          if (bUsername === query) return 1;
-          if (aUsername.startsWith(query) && !bUsername.startsWith(query))
-            return -1;
-          if (bUsername.startsWith(query) && !aUsername.startsWith(query))
-            return 1;
-          if (aUsername.includes(query) && !bUsername.includes(query))
-            return -1;
-          if (bUsername.includes(query) && !aUsername.includes(query)) return 1;
-          return 0;
-        });
-        setUsersResults(users);
-      } catch (error) {
-        console.error("API request failed:", error);
-      }
-    },
-    [user?.id]
-  );
+    // ✅ React Compiler Compatible: Extract normalization logic before try block
+    // Helper function to normalize user data - avoids value blocks in try/catch
+    const normalizeUser = (u: any): MentionUserType => ({
+      id: u.id ?? u._id ?? String(u.username || ""),
+      first_name: u.first_name ?? u.firstName ?? "",
+      last_name: u.last_name ?? u.lastName ?? "",
+      username: u.username ?? u.user_name ?? u.handle ?? "",
+      image: u.profile_picture ?? u.image ?? u.avatar ?? undefined,
+      avatar: u.profile_picture ?? u.image ?? u.avatar ?? undefined,
+    });
+
+    // Helper function to sort users by search relevance
+    const sortByRelevance = (users: MentionUserType[], query: string) => {
+      const lowerQuery = query.toLowerCase();
+      return users.sort((a, b) => {
+        const aUsername = a.username.toLowerCase();
+        const bUsername = b.username.toLowerCase();
+
+        if (aUsername === lowerQuery) return -1;
+        if (bUsername === lowerQuery) return 1;
+        if (
+          aUsername.startsWith(lowerQuery) &&
+          !bUsername.startsWith(lowerQuery)
+        )
+          return -1;
+        if (
+          bUsername.startsWith(lowerQuery) &&
+          !aUsername.startsWith(lowerQuery)
+        )
+          return 1;
+        if (aUsername.includes(lowerQuery) && !bUsername.includes(lowerQuery))
+          return -1;
+        if (bUsername.includes(lowerQuery) && !aUsername.includes(lowerQuery))
+          return 1;
+        return 0;
+      });
+    };
+
+    // ✅ React Compiler Compatible: Variable to store results outside try block
+    let rawUsers: any[] = [];
+
+    try {
+      const response = await apiCall(
+        `/api/search/${userId}/users?search=${searchQuery}`,
+        "GET"
+      );
+      const data = await response.data;
+
+      // Simple assignment - no conditional logic in try block
+      rawUsers = data;
+    } catch (error) {
+      console.error("API request failed:", error);
+    }
+
+    // ✅ React Compiler Compatible: All conditional logic outside try/catch
+    const safeUsers = Array.isArray(rawUsers) ? rawUsers : [];
+    const normalizedUsers = safeUsers.map(normalizeUser);
+    const sortedUsers = sortByRelevance(normalizedUsers, searchQuery);
+
+    setUsersResults(sortedUsers);
+  };
 
   // Improved keyboard handling with focus management
   useEffect(() => {
@@ -494,59 +515,59 @@ export default function PostCreate() {
   };
 
   // Handle media captured from camera
-  const handleMediaCaptured = useCallback(
-    async (mediaUri: string, isVideo: boolean) => {
-      setCameraModalVisible(false);
+  // ✅ React Compiler Compatible: Removed useCallback - compiler auto-memoizes
+  const handleMediaCaptured = async (mediaUri: string, isVideo: boolean) => {
+    setCameraModalVisible(false);
 
-      // Create an RNFile from the captured media
-      const nameFromUri = mediaUri.split("/").pop() || "media";
-      const ext = (nameFromUri.split(".").pop() || "").toLowerCase();
-      const mime = isVideo ? `video/${ext || "mp4"}` : `image/${ext || "jpeg"}`;
+    // Create an RNFile from the captured media
+    const nameFromUri = mediaUri.split("/").pop() || "media";
+    const ext = (nameFromUri.split(".").pop() || "").toLowerCase();
+    const mime = isVideo ? `video/${ext || "mp4"}` : `image/${ext || "jpeg"}`;
 
-      const capturedFile: RNFile = {
-        id: `captured-${Date.now()}`,
-        uri: mediaUri,
-        name: nameFromUri,
-        type: mime,
-        isVideo: isVideo,
-      };
+    const capturedFile: RNFile = {
+      id: `captured-${Date.now()}`,
+      uri: mediaUri,
+      name: nameFromUri,
+      type: mime,
+      isVideo: isVideo,
+    };
 
-      // Apply the same media lock rules as pickMedia
-      if (isVideo) {
-        // Only one video allowed → replace any previous media
+    // Apply the same media lock rules as pickMedia
+    if (isVideo) {
+      // Only one video allowed → replace any previous media
+      setImage([capturedFile]);
+      setMediaLock("video");
+    } else {
+      // Image captured
+      if (hasVideo) {
+        // Replace video with image and disable video
         setImage([capturedFile]);
-        setMediaLock("video");
+        setMediaLock("image");
+      } else if (mediaLock === "image") {
+        // Already in image mode → append image
+        setImage((prev) => [...prev, capturedFile]);
       } else {
-        // Image captured
-        if (hasVideo) {
-          // Replace video with image and disable video
-          setImage([capturedFile]);
-          setMediaLock("image");
-        } else if (mediaLock === "image") {
-          // Already in image mode → append image
-          setImage((prev) => [...prev, capturedFile]);
-        } else {
-          // No media yet → start image mode
-          setImage([capturedFile]);
-          setMediaLock("image");
-        }
+        // No media yet → start image mode
+        setImage([capturedFile]);
+        setMediaLock("image");
       }
+    }
 
-      setDisablePostButton(false);
-    },
-    [hasVideo, mediaLock]
-  );
+    setDisablePostButton(false);
+  };
 
   // Enhanced bottom padding calculation
-  const getBottomPadding = useCallback(() => {
+  // ✅ React Compiler Compatible: Removed useCallback - compiler auto-memoizes
+  const getBottomPadding = () => {
     if (Platform.OS === "android") {
       return isKeyboardVisible ? 8 : Math.max(insets.bottom - 5, 12);
     } else {
       return isKeyboardVisible ? 8 : Math.max(insets.bottom - 15, 5);
     }
-  }, [isKeyboardVisible, insets.bottom]);
+  };
 
   // Enhanced caret position calculation
+  // Wrapped in useCallback so it can be safely used in effect dependencies
   const updateCaretPosition = useCallback(() => {
     if (!mentioning || !text || !inputLayout.w) return;
 
@@ -605,7 +626,7 @@ export default function PostCreate() {
     const caretY = lineIndex * INPUT_LINE_HEIGHT;
 
     setCaretAnchor({ x: caretX, y: caretY });
-  }, [mentioning, text, selection.start, inputLayout.w]);
+  }, [mentioning, text, inputLayout.w, selection.start]);
 
   const measureTextPosition = (event: {
     nativeEvent: { selection: { start: number } };
@@ -627,29 +648,27 @@ export default function PostCreate() {
   };
 
   // Mention parsing + selection tracking
-  const handleChangeText = useCallback(
-    (input: string) => {
-      setText(input);
-      const words = input.split(" ");
-      const lastWord = words[words.length - 1];
+  // ✅ React Compiler Compatible: Removed useCallback - compiler auto-memoizes
+  const handleChangeText = (input: string) => {
+    setText(input);
+    const words = input.split(" ");
+    const lastWord = words[words.length - 1];
 
-      if (lastWord.startsWith("@") && lastWord.length > 1) {
-        const query = lastWord.slice(1);
-        fetchUsersbySearch(query);
-        // Measure position after state update
-        if (inputRef.current) {
-          setTimeout(() => {
-            measureTextPosition({
-              nativeEvent: { selection: { start: selectionStart } },
-            });
-          }, 0);
-        }
-      } else {
-        // clear mention UI
+    if (lastWord.startsWith("@") && lastWord.length > 1) {
+      const query = lastWord.slice(1);
+      fetchUsersbySearch(query);
+      // Measure position after state update
+      if (inputRef.current) {
+        setTimeout(() => {
+          measureTextPosition({
+            nativeEvent: { selection: { start: selectionStart } },
+          });
+        }, 0);
       }
-    },
-    [fetchUsersbySearch, selectionStart]
-  );
+    } else {
+      // clear mention UI
+    }
+  };
 
   // 2) parse after both text & selection are current
   useEffect(() => {
@@ -738,58 +757,65 @@ export default function PostCreate() {
     const { startUpload, updateProgress, completeUpload, failUpload } =
       useUploadStore.getState();
 
-    try {
-      // Determine post type based on media
-      const postType =
-        image.length > 0 && image[0]?.isVideo
-          ? "video"
-          : image.length > 0
-            ? "image"
-            : "text";
+    // ✅ React Compiler Compatible: Extract cleanup logic to avoid 'finally' block
+    const performCleanup = () => {
+      setTimeout(() => {
+        setLoader(false);
+        setMode("length");
+      }, 600);
+    };
 
+    // ✅ React Compiler Compatible: Extract all conditional logic before try block
+    // Determine post type based on media
+    const hasImages = image.length > 0;
+    const firstImage = hasImages ? image[0] : null;
+    const isVideo = firstImage?.isVideo ?? false;
+    const postType = isVideo ? "video" : hasImages ? "image" : "text";
+
+    // Extract media-related values
+    const firebaseUid = firebaseUser?.uid ?? "";
+    const userId = user?.id?.toString() ?? "";
+    const brandId = selectedProduct?.brandID?.toString() ?? "1";
+    const productId = selectedProduct?.productID?.toString() ?? "1";
+    const productUrl = selectedProduct?.productURL ?? "";
+
+    // Extract media type and content type
+    const contentMediaType = isVideo ? "video/mp4" : "image/jpeg";
+    const mediaExtension = isVideo ? "mp4" : "jpg";
+    const defaultMediaType = isVideo ? "reel" : "imagepost4x3";
+    const finalMediaType = selectedMediaType || defaultMediaType;
+    const finalAspectRatio = aspectRatio || "4:3";
+
+    // ✅ React Compiler Compatible: Pre-compute conditional for if statement
+    const shouldAddMedia = hasImages && firstImage !== null;
+
+    try {
       // Start upload and close screen
       startUpload(postType);
       router.back(); // Navigate back immediately after starting upload
 
       const formData = new FormData();
-      formData.append("firebaseUID", firebaseUser?.uid || "");
-      formData.append("userID", user?.id?.toString() || "");
+      formData.append("firebaseUID", firebaseUid);
+      formData.append("userID", userId);
       formData.append("caption", removeHashtagsFromCaption(text));
       formData.append("location", location);
       formData.append("hashtags", extractHashtagsFromCaption(text));
 
       // Add product information
       console.log("selectedProduct:", selectedProduct);
-      formData.append(
-        "brandID",
-        selectedProduct ? selectedProduct.brandID?.toString() || "1" : "1"
-      );
-      formData.append(
-        "productID",
-        selectedProduct ? selectedProduct.productID?.toString() || "1" : "1"
-      );
-      formData.append(
-        "productURL",
-        selectedProduct ? selectedProduct.productURL || "" : ""
-      );
+      formData.append("brandID", brandId);
+      formData.append("productID", productId);
+      formData.append("productURL", productUrl);
 
-      // Add media if available
-      if (image.length > 0 && image[0]) {
-        const firstImage = image[0];
-        const contentMediaType = firstImage.isVideo
-          ? "video/mp4"
-          : "image/jpeg";
-
+      // Add media if available (using pre-computed condition)
+      if (shouldAddMedia) {
         formData.append("mediaUrl", {
           uri: firstImage.uri,
-          name: `post-${Date.now()}.${contentMediaType === "video/mp4" ? "mp4" : "jpg"}`,
+          name: `post-${Date.now()}.${mediaExtension}`,
           type: contentMediaType,
         } as any);
-        formData.append(
-          "mediaType",
-          selectedMediaType || (firstImage.isVideo ? "reel" : "imagepost4x3")
-        );
-        formData.append("aspect_ratio", aspectRatio || "4:3");
+        formData.append("mediaType", finalMediaType);
+        formData.append("aspect_ratio", finalAspectRatio);
       } else {
         formData.append("mediaUrl", "");
         formData.append("mediaType", "");
@@ -860,16 +886,17 @@ export default function PostCreate() {
           setAspectRatio(null);
         }, 500);
       }
+
+      // ✅ Cleanup on success path
+      performCleanup();
     } catch (e) {
       console.error("error creating post:", e);
       failUpload();
       // On failure, show error and reset
       setPostingProgress(0);
-    } finally {
-      setTimeout(() => {
-        setLoader(false);
-        setMode("length");
-      }, 600);
+
+      // ✅ Cleanup on error path
+      performCleanup();
     }
   };
 

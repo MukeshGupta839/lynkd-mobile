@@ -19,11 +19,13 @@ import {
 interface StoriesCameraProps {
   onMediaCaptured: (mediaUri: string, isVideo: boolean) => void;
   onClose: () => void;
+  disableVideo?: boolean;
 }
 
 export default function StoriesCamera({
   onMediaCaptured,
   onClose,
+  disableVideo = false,
 }: StoriesCameraProps) {
   const camera = useRef<Camera>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -209,7 +211,7 @@ export default function StoriesCamera({
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images", "videos"],
+        mediaTypes: !disableVideo ? ["images", "videos"] : ["images"],
         allowsEditing: Platform.OS === "ios" ? false : true,
         quality: 1,
       });
@@ -340,16 +342,18 @@ export default function StoriesCamera({
       </TouchableOpacity>
 
       {/* Button to change camera mode from photo to video */}
-      <TouchableOpacity
-        className="absolute bottom-[50px] left-5 p-2.5 bg-black/50 rounded-[20px]"
-        onPress={() => setIsVideo((prev) => !prev)}
-      >
-        {!isVideo ? (
-          <Ionicons name="videocam" size={24} color="white" />
-        ) : (
-          <Ionicons name="camera" size={24} color="white" />
-        )}
-      </TouchableOpacity>
+      {!disableVideo && (
+        <TouchableOpacity
+          className="absolute bottom-[50px] left-5 p-2.5 bg-black/50 rounded-[20px]"
+          onPress={() => setIsVideo((prev) => !prev)}
+        >
+          {!isVideo ? (
+            <Ionicons name="videocam" size={24} color="white" />
+          ) : (
+            <Ionicons name="camera" size={24} color="white" />
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* Gallery Button */}
       <TouchableOpacity

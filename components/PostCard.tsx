@@ -350,6 +350,10 @@ export const PostCard: React.FC<PostCardProps> = ({
   const openProductTap = makeTapThatYieldsToPan(goToProductSafe);
   const openProfileTap = makeTapThatYieldsToPan(handleUserPressSafe);
 
+  // Caption double-tap state
+  const lastCaptionTapRef = useRef<number>(0);
+  const captionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   /* ---------- Build a SAFE post preview for chat ---------- */
   const previewImage =
     typeof item.postImage === "string"
@@ -570,161 +574,6 @@ export const PostCard: React.FC<PostCardProps> = ({
               onDoubleLike={toggleLike} // <<<<<< key: toggle on double tap
             />
 
-            {/* Caption */}
-            <View>
-              {(() => {
-                const caption = item.caption || "";
-                const captionLimit = 150;
-                const shouldTruncate = caption.length > captionLimit;
-                const displayCaption =
-                  shouldTruncate && !showFullCaption
-                    ? caption.substring(0, captionLimit)
-                    : caption;
-
-                return caption ? (
-                  <View>
-                    <Text className="text-sm px-3 text-gray-900">
-                      {displayCaption
-                        .split(/((?:@|#)[\w.]+|(?:https?:\/\/|www\.)\S+)/gi)
-                        .map((part: string, index: number) => {
-                          if (part && part.startsWith("@")) {
-                            return (
-                              <Text
-                                key={`cap-mention-${index}`}
-                                className="text-blue-600"
-                                suppressHighlighting
-                                onPress={
-                                  isGestureActive
-                                    ? undefined
-                                    : () =>
-                                        router.push({
-                                          pathname: "/(profiles)/" as any,
-                                          params: {
-                                            username: part.slice(1),
-                                          },
-                                        })
-                                }
-                                onLongPress={openPostOptions}
-                              >
-                                {part}
-                              </Text>
-                            );
-                          }
-                          if (part && part.startsWith("#")) {
-                            return (
-                              <Text
-                                key={`cap-hash-${index}`}
-                                className="text-blue-600"
-                                suppressHighlighting
-                                onPress={
-                                  isGestureActive
-                                    ? undefined
-                                    : () =>
-                                        router.push({
-                                          pathname:
-                                            "/(search)/tagPostSearch" as any,
-                                          params: { tag: part },
-                                        })
-                                }
-                                onLongPress={openPostOptions}
-                              >
-                                {part}
-                              </Text>
-                            );
-                          }
-                          if (part && /^(https?:\/\/|www\.)/i.test(part)) {
-                            const url = part.startsWith("www.")
-                              ? `https://${part}`
-                              : part;
-                            return (
-                              <Text
-                                key={`cap-link-${index}`}
-                                className="text-blue-600 underline"
-                                suppressHighlighting
-                                onPress={
-                                  isGestureActive
-                                    ? undefined
-                                    : () => Linking.openURL(url)
-                                }
-                                onLongPress={openPostOptions}
-                              >
-                                {part}
-                              </Text>
-                            );
-                          }
-                          return (
-                            <Text
-                              key={`cap-plain-${index}`}
-                              className="text-gray-900"
-                            >
-                              {part}
-                            </Text>
-                          );
-                        })}
-                    </Text>
-
-                    {shouldTruncate && !showFullCaption && (
-                      <Pressable
-                        onPress={
-                          isGestureActive
-                            ? undefined
-                            : () => setShowFullCaption(true)
-                        }
-                        hitSlop={8}
-                        style={{ marginLeft: 2, alignSelf: "baseline" }}
-                        onLongPress={openPostOptions}
-                        delayLongPress={500}
-                      >
-                        <Text className="text-sm text-gray-500 px-3 font-medium">
-                          Show more
-                        </Text>
-                      </Pressable>
-                    )}
-
-                    {shouldTruncate && showFullCaption && (
-                      <Pressable
-                        onPress={
-                          isGestureActive
-                            ? undefined
-                            : () => setShowFullCaption(false)
-                        }
-                        hitSlop={8}
-                        style={{ marginLeft: 2, alignSelf: "baseline" }}
-                        onLongPress={openPostOptions}
-                        delayLongPress={500}
-                      >
-                        <Text className="text-sm text-gray-500 px-3 font-medium">
-                          Show less
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-                ) : null;
-              })()}
-
-              {item?.post_hashtags?.length ? (
-                <Text className="text-blue-600 mt-1 px-3">
-                  {neededHashtags.map((tag: string, i: number) => (
-                    <Text
-                      key={`hash-${tag}`}
-                      onPress={
-                        isGestureActive
-                          ? undefined
-                          : () =>
-                              router.push({
-                                pathname: "/(search)/tagPostSearch" as any,
-                                params: { tag: "#" + tag },
-                              })
-                      }
-                    >
-                      #{tag}
-                      {i < neededHashtags.length - 1 ? <Text> </Text> : null}
-                    </Text>
-                  ))}
-                </Text>
-              ) : null}
-            </View>
-
             {/* (Optional) Affiliation card */}
             {item.affiliated && item.affiliation && (
               <GestureDetector gesture={openProductTap}>
@@ -793,6 +642,211 @@ export const PostCard: React.FC<PostCardProps> = ({
                 </TouchableOpacity>
               </GestureDetector>
             )}
+
+            {/* Caption */}
+            <View>
+              {(() => {
+                const caption = item.caption || "";
+                const captionLimit = 150;
+                const shouldTruncate = caption.length > captionLimit;
+                const displayCaption =
+                  shouldTruncate && !showFullCaption
+                    ? caption.substring(0, captionLimit)
+                    : caption;
+
+                // Handle caption tap with JS-based debounce (same as media)
+                const CAPTION_DOUBLE_DELAY = 260;
+
+                const handleCaptionTap = (singleTapAction?: () => void) => {
+                  const now = Date.now();
+                  const delta = now - (lastCaptionTapRef.current || 0);
+                  lastCaptionTapRef.current = now;
+
+                  if (captionTimerRef.current) {
+                    clearTimeout(captionTimerRef.current);
+                    captionTimerRef.current = null;
+                  }
+
+                  if (delta < CAPTION_DOUBLE_DELAY) {
+                    // DOUBLE TAP on caption → toggle like
+                    Vibration.vibrate(100);
+                    toggleLike();
+                    return;
+                  }
+
+                  // SINGLE TAP → execute single tap action if provided
+                  if (singleTapAction) {
+                    captionTimerRef.current = setTimeout(() => {
+                      captionTimerRef.current = null;
+                      singleTapAction();
+                    }, CAPTION_DOUBLE_DELAY + 10);
+                  }
+                };
+
+                return caption ? (
+                  <View>
+                    <Pressable
+                      onPress={
+                        isGestureActive ? undefined : () => handleCaptionTap()
+                      }
+                      onLongPress={openPostOptions}
+                      delayLongPress={500}
+                    >
+                      <Text className="text-sm px-3 text-gray-900">
+                        {displayCaption
+                          .split(/((?:@|#)[\w.]+|(?:https?:\/\/|www\.)\S+)/gi)
+                          .map((part: string, index: number) => {
+                            if (part && part.startsWith("@")) {
+                              return (
+                                <Text
+                                  key={`cap-mention-${index}`}
+                                  className="text-blue-600"
+                                  suppressHighlighting
+                                  onPress={
+                                    isGestureActive
+                                      ? undefined
+                                      : (e) => {
+                                          e.stopPropagation();
+                                          handleCaptionTap(() =>
+                                            router.push({
+                                              pathname: "/(profiles)/" as any,
+                                              params: {
+                                                username: part.slice(1),
+                                              },
+                                            })
+                                          );
+                                        }
+                                  }
+                                  onLongPress={openPostOptions}
+                                >
+                                  {part}
+                                </Text>
+                              );
+                            }
+                            if (part && part.startsWith("#")) {
+                              return (
+                                <Text
+                                  key={`cap-hash-${index}`}
+                                  className="text-blue-600"
+                                  suppressHighlighting
+                                  onPress={
+                                    isGestureActive
+                                      ? undefined
+                                      : (e) => {
+                                          e.stopPropagation();
+                                          handleCaptionTap(() =>
+                                            router.push({
+                                              pathname:
+                                                "/(search)/tagPostSearch" as any,
+                                              params: { tag: part },
+                                            })
+                                          );
+                                        }
+                                  }
+                                  onLongPress={openPostOptions}
+                                >
+                                  {part}
+                                </Text>
+                              );
+                            }
+                            if (part && /^(https?:\/\/|www\.)/i.test(part)) {
+                              const url = part.startsWith("www.")
+                                ? `https://${part}`
+                                : part;
+                              return (
+                                <Text
+                                  key={`cap-link-${index}`}
+                                  className="text-blue-600 underline"
+                                  suppressHighlighting
+                                  onPress={
+                                    isGestureActive
+                                      ? undefined
+                                      : (e) => {
+                                          e.stopPropagation();
+                                          handleCaptionTap(() =>
+                                            Linking.openURL(url)
+                                          );
+                                        }
+                                  }
+                                  onLongPress={openPostOptions}
+                                >
+                                  {part}
+                                </Text>
+                              );
+                            }
+                            return (
+                              <Text
+                                key={`cap-plain-${index}`}
+                                className="text-gray-900"
+                              >
+                                {part}
+                              </Text>
+                            );
+                          })}
+                      </Text>
+                    </Pressable>
+
+                    {shouldTruncate && !showFullCaption && (
+                      <Pressable
+                        onPress={
+                          isGestureActive
+                            ? undefined
+                            : () => setShowFullCaption(true)
+                        }
+                        hitSlop={8}
+                        style={{ marginLeft: 2, alignSelf: "baseline" }}
+                        onLongPress={openPostOptions}
+                        delayLongPress={500}
+                      >
+                        <Text className="text-sm text-gray-500 px-3 font-medium">
+                          Show more
+                        </Text>
+                      </Pressable>
+                    )}
+
+                    {shouldTruncate && showFullCaption && (
+                      <Pressable
+                        onPress={
+                          isGestureActive
+                            ? undefined
+                            : () => setShowFullCaption(false)
+                        }
+                        hitSlop={8}
+                        style={{ marginLeft: 2, alignSelf: "baseline" }}
+                        onLongPress={openPostOptions}
+                        delayLongPress={500}
+                      >
+                        <Text className="text-sm text-gray-500 px-3 font-medium">
+                          Show less
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ) : null;
+              })()}
+
+              {/* {item?.post_hashtags?.length ? (
+                <Text className="text-blue-600 mt-1 px-3">
+                  {neededHashtags.map((tag: string, i: number) => (
+                    <Text
+                      key={`hash-${tag}`}
+                      onPress={
+                        isGestureActive
+                          ? undefined
+                          : () =>
+                              router.push({
+                                pathname: "/(search)/tagPostSearch" as any,
+                                params: { tag: "#" + tag },
+                              })
+                      }
+                    >
+                      #{tag}
+                      {i < neededHashtags.length - 1 ? <Text> </Text> : null}
+                    </Text>
+                  ))}
+                </Text>
+              ) : null} */}
+            </View>
 
             {/* Actions */}
             <View className="px-3">

@@ -1,7 +1,9 @@
 // app/components/Stories/Stories.tsx
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
 import { Ionicons } from "@expo/vector-icons";
+// ✅ ADDED: Imports for Audio settings
 import { useEventListener } from "expo";
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -23,8 +25,10 @@ import {
 } from "react-native-gesture-handler";
 
 import Animated, {
+  cancelAnimation,
   Easing as REEasing,
   runOnJS,
+  SharedValue,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -189,12 +193,13 @@ function normalizeUsers(input: StoryUserLike[]): NormalizedUser[] {
 const StoryVideoView: React.FC<{
   source: string;
   startAtSeconds?: number;
-  segmentDuration?: number;
-  onDurationKnown: (d: number) => void;
+  segmentDuration?: number; // ✅ This should be in SECONDS
+  onDurationKnown: (d: number) => void; // This will be in MS
   onProgressRatio: (r: number) => void;
   onSegmentEnd: () => void;
   viewKey: string;
   onReadyToPlay: () => void;
+  isPaused: SharedValue<boolean>; // ✅ ADD THIS PROP
 }> = ({
   source,
   startAtSeconds = 0,
@@ -204,32 +209,71 @@ const StoryVideoView: React.FC<{
   onSegmentEnd,
   viewKey,
   onReadyToPlay,
+  isPaused, // ✅ ADD THIS PROP
 }) => {
+  // Use shared values instead of refs for worklet compatibility
+  const isMounted = useSharedValue(true);
+  const hasCalledSegmentEnd = useSharedValue(false);
+
   const player = useVideoPlayer(source, (p) => {
     p.loop = false;
     p.play();
-    p.timeUpdateEventInterval = 0.1;
+    p.timeUpdateEventInterval = 0.1; // 100ms
   });
 
   useEventListener(player, "statusChange", (status: any) => {
-    const duration = status?.duration ?? (player as any)?.duration ?? 0;
-    if (duration) {
+    "worklet";
+    if (!isMounted.value) return;
+    // status.duration is in MILLISECONDS
+    const durationMs = status?.duration ?? (player as any)?.duration ?? 0;
+    if (durationMs) {
       onProgressRatio(0);
-      onDurationKnown(duration);
-      safeSeek(player, startAtSeconds);
-      onReadyToPlay();
+      onDurationKnown(durationMs); // Pass duration in MS
+      safeSeek(player, startAtSeconds); // seekTo expects SECONDS
+      runOnJS(onReadyToPlay)();
     }
   });
 
   useEventListener(player, "timeUpdate", ({ currentTime }: any) => {
-    const duration = (player as any)?.duration ?? 0;
-    if (!duration) return;
-    const segLen = segmentDuration ?? duration;
-    const segStart = startAtSeconds ?? 0;
-    const ratio = Math.max(0, Math.min(1, (currentTime - segStart) / segLen));
+    "worklet";
+    // currentTime is in SECONDS
+    if (!isMounted.value) return;
+    const durationMs = (player as any)?.duration ?? 0; // This is MS
+    if (!durationMs) return;
+
+    // ✅ --- FIX: CONVERT ALL UNITS TO SECONDS ---
+    const durationSec = durationMs / 1000; // Total duration in SECONDS
+
+    // Use segmentDuration (in SECONDS) if provided, otherwise use total duration (in SECONDS)
+    const segLenSec = segmentDuration ?? durationSec;
+    const segStartSec = startAtSeconds ?? 0;
+
+    // Now all units are SECONDS
+    const ratio = Math.max(
+      0,
+      Math.min(1, (currentTime - segStartSec) / segLenSec)
+    );
     onProgressRatio(ratio);
-    if (currentTime >= segStart + segLen - 0.05) onSegmentEnd();
+
+    // Check using SECONDS (with a 50ms / 0.05s buffer)
+    if (
+      currentTime >= segStartSec + segLenSec - 0.05 &&
+      !hasCalledSegmentEnd.value
+    ) {
+      hasCalledSegmentEnd.value = true;
+      runOnJS(onSegmentEnd)();
+    }
+    // ✅ --- END FIX ---
   });
+
+  useEffect(() => {
+    isMounted.value = true;
+    hasCalledSegmentEnd.value = false;
+
+    return () => {
+      isMounted.value = false;
+    };
+  }, [player, isMounted, hasCalledSegmentEnd]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -239,7 +283,6 @@ const StoryVideoView: React.FC<{
         style={{ width: "100%", height: "100%" }}
         contentFit="contain"
         nativeControls={false}
-        allowsFullscreen={false}
       />
     </View>
   );
@@ -261,7 +304,6 @@ const StoriesInner = ({
 
   const TOP_UI_HEIGHT = 60;
   const BOTTOM_UI_HEIGHT = 50;
-  const LOGGED_IN_USER_ID = "you";
 
   // normalized data
   const [localStories, setLocalStories] = useState<NormalizedUser[]>(
@@ -280,11 +322,18 @@ const StoriesInner = ({
   // shared values
   const rProgress = useSharedValue(0);
   const mediaOpacity = useSharedValue(0);
+  const mediaScale = useSharedValue(1);
   const heartScale = useSharedValue(0);
   const heartOpacity = useSharedValue(0);
 
+  // Shared values for worklet access (used in gesture handlers)
+  const progressVal = useSharedValue(0);
+  const isPaused = useSharedValue(false);
+  const pausedProgress = useSharedValue(0);
+  const isAdvanced = useSharedValue(false);
+  const isFinished = useSharedValue(false);
+
   // JS state/refs
-  const progressValRef = useRef(0);
   const [mediaKey, setMediaKey] = useState(0);
   const cappedOnce = useRef<Set<string>>(new Set());
   const [liked, setLiked] = useState(false);
@@ -294,20 +343,32 @@ const StoriesInner = ({
   const [isFollowing, setIsFollowing] = useState(false);
   const toggleFollow = () => setIsFollowing((v) => !v);
 
+  // Use ref for epoch - it's only READ in worklets (captured before worklet runs)
   const storyEpochRef = useRef(0);
-  const bumpEpoch = () => {
+  const bumpEpoch = useCallback(() => {
     storyEpochRef.current += 1;
     return storyEpochRef.current;
-  };
+  }, []);
 
-  const advancedRef = useRef(false);
-  const finishedRef = useRef(false);
-  const videoGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null); // FIX: correct timeout type
+  const videoGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const resetAdvanceFlags = () => {
-    advancedRef.current = false;
-    finishedRef.current = false;
-  };
+  // ✅ ADDED: Configure audio to play in silent mode
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      allowsRecordingIOS: false,
+      staysActiveInBackground: false,
+      interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    }).catch((e) => console.error("Failed to set audio mode", e));
+  }, []); // Runs once
+
+  const resetAdvanceFlags = useCallback(() => {
+    isAdvanced.value = false;
+    isFinished.value = false;
+  }, [isAdvanced, isFinished]);
 
   const clearVideoGuard = () => {
     if (videoGuardRef.current) {
@@ -318,8 +379,8 @@ const StoriesInner = ({
 
   const resetProgressReanimated = useCallback(() => {
     rProgress.value = 0;
-    progressValRef.current = 0;
-  }, [rProgress]);
+    progressVal.value = 0;
+  }, [rProgress, progressVal]);
 
   // pointers
   const [pointerMap, setPointerMap] = useState<PointerMap>({});
@@ -373,19 +434,11 @@ const StoriesInner = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localStories, pointersLoaded]);
 
-  const getTotal = (u: NormalizedUser) => u.stories.length;
-
-  const getEntryIndexForUser = useCallback(
-    (u: NormalizedUser) => {
-      const key = toKey(u.user_id);
-      const pm = pointerMap[key];
-      const total = getTotal(u);
-      if (!pm) return 0;
-      if (total === 0) return 0;
-      return Math.max(0, Math.min(pm.pointer, total - 1));
-    },
-    [pointerMap]
-  );
+  const getEntryIndexForUser = useCallback((u: NormalizedUser) => {
+    // Always start from first story (0) when opening a user's stories
+    // This ensures clicking on a story bubble always shows from the beginning
+    return 0;
+  }, []);
 
   // when user changes, align to entry
   useEffect(() => {
@@ -396,19 +449,30 @@ const StoriesInner = ({
 
     const entry = getEntryIndexForUser(u);
     clearVideoGuard();
+
+    // Cancel any ongoing animations and reset immediately
+    cancelAnimation(rProgress);
+
     setCurrentStoryIndex(entry);
     setMediaKey((k) => k + 1);
     resetAdvanceFlags();
     resetProgressReanimated();
     bumpEpoch();
     mediaOpacity.value = 0;
+    mediaScale.value = 1;
+    isPaused.value = false;
   }, [
     currentUserIndex,
     pointersLoaded,
     localStories,
     getEntryIndexForUser,
     resetProgressReanimated,
+    resetAdvanceFlags,
+    bumpEpoch,
     mediaOpacity,
+    mediaScale,
+    isPaused,
+    rProgress,
   ]);
 
   // keep pointer >= visible index
@@ -435,14 +499,16 @@ const StoriesInner = ({
   /* =========================
      Image autoplay
      ========================= */
-  const startProgressImage = () => {
+  const startProgressImage = (epoch: number) => {
     resetProgressReanimated();
     resetAdvanceFlags();
     rProgress.value = withTiming(
       1,
       { duration: 5000, easing: REEasing.linear },
       (finished) => {
-        if (finished) runOnJS(finishAndAdvance)();
+        if (finished && epoch === storyEpochRef.current) {
+          runOnJS(finishAndAdvance)();
+        }
       }
     );
   };
@@ -462,20 +528,17 @@ const StoriesInner = ({
     });
   };
 
-  const safeBumpAtCompletion = () => {
-    if (!pointersLoaded) return;
-    if (currentUserIndex === null) return;
-    const u = localStories[currentUserIndex];
-    if (!u) return;
-    if (!advancedRef.current && progressValRef.current >= 0.98) {
-      advancedRef.current = true;
-      bumpPointerForward(u, currentStoryIndex + 1);
-    }
-  };
-
   const finishAndAdvance = () => {
+    console.log(
+      "[Stories] finishAndAdvance called, isFinished:",
+      isFinished.value
+    );
+    // Prevent multiple calls
+    if (isFinished.value) return;
+    isFinished.value = true;
+
     rProgress.value = 1;
-    progressValRef.current = 1;
+    progressVal.value = 1;
 
     const u = currentUserIndex != null ? localStories[currentUserIndex] : null;
     if (!u) return;
@@ -484,10 +547,17 @@ const StoriesInner = ({
     bumpPointerForward(u, u.stories.length);
 
     const isLastStory = currentStoryIndex >= u.stories.length - 1;
+    console.log(
+      "[Stories] Setting timeout, isLastStory:",
+      isLastStory,
+      "currentStoryIndex:",
+      currentStoryIndex
+    );
 
     setTimeout(() => {
+      console.log("[Stories] Timeout fired, advancing...");
       if (isLastStory) {
-        if (onUserFinished) runOnJS(onUserFinished)(u.user_id); // FIX: guard optional callback
+        if (onUserFinished) onUserFinished(u.user_id);
         handleNextUser();
       } else {
         handleNextStoryCore();
@@ -496,31 +566,54 @@ const StoriesInner = ({
   };
 
   const handleNextStoryCore = () => {
+    console.log(
+      "[Stories] handleNextStoryCore called, currentStoryIndex:",
+      currentStoryIndex
+    );
     if (currentUserIndex === null) return;
     const u = localStories[currentUserIndex];
     if (!u) return;
 
+    // Cancel any ongoing animations and reset progress immediately
+    cancelAnimation(rProgress);
+    rProgress.value = 0;
+    progressVal.value = 0;
     clearVideoGuard();
+    isAdvanced.value = false;
+    isFinished.value = false;
+    mediaOpacity.value = 0;
+
+    console.log(
+      "[Stories] Setting next story index from",
+      currentStoryIndex,
+      "to",
+      currentStoryIndex + 1
+    );
     setCurrentStoryIndex((i) => i + 1);
     setMediaKey((k) => k + 1);
     bumpEpoch();
-    advancedRef.current = false;
-    finishedRef.current = false;
-    mediaOpacity.value = 0;
 
     bumpPointerForward(u, currentStoryIndex + 1);
   };
 
   const switchToStory = (nextIndex: number) => {
+    // Cancel any ongoing animations immediately
+    cancelAnimation(rProgress);
     rProgress.value = 0;
-    progressValRef.current = 0;
+    progressVal.value = 0;
     clearVideoGuard();
-    finishedRef.current = false;
+    isFinished.value = false;
+    isAdvanced.value = false;
+    isPaused.value = false;
+
+    // Fade out current media
+    mediaOpacity.value = 0;
+    mediaScale.value = 1;
+
+    // Switch story
     setCurrentStoryIndex(nextIndex);
     setMediaKey((k) => k + 1);
     bumpEpoch();
-    advancedRef.current = false;
-    mediaOpacity.value = 0;
   };
 
   const handleNextStory = () => {
@@ -528,47 +621,74 @@ const StoriesInner = ({
     const u = localStories[currentUserIndex];
     if (!u) return;
 
-    bumpPointerForward(u, currentStoryIndex + 1);
-
     if (currentStoryIndex < u.stories.length - 1) {
-      switchToStory(currentStoryIndex + 1);
+      // First, stop current progress animation
+      const nextIdx = currentStoryIndex + 1;
+      switchToStory(nextIdx);
+      // Update pointer after switching
+      setTimeout(() => {
+        bumpPointerForward(u, nextIdx);
+      }, 50);
     } else {
-      finishAndAdvance();
+      // On last story, move to next user immediately (manual tap)
+      bumpPointerForward(u, u.stories.length);
+      if (onUserFinished) onUserFinished(u.user_id);
+      handleNextUser(true); // true = immediate, no delay
     }
   };
 
   const handlePreviousStory = () => {
     if (currentUserIndex === null) return;
+    const u = localStories[currentUserIndex];
+    if (!u) return;
+
     if (currentStoryIndex > 0) {
-      switchToStory(currentStoryIndex - 1);
+      // First, stop current progress animation
+      const prevIdx = currentStoryIndex - 1;
+      switchToStory(prevIdx);
+      // Update pointer after switching
+      setTimeout(() => {
+        bumpPointerForward(u, prevIdx);
+      }, 50);
     } else {
       handlePreviousUser();
     }
   };
 
   const switchToUser = (nextUserIndex: number) => {
+    // Cancel any ongoing animations immediately
+    cancelAnimation(rProgress);
     rProgress.value = 0;
-    progressValRef.current = 0;
+    progressVal.value = 0;
     clearVideoGuard();
-    finishedRef.current = false;
+    isFinished.value = false;
     mediaOpacity.value = 0;
+    mediaScale.value = 1;
+    isPaused.value = false;
     setCurrentUserIndex(nextUserIndex);
+    setCurrentStoryIndex(0);
     setMediaKey((k) => k + 1);
-    advancedRef.current = false;
+    isAdvanced.value = false;
     bumpEpoch();
   };
 
-  const handleNextUser = () => {
+  const handleNextUser = (immediate: boolean = false) => {
     if (currentUserIndex === null) return;
     const atLast = currentUserIndex >= localStories.length - 1;
     if (!atLast) {
       switchToUser(currentUserIndex + 1);
     } else {
-      setTimeout(() => {
-        if (onAllFinished) onAllFinished(); // already on JS thread here
+      const closeStories = () => {
+        if (onAllFinished) onAllFinished();
         if (onRequestClose) onRequestClose();
         setCurrentUserIndex(null);
-      }, FINAL_HOLD_MS);
+      };
+
+      if (immediate) {
+        closeStories();
+      } else {
+        setTimeout(closeStories, FINAL_HOLD_MS);
+      }
     }
   };
 
@@ -593,7 +713,7 @@ const StoriesInner = ({
     const total = u.stories.length;
     if (total === 0) return;
 
-    const almostDone = progressValRef.current >= 0.98;
+    const almostDone = progressVal.value >= 0.98;
     const key = toKey(u.user_id);
 
     if (almostDone && currentStoryIndex + 1 >= total) {
@@ -622,6 +742,7 @@ const StoriesInner = ({
     currentStoryIndex,
     clearUserPointer,
     updatePointers,
+    progressVal,
   ]);
 
   useEffect(() => {
@@ -650,7 +771,7 @@ const StoriesInner = ({
   const capVideoToSixty = (
     userIdx: number,
     storyIdx: number,
-    videoDuration: number
+    videoDuration: number // ✅ This is in MILLISECONDS
   ) => {
     const user = localStories[userIdx];
     if (!user) return;
@@ -659,14 +780,15 @@ const StoriesInner = ({
     const key = String(story.story_id ?? `${user.user_id}-${storyIdx}`);
     if (cappedOnce.current.has(key)) return;
 
-    if (videoDuration > 60) {
+    // ✅ FIX: Check against 60000 milliseconds
+    if (videoDuration > 60000) {
       setLocalStories((prev) => {
         const copy = [...prev];
         const u = { ...copy[userIdx] };
         const s = {
           ...u.stories[storyIdx],
           startAtSeconds: 0,
-          segmentDuration: 60,
+          segmentDuration: 60, // ✅ FIX: Set duration cap in SECONDS
         };
         u.stories = [
           ...u.stories.slice(0, storyIdx),
@@ -729,7 +851,8 @@ const StoriesInner = ({
     return (
       <View
         onLayout={onLayout}
-        className="flex-1 bg-white/30 mx-0.5 overflow-hidden">
+        className="flex-1 bg-white/30 mx-0.5 overflow-hidden"
+      >
         <Animated.View style={fillStyle} className="bg-white" />
       </View>
     );
@@ -741,6 +864,7 @@ const StoriesInner = ({
   }));
   const mediaFadeStyle = useAnimatedStyle(() => ({
     opacity: mediaOpacity.value,
+    transform: [{ scale: mediaScale.value }],
   }));
 
   /* =========================
@@ -758,78 +882,202 @@ const StoriesInner = ({
     const viewKey = `${user.user_id}-${currentStoryIndex}-${mediaKey}`;
     const currentEpoch = storyEpochRef.current;
 
-    // gestures — all JS calls via runOnJS
+    // Pause/resume functions
+    const pauseProgress = () => {
+      // This is a JS function, not a worklet (called by runOnJS)
+      if (isPaused.value) return;
+      isPaused.value = true;
+
+      // Check if the current story is an image
+      const user = localStories[currentUserIndex!];
+      const story = user?.stories?.[currentStoryIndex!];
+      const isVideo = isVideoUrl(story?.story_image);
+
+      if (!isVideo) {
+        // Only cancel reanimated timer for images
+        cancelAnimation(rProgress);
+        pausedProgress.value = rProgress.value;
+      }
+      // For video, the StoryVideoView component will handle the pause via the shared value
+    };
+
+    const resumeProgress = () => {
+      // This is a JS function
+      if (!isPaused.value) return;
+      isPaused.value = false;
+
+      // Check if the current story is an image
+      const user = localStories[currentUserIndex!];
+      const story = user?.stories?.[currentStoryIndex!];
+      const isVideo = isVideoUrl(story?.story_image);
+
+      if (!isVideo && pausedProgress.value < 1) {
+        // Resume image timer
+        const remaining = 1 - pausedProgress.value;
+        const remainingTime = remaining * 5000;
+        rProgress.value = withTiming(
+          1,
+          { duration: remainingTime, easing: REEasing.linear },
+          (finished) => {
+            if (finished && currentEpoch === storyEpochRef.current) {
+              runOnJS(finishAndAdvance)();
+            }
+          }
+        );
+      }
+      // For video, StoryVideoView will handle resume via the shared value
+    };
+
+    // Long press gesture for pause
+    const longPressGesture = Gesture.LongPress()
+      .enabled(!postOptionsVisible)
+      .minDuration(150)
+      .onStart(() => {
+        "worklet";
+        runOnJS(pauseProgress)();
+      })
+      .onEnd(() => {
+        "worklet";
+        runOnJS(resumeProgress)();
+      })
+      .onFinalize(() => {
+        "worklet";
+        runOnJS(resumeProgress)();
+      });
+
+    // Pan gesture for swipe navigation
     const panGesture = Gesture.Pan()
       .enabled(!postOptionsVisible)
-      .minDistance(12)
-      .activeOffsetX([-20, 20])
-      .activeOffsetY([-20, 20])
+      .minDistance(20)
+      .activeOffsetX([-30, 30])
+      .activeOffsetY([-40, 40])
+      .failOffsetX([-10, 10])
+      .onStart(() => {
+        "worklet";
+        runOnJS(pauseProgress)();
+      })
       .onEnd((e: any) => {
         "worklet";
-        const { translationX, translationY, velocityY } = e;
-        if (translationY > 100 || velocityY > 1000) {
-          runOnJS(bumpPointerOnExit)();
-          if (onRequestClose) runOnJS(onRequestClose)();
-          runOnJS(setCurrentUserIndex)(null);
-        } else if (translationX < -50) {
-          runOnJS(handleNextUser)();
-        } else if (translationX > 50) {
-          runOnJS(handlePreviousUser)();
+        const { translationX, translationY, velocityX, velocityY } = e;
+
+        // Check if it's a vertical swipe down to close
+        if (Math.abs(translationY) > Math.abs(translationX)) {
+          if (translationY > 150 || velocityY > 1200) {
+            runOnJS(bumpPointerOnExit)();
+            if (onRequestClose) runOnJS(onRequestClose)();
+            runOnJS(setCurrentUserIndex)(null);
+            return;
+          }
+        } else {
+          // Horizontal swipe to change user
+          const swipeThreshold = width * 0.25; // 25% of screen width
+          const velocityThreshold = 800;
+
+          if (
+            translationX < -swipeThreshold ||
+            velocityX < -velocityThreshold
+          ) {
+            // Swipe left - next user
+            runOnJS(handleNextUser)();
+            return;
+          } else if (
+            translationX > swipeThreshold ||
+            velocityX > velocityThreshold
+          ) {
+            // Swipe right - previous user
+            runOnJS(handlePreviousUser)();
+            return;
+          }
+        }
+
+        // If no navigation happened, resume
+        runOnJS(resumeProgress)();
+      })
+      .onFinalize(() => {
+        "worklet";
+        if (!isPaused.value) {
+          runOnJS(resumeProgress)();
         }
       });
 
+    // Tap gesture for story navigation
     const tapGesture = Gesture.Tap()
       .enabled(!postOptionsVisible)
-      .maxDuration(250)
-      .maxDeltaX(10)
-      .maxDeltaY(10)
-      .requireExternalGestureToFail(panGesture)
-      .onEnd((event: any, success: boolean) => {
+      .maxDuration(300)
+      .maxDistance(15)
+      .onEnd((event: any) => {
         "worklet";
-        if (!success) return;
         // @ts-ignore
         const ax = event.absoluteX ?? event.x;
         // @ts-ignore
         const ay = event.absoluteY ?? event.y;
 
-        const topGuard = insets.top + TOP_UI_HEIGHT;
-        const bottomGuard = height - (insets.bottom + BOTTOM_UI_HEIGHT);
+        const topGuard = insets.top + TOP_UI_HEIGHT + 20;
+        const bottomGuard = height - (insets.bottom + BOTTOM_UI_HEIGHT + 20);
+
+        // Ignore taps in UI areas
         if (ay <= topGuard || ay >= bottomGuard) return;
 
-        if (ax >= width / 2) {
-          runOnJS(handleNextStory)();
-        } else {
+        // Left 1/3 = previous, Right 2/3 = next (Instagram style)
+        const tapZoneLeft = width * 0.33;
+
+        if (ax < tapZoneLeft) {
           runOnJS(handlePreviousStory)();
+        } else {
+          runOnJS(handleNextStory)();
         }
       });
 
-    const combinedGesture = Gesture.Simultaneous(panGesture, tapGesture);
+    // Combine gestures with proper priority
+    const combinedGesture = Gesture.Race(
+      longPressGesture,
+      Gesture.Exclusive(panGesture, tapGesture)
+    );
 
     const onMediaReady = () => {
+      // Fade in with subtle scale animation (Instagram style - fast and smooth)
       mediaOpacity.value = withTiming(1, {
-        duration: 180,
-        easing: REEasing.out(REEasing.quad),
+        duration: 150,
+        easing: REEasing.out(REEasing.ease),
       });
-      rProgress.value = 0;
-      progressValRef.current = 0;
-      finishedRef.current = false;
+      mediaScale.value = withSequence(
+        withTiming(1.03, {
+          duration: 120,
+          easing: REEasing.out(REEasing.ease),
+        }),
+        withTiming(1, { duration: 130, easing: REEasing.out(REEasing.ease) })
+      );
+
+      // Don't reset progress here - it's already reset when switching stories
+      // Only reset these flags
+      isFinished.value = false;
+      isPaused.value = false;
 
       if (!isVideo) {
-        startProgressImage();
+        startProgressImage(currentEpoch);
       } else {
         clearVideoGuard();
-        const segLen = story.segmentDuration;
+        const segLen = story.segmentDuration; // This is in SECONDS
         if (segLen && segLen > 0) {
+          console.log(
+            "[Stories] Setting videoGuard timeout for",
+            segLen,
+            "seconds"
+          );
           videoGuardRef.current = setTimeout(
             () => {
-              if (
-                !finishedRef.current &&
+              console.log(
+                "[Stories] videoGuard timeout fired, isFinished:",
+                isFinished.value,
+                "epoch match:",
                 currentEpoch === storyEpochRef.current
-              ) {
-                finishedRef.current = true;
+              );
+              if (!isFinished.value && currentEpoch === storyEpochRef.current) {
+                isFinished.value = true;
                 finishAndAdvance();
               }
             },
+            // ✅ FIX: Convert seconds to milliseconds for setTimeout
             Math.max(0, segLen * 1000 + 1500)
           );
         }
@@ -840,7 +1088,8 @@ const StoriesInner = ({
       <GestureDetector gesture={combinedGesture}>
         <SafeAreaView
           edges={["top", "bottom"]}
-          style={{ flex: 1, backgroundColor: "black" }}>
+          style={{ flex: 1, backgroundColor: "black" }}
+        >
           {/* Media */}
           <View style={{ flex: 1, paddingBottom: BOTTOM_UI_HEIGHT }}>
             <Animated.View style={[{ flex: 1 }, mediaFadeStyle]}>
@@ -849,30 +1098,37 @@ const StoriesInner = ({
                   viewKey={`vid-${viewKey}`}
                   source={story.story_image}
                   startAtSeconds={story.startAtSeconds ?? 0}
-                  segmentDuration={story.segmentDuration}
-                  onDurationKnown={(dur) => {
+                  segmentDuration={story.segmentDuration} // Pass segmentDuration (in seconds)
+                  onDurationKnown={(durMs) => {
+                    // durMs is in MILLISECONDS
                     if (currentEpoch !== storyEpochRef.current) return;
-                    capVideoToSixty(currentUserIndex!, currentStoryIndex, dur);
+                    capVideoToSixty(
+                      currentUserIndex!,
+                      currentStoryIndex,
+                      durMs
+                    );
                   }}
                   onProgressRatio={(r) => {
                     if (currentEpoch !== storyEpochRef.current) return;
                     const clamped = Math.max(0, Math.min(1, r));
                     rProgress.value = clamped;
-                    progressValRef.current = clamped;
-
-                    if (!finishedRef.current && clamped >= 0.999) {
-                      finishedRef.current = true;
-                      runOnJS(finishAndAdvance)();
-                    }
+                    progressVal.value = clamped;
                   }}
                   onSegmentEnd={() => {
+                    console.log(
+                      "[Stories] onSegmentEnd called, epoch match:",
+                      currentEpoch === storyEpochRef.current,
+                      "isFinished:",
+                      isFinished.value
+                    );
                     if (currentEpoch !== storyEpochRef.current) return;
-                    if (!finishedRef.current) {
-                      finishedRef.current = true;
+                    if (!isFinished.value) {
+                      isFinished.value = true;
                       finishAndAdvance();
                     }
                   }}
                   onReadyToPlay={onMediaReady}
+                  isPaused={isPaused} // ✅ PASS THE PROP HERE
                 />
               ) : (
                 <Image
@@ -886,7 +1142,7 @@ const StoriesInner = ({
                   onLoadStart={() => {
                     resetAdvanceFlags();
                     rProgress.value = 0;
-                    progressValRef.current = 0;
+                    progressVal.value = 0;
                     clearVideoGuard();
                   }}
                   onLoadEnd={onMediaReady}
@@ -918,7 +1174,8 @@ const StoriesInner = ({
               bottom: 0,
               alignItems: "center",
               justifyContent: "center",
-            }}>
+            }}
+          >
             <Animated.View style={heartStyle}>
               <Ionicons name="heart" size={140} color="#FF2D55" />
             </Animated.View>
@@ -932,7 +1189,8 @@ const StoriesInner = ({
               top: insets.top + 10,
               left: 6,
               right: 6,
-            }}>
+            }}
+          >
             {/* Progress bars */}
             <View className="flex-row h-[3px] mb-5">
               {user.stories.map((_, index) => {
@@ -960,7 +1218,8 @@ const StoriesInner = ({
                       username: user.user_name,
                     },
                   })
-                }>
+                }
+              >
                 <Image
                   source={{ uri: user.user_image }}
                   className="w-10 h-10 rounded-full"
@@ -982,7 +1241,8 @@ const StoriesInner = ({
                   });
                   setPostOptionsVisible(true);
                 }}
-                className="p-2">
+                className="p-2"
+              >
                 <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -997,7 +1257,8 @@ const StoriesInner = ({
               right: 0,
               bottom: insets.bottom,
               paddingHorizontal: 12,
-            }}>
+            }}
+          >
             <View className="flex-row items-center justify-between bg-transparent py-2">
               <View className="flex-1 flex-row items-center bg-transparent border border-white rounded-full px-3">
                 <TextInput
@@ -1014,7 +1275,8 @@ const StoriesInner = ({
                   setLiked((v) => !v);
                   triggerHeartAnimation();
                 }}
-                className="ml-4">
+                className="ml-4"
+              >
                 <Ionicons
                   name={liked ? "heart" : "heart-outline"}
                   size={32}
@@ -1057,16 +1319,17 @@ const StoriesInner = ({
             <TouchableOpacity
               onPress={() => {
                 rProgress.value = 0;
-                progressValRef.current = 0;
+                progressVal.value = 0;
                 mediaOpacity.value = 0;
                 clearVideoGuard();
-                finishedRef.current = false;
+                isFinished.value = false;
                 setCurrentUserIndex(index);
-                advancedRef.current = false;
+                isAdvanced.value = false;
                 setMediaKey((k) => k + 1);
                 bumpEpoch();
               }}
-              className="items-center">
+              className="items-center"
+            >
               <Image
                 source={{
                   uri: item.stories[0]?.story_image ?? item.user_image,
@@ -1081,7 +1344,8 @@ const StoriesInner = ({
               />
               <Text
                 className="text-white text-xs text-center w-20 mt-1"
-                numberOfLines={1}>
+                numberOfLines={1}
+              >
                 {item.user_name}
               </Text>
             </TouchableOpacity>

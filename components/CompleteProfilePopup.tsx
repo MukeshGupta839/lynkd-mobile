@@ -40,7 +40,7 @@ const CompleteProfilePopup: React.FC<CompleteProfilePopupProps> = ({
   return (
     <TouchableOpacity
       onPress={handleNavigateToProfile}
-      className="flex-row bg-white rounded-lg p-2.5 self-center my-2 relative"
+      className="flex-row bg-white rounded-lg p-2.5 self-center mt-2 relative"
       style={{
         width: Dimensions.get("window").width * 0.96,
       }}

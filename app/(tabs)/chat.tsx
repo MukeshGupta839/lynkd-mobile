@@ -1,21 +1,17 @@
+// app/(tabs)/index.tsx
+
 import SearchBar from "@/components/Searchbar";
 import Stories from "@/components/Stories/Stories";
 import StoriesCamera from "@/components/StoriesCamera";
-import {
-  DEFAULT_AVATAR,
-  LOGGED_USER,
-  USERS,
-  type ChatItem,
-  type User,
-} from "@/constants/chat";
+import { DEFAULT_AVATAR, type ChatItem, type User } from "@/constants/chat"; // Removed USERS and LOGGED_USER
 import { AuthContext } from "@/context/AuthContext";
 import { apiCall } from "@/lib/api/apiService";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useEventListener } from "expo";
+// ⛔ REMOVED: useEventListener from expo
 import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter, useSegments } from "expo-router";
+import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useVideoPlayer, VideoView } from "expo-video";
 import {
@@ -34,17 +30,21 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform, // ✅ ADDED: Platform
   Pressable,
   StatusBar,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import io from "socket.io-client";
+import { io } from "socket.io-client";
 
 /* ---- Endpoints on your backend ---- */
 const CHATS_OF_USER = (id: string | number) => `/api/messages/user-chats/${id}`;
-//const STORIES_FEED = (id: string | number) => `/api/posts/stories/feed/${id}`; // kept but unused
+const STORIES_FEED = (id: string | number) => `/api/posts/stories/feed/${id}`;
+// ✅ ADDED: Story Create Endpoint
+const STORY_CREATE = "/api/posts/stories/create";
 
 /* ---- Socket config (match UserChatScreen) ---- */
 function resolveApiUrl(): string | null {
@@ -94,6 +94,19 @@ async function loadInboxCache(meId: string | number): Promise<any[] | null> {
   }
 }
 
+// ✅ ADDED: Type for fetched story data
+type StoryUser = {
+  user_id: string | number;
+  user_image: string;
+  user_name: string;
+  stories: {
+    story_id: string | number;
+    story_image: string;
+    [key: string]: any; // Allow other fields from fetchStories
+  }[];
+  isYou?: boolean; // Flag to identify the logged-in user
+};
+
 /* ---------- Story bubble (other users) ---------- */
 type StoryBubbleProps = {
   user: User;
@@ -111,7 +124,8 @@ const StoryBubble = memo<StoryBubbleProps>(
             hasStory ? onOpen(user) : onOpenProfile(user.profile_picture)
           }
           accessibilityLabel={`${user.username} story or profile`}
-          className="items-center">
+          className="items-center"
+        >
           {hasStory ? (
             isSeen ? (
               <View
@@ -120,7 +134,8 @@ const StoryBubble = memo<StoryBubbleProps>(
                   borderRadius: 999,
                   backgroundColor: "#e5e7eb",
                 }}
-                className="rounded-full">
+                className="rounded-full"
+              >
                 <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
                   <Image
                     source={{ uri: user.profile_picture ?? DEFAULT_AVATAR }}
@@ -135,7 +150,8 @@ const StoryBubble = memo<StoryBubbleProps>(
                 start={[0, 0]}
                 end={[1, 1]}
                 className="rounded-full"
-                style={{ padding: 2, borderRadius: 999 }}>
+                style={{ padding: 2, borderRadius: 999 }}
+              >
                 <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
                   <Image
                     source={{ uri: user.profile_picture ?? DEFAULT_AVATAR }}
@@ -155,7 +171,8 @@ const StoryBubble = memo<StoryBubbleProps>(
         </Pressable>
         <Text
           className={`text-xs mt-1 ${isSeen ? "text-gray-400" : "text-gray-600"}`}
-          numberOfLines={1}>
+          numberOfLines={1}
+        >
           {(user.username ?? "user").split(".")[0]}
         </Text>
       </View>
@@ -166,7 +183,7 @@ StoryBubble.displayName = "StoryBubble";
 
 /* ---------- Your bubble ---------- */
 type YouBubbleProps = {
-  you: User & { isYou?: boolean };
+  you: StoryUser; // Use StoryUser type
   uploading: boolean;
   onOpenStories: () => void;
   onAdd: () => void;
@@ -178,7 +195,8 @@ const YouBubble = memo<YouBubbleProps>(
       <View className="items-center ">
         <Pressable
           onPress={hasStory ? onOpenStories : onAdd}
-          className="items-center">
+          className="items-center"
+        >
           <View className="relative">
             {hasStory ? (
               <LinearGradient
@@ -186,17 +204,18 @@ const YouBubble = memo<YouBubbleProps>(
                 start={[0, 0]}
                 end={[1, 1]}
                 className="rounded-full"
-                style={{ padding: 2, borderRadius: 999 }}>
+                style={{ padding: 2, borderRadius: 999 }}
+              >
                 <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
                   <Image
-                    source={{ uri: you.profile_picture ?? DEFAULT_AVATAR }}
+                    source={{ uri: you.user_image ?? DEFAULT_AVATAR }}
                     className="w-14 h-14 rounded-full"
                   />
                 </View>
               </LinearGradient>
             ) : (
               <Image
-                source={{ uri: you.profile_picture ?? DEFAULT_AVATAR }}
+                source={{ uri: you.user_image ?? DEFAULT_AVATAR }}
                 className="w-16 h-16 rounded-full"
               />
             )}
@@ -209,7 +228,8 @@ const YouBubble = memo<YouBubbleProps>(
                 backgroundColor: "#000",
                 borderWidth: 2,
                 borderColor: "#fff",
-              }}>
+              }}
+            >
               <Text className="text-white text-xs font-extrabold">＋</Text>
             </Pressable>
 
@@ -303,7 +323,8 @@ const ChatRow = memo<ChatRowProps>(
         onPress={() => onOpenChat(otherUser)}
         className="flex-row items-center px-3 py-3 border-b border-gray-100"
         accessibilityRole="button"
-        accessibilityLabel={`Open chat with ${displayName}`}>
+        accessibilityLabel={`Open chat with ${displayName}`}
+      >
         <Pressable onPress={() => onOpenProfile(otherUser.profile_picture)}>
           <Image
             source={{ uri: otherUser.profile_picture ?? DEFAULT_AVATAR }}
@@ -334,50 +355,29 @@ const ChatRow = memo<ChatRowProps>(
 );
 ChatRow.displayName = "ChatRow";
 
-/* ---------- Preview video ---------- */
-function PreviewVideo({
-  uri,
-  onHudVisibleChange,
-}: {
-  uri: string;
-  onHudVisibleChange: (visible: boolean) => void;
-}) {
+/* ---------- ✅ FIXED: Preview video ---------- */
+function PreviewVideo({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri);
-  const lastPing = useRef(Date.now());
-  const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const pingVisible = () => {
-    onHudVisibleChange(true);
-    lastPing.current = Date.now();
-    if (hideTimeout.current) clearTimeout(hideTimeout.current);
-    hideTimeout.current = setTimeout(() => {
-      const now = Date.now();
-      if (now - lastPing.current >= 2500) onHudVisibleChange(false);
-    }, 2600);
-  };
-
-  useEventListener(player, "statusChange", pingVisible);
-  useEventListener(player, "timeUpdate", pingVisible);
 
   useEffect(() => {
     try {
       player.play();
     } catch {}
-    pingVisible();
+
+    // Clean up the player on unmount
     return () => {
-      if (hideTimeout.current) clearTimeout(hideTimeout.current);
       try {
         // @ts-ignore
         player?.destroy?.();
       } catch {}
     };
-  }, []);
+  }, [player]);
 
   return (
     <VideoView
       player={player}
       style={{ width: "100%", height: "100%" }}
-      nativeControls
+      nativeControls // This provides all the play/pause controls
       allowsFullscreen
       startsPictureInPictureAutomatically={false}
       contentFit="contain"
@@ -399,14 +399,16 @@ const isValidId = (v?: any) => {
 /* ---------- Screen ---------- */
 export default function Chats() {
   const router = useRouter();
-  const segments = useSegments();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
 
   const auth = useContext(AuthContext);
   const me = auth?.user;
-  const ME_ID = (me?.id as string | number | undefined) ?? "me";
+  // ✅ ADDED: Get firebaseUser from context
+  const firebaseUser = auth?.firebaseUser;
+  const ME_ID = String(me?.id ?? "me");
   const ME_USERNAME = me?.username ?? "you";
-  const ME_AVATAR = (me as any)?.profilePicture ?? DEFAULT_AVATAR;
+  const ME_AVATAR = me?.profile_picture ?? DEFAULT_AVATAR;
   const TOKEN =
     (me as any)?.token ||
     (auth as any)?.token ||
@@ -421,35 +423,22 @@ export default function Chats() {
   const [uploading, setUploading] = useState(false);
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
 
-  // STORIES: same structure as second file (use dummy users from constants)
+  // ✅ ----- NEW STORY STATE -----
+  const [storyData, setStoryData] = useState<StoryUser[]>([]);
+  const [loadingStories, setLoadingStories] = useState(false);
+  const storiesLoaded = useRef(false);
   const [storiesVisible, setStoriesVisible] = useState(false);
   const [storiesInitialIndex, setStoriesInitialIndex] = useState(0);
-  const [storyUsers, setStoryUsers] = useState<(User & { isYou?: boolean })[]>(
-    () => {
-      const others = USERS.filter(
-        (u) => String(u.id) !== String(LOGGED_USER.id)
-      );
-      return [
-        {
-          ...(LOGGED_USER as any),
-          id: "you", // keep "you" sentinel for viewer ordering
-          isYou: true,
-          username: ME_USERNAME,
-          profile_picture: ME_AVATAR,
-        } as any,
-        ...others,
-      ];
-    }
-  );
-
-  const [seenStoryUserIds, setSeenStoryUserIds] = useState<Set<string>>(
-    new Set()
-  );
+  const [seenStoryUserIds, setSeenStoryUserIds] = useState<
+    Set<string | number>
+  >(new Set());
+  // ✅ ---------------------------
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [previewIsVideo, setPreviewIsVideo] = useState(false);
-  const [hudVisible, setHudVisible] = useState(false);
+  // ⛔ REMOVED: Unused hudVisible state
+  // const [hudVisible, setHudVisible] = useState(false);
 
   // message conversations only
   const [chatList, setChatList] = useState<ChatItem[]>([]);
@@ -497,27 +486,148 @@ export default function Chats() {
     setPreviewIsVideo(isVideo);
     setPreviewOpen(true);
   }, []);
-  const confirmPreviewAdd = useCallback(async () => {
-    if (!previewUri) return;
-    setUploading(true);
+
+  // ✅ ----- NEW: fetchStories function -----
+  const fetchStories = useCallback(async () => {
+    if (storiesLoaded.current || !isValidId(ME_ID)) return;
+    setLoadingStories(true);
     try {
-      setStoryUsers((prev) =>
-        prev.map((u) =>
-          (u as any).isYou
-            ? { ...u, stories: [...(u.stories ?? []), previewUri] }
-            : u
-        )
+      const response = await apiCall(STORIES_FEED(ME_ID), "GET");
+      if (response?.data) {
+        const formattedData: StoryUser[] = response.data
+          .filter((user: any) => user?.stories && user?.stories.length > 0)
+          .map((user: any) => ({
+            user_id: user.user_id,
+            user_image: user.user_image || DEFAULT_AVATAR,
+            user_name: user.user_name,
+            isYou: String(user.user_id) === String(ME_ID), // Flag your user
+            stories: user.stories.map((story: any) => ({
+              id: story.story_id,
+              story_id: story.story_id,
+              story_image: story.story_image,
+              swipeText: "Swipe Up",
+              caption: story.caption,
+              caption_size: story.caption_size,
+              caption_position: story.caption_position,
+              text_position: story.text_position,
+              location_position: story.location_position,
+              mention_position: story.mention_position,
+              location: story.location,
+              mention: story.mention,
+              shared_post_id: story.shared_post_id,
+              user_id: story.user_id,
+              username: user.user_name,
+              userProfilePic: user.user_image || DEFAULT_AVATAR,
+            })),
+          }));
+
+        console.log("response :", response);
+        console.log("response formattedData :", formattedData);
+
+        // Sort to put your story first
+        const userStoryIndex = formattedData.findIndex(
+          (storyUser) => storyUser.isYou
+        );
+        if (userStoryIndex !== -1) {
+          const userStory = formattedData.splice(userStoryIndex, 1);
+          setStoryData(userStory.concat(formattedData));
+        } else {
+          setStoryData(formattedData);
+        }
+        storiesLoaded.current = true;
+      }
+    } catch (error) {
+      console.error("Error fetching stories:", error);
+    } finally {
+      setLoadingStories(false);
+    }
+  }, [ME_ID]);
+
+  // ✅ ----- REBUILT: confirmPreviewAdd with API logic -----
+  const confirmPreviewAdd = useCallback(async () => {
+    if (!previewUri || !firebaseUser || !me) {
+      console.error("Missing data for story upload:", {
+        previewUri,
+        firebaseUser,
+        me,
+      });
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("firebaseUID", firebaseUser.uid);
+      formData.append("userID", String(me.id));
+
+      const mediaType = previewIsVideo ? "video" : "image";
+      formData.append("mediaType", mediaType);
+
+      // Determine file type
+      let fileExtension = "jpg";
+      let mimeType = "image/jpeg";
+      if (previewIsVideo) {
+        // Use platform-specific extension or detect from URI
+        const isAndroid = Platform.OS === "android";
+        fileExtension = isAndroid ? "mp4" : "mov";
+        mimeType = isAndroid ? "video/mp4" : "video/quicktime";
+
+        // More robust detection
+        const uriExt = previewUri.split(".").pop()?.toLowerCase();
+        if (uriExt === "mp4") {
+          fileExtension = "mp4";
+          mimeType = "video/mp4";
+        } else if (uriExt === "mov") {
+          fileExtension = "mov";
+          mimeType = "video/quicktime";
+        }
+      }
+
+      formData.append("mediaUrl", {
+        uri: previewUri,
+        name: `story-${Date.now()}.${fileExtension}`,
+        type: mimeType,
+      } as any);
+
+      // Append default/empty values for other fields
+      formData.append("caption", "");
+      formData.append("caption_size", String(20));
+      formData.append("text_position", JSON.stringify({ x: 0, y: 0 }));
+      formData.append("location", "");
+      formData.append("location_position", JSON.stringify({ x: 0, y: 0 }));
+      formData.append("mention", "");
+      formData.append("mention_position", JSON.stringify({ x: 0, y: 0 }));
+      formData.append(
+        "media_position",
+        JSON.stringify({ x: 0, y: 0, scale: 1, rotation: 0 })
       );
-      setStoriesInitialIndex(0);
-      setStoriesVisible(true);
-      setPreviewOpen(false);
-      setPreviewUri(null);
+
+      console.log("Uploading story...");
+      const response = await apiCall(STORY_CREATE, "POST", formData, {
+        "Content-Type": "multipart/form-data",
+      });
+
+      if (response.message === "Story created successfully!") {
+        console.log("Story created successfully:", response.data.id);
+        // Force a refresh of stories on next focus/load
+        storiesLoaded.current = false;
+        fetchStories(); // Refresh stories list
+      } else {
+        console.error("Error creating story:", response);
+      }
+    } catch (error) {
+      console.error("Failed to create story:", error);
     } finally {
       setUploading(false);
+      setPreviewOpen(false);
+      setPreviewUri(null);
     }
-  }, [previewUri]);
+  }, [previewUri, previewIsVideo, me, firebaseUser, fetchStories]);
+  // ✅ --------------------------------------------------
+  // ✅ ---------------------------------
 
-  /* ---- fetch chats only (stories are local dummy now) ---- */
+  /* ---- fetch chats only ---- */
   const fetchChatsOnly = useCallback(async () => {
     if (!isValidId(ME_ID)) return;
     try {
@@ -534,7 +644,7 @@ export default function Chats() {
           map.set(pairKey(c), c as any);
         });
 
-        // merge local rows, but don't let slightly older server overwrite fresher local
+        // merge local rows
         (prev as any[]).forEach((c) => {
           const k = pairKey(c);
           const s = map.get(k) as any | undefined;
@@ -572,7 +682,7 @@ export default function Chats() {
     }
   }, [ME_ID]);
 
-  // warm cache on mount then fetch fresh (stories are local/dummy so no fetch)
+  // warm cache on mount then fetch fresh
   useEffect(() => {
     (async () => {
       if (!isValidId(ME_ID)) return;
@@ -583,24 +693,29 @@ export default function Chats() {
         } catch {}
       }
       fetchChatsOnly();
-      // stories are already seeded from constants in state initializer
+      fetchStories(); // ✅ Fetch stories on mount
     })();
-  }, [ME_ID, fetchChatsOnly]);
+  }, [ME_ID, fetchChatsOnly, fetchStories]);
 
   // refetch on focus
   useFocusEffect(
     useCallback(() => {
       fetchChatsOnly();
-    }, [fetchChatsOnly])
+      fetchStories(); // ✅ Fetch stories on focus
+    }, [fetchChatsOnly, fetchStories])
   );
 
   // refetch when app returns to foreground
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") fetchChatsOnly();
+      if (state === "active") {
+        fetchChatsOnly();
+        storiesLoaded.current = false; // ✅ Force refresh stories on app active
+        fetchStories();
+      }
     });
     return () => sub.remove();
-  }, [fetchChatsOnly]);
+  }, [fetchChatsOnly, fetchStories]);
 
   // Local event updates (from UserChatScreen)
   useEffect(() => {
@@ -674,6 +789,12 @@ export default function Chats() {
   }, [ME_ID, ME_USERNAME, ME_AVATAR]);
 
   // Listen for thread open/close signals from UserChatScreen
+
+  const markConversationRead = useCallback((_otherUserId: string | number) => {
+    // No-op: message counting and unread state removed
+    return;
+  }, []);
+
   useEffect(() => {
     const onActive = DeviceEventEmitter.addListener(
       "thread:active",
@@ -698,7 +819,7 @@ export default function Chats() {
       onInactive.remove();
       onClear.remove();
     };
-  }, []);
+  }, [markConversationRead]);
 
   // SOCKET: real-time updates make inbox show latest message (both directions)
   useEffect(() => {
@@ -894,11 +1015,6 @@ export default function Chats() {
     };
   }, [ME_ID, TOKEN, fetchChatsOnly]);
 
-  const markConversationRead = useCallback((_otherUserId: string | number) => {
-    // No-op: message counting and unread state removed
-    return;
-  }, []);
-
   const openChatAndMarkRead = useCallback(
     (u: User) => {
       // set current open thread
@@ -922,37 +1038,13 @@ export default function Chats() {
     [markConversationRead, router, ME_ID, ME_USERNAME, ME_AVATAR]
   );
 
-  const bottomSpacer = (insets.bottom || 16) + 55;
-
-  /* ---- stories derived (copied from second file) ---- */
-  type StoryUser = {
-    user_id: string | number;
-    user_image: string;
-    user_name: string;
-    stories: { story_id: string; story_image: string; created_at: string }[];
-  };
+  /* ---- ✅ REVISED stories derived hooks ---- */
 
   /* Stories viewer data (only users with stories) */
   const storiesViewerData: StoryUser[] = useMemo(() => {
-    const you = storyUsers.find((u) => (u as any).isYou);
-    const others = storyUsers.filter(
-      (u) => !(u as any).isYou && (u.stories ?? []).length > 0
-    );
-    const ordered = [
-      ...(you && (you.stories ?? []).length > 0 ? [you] : []),
-      ...others,
-    ];
-    return ordered.map((u) => ({
-      user_id: (u as any).id,
-      user_image: u.profile_picture ?? DEFAULT_AVATAR,
-      user_name: u.username ?? "User",
-      stories: (u.stories ?? []).map((uri: string, idx: number) => ({
-        story_id: `${(u as any).id}-${idx}`,
-        story_image: uri,
-        created_at: new Date().toISOString(),
-      })),
-    }));
-  }, [storyUsers]);
+    // Filter out users with no stories, as the viewer only shows users with stories
+    return storyData.filter((u) => (u.stories ?? []).length > 0);
+  }, [storyData]);
 
   const viewerIndexByUserId = useMemo(() => {
     const m = new Map<string | number, number>();
@@ -961,8 +1053,8 @@ export default function Chats() {
   }, [storiesViewerData]);
 
   const openStoryModal = useCallback(
-    (user: User) => {
-      const idx = viewerIndexByUserId.get(user.id);
+    (user: StoryUser) => {
+      const idx = viewerIndexByUserId.get(user.user_id);
       if (idx === undefined) return;
       setStoriesInitialIndex(idx);
       setStoriesVisible(true);
@@ -971,22 +1063,30 @@ export default function Chats() {
   );
 
   /* Stories row data (You, then Unseen, then Seen@end) */
-  const youUser = storyUsers.find((u) => (u as any).isYou)!;
   const storyRowData = useMemo(() => {
-    const othersWithStories = storyUsers.filter(
-      (u) => !(u as any).isYou && (u.stories ?? []).length > 0
+    const you = storyData.find((u) => u.isYou);
+    const others = storyData.filter(
+      (u) => !u.isYou && (u.stories ?? []).length > 0
     );
 
-    const unseen = othersWithStories.filter(
-      (u) => !seenStoryUserIds.has(String(u.id))
+    const unseen = others.filter(
+      (u) => !seenStoryUserIds.has(String(u.user_id))
     );
-    const seen = othersWithStories.filter((u) =>
-      seenStoryUserIds.has(String(u.id))
-    );
+    const seen = others.filter((u) => seenStoryUserIds.has(String(u.user_id)));
 
-    // Move finished (seen) to the end
-    return [youUser, ...unseen, ...seen];
-  }, [youUser, storyUsers, seenStoryUserIds]);
+    // Create a persistent "you" object for the bubble
+    // This ensures "Your Story" always shows, even with 0 stories
+    const youBubbleUser: StoryUser = you || {
+      user_id: me?.id || "you",
+      user_image: ME_AVATAR,
+      user_name: "Your Story",
+      stories: [],
+      isYou: true,
+    };
+
+    return [youBubbleUser, ...unseen, ...seen];
+  }, [storyData, seenStoryUserIds, me, ME_AVATAR]);
+  /* ✅ --------------------------------- */
 
   /* conversations used by FlatList */
   const conversations = useMemo(() => chatList, [chatList]);
@@ -1002,18 +1102,30 @@ export default function Chats() {
           horizontal
           data={storyRowData}
           showsHorizontalScrollIndicator={false}
-          keyExtractor={(it, idx) =>
-            String((it as any)?.id ?? (it as any)?.user_id ?? `story-${idx}`)
-          }
+          keyExtractor={(item) => String(item.user_id)}
           contentContainerStyle={{
             alignItems: "center",
             paddingVertical: 6,
             paddingHorizontal: 12,
           }}
           ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+          ListEmptyComponent={
+            loadingStories ? (
+              <View
+                style={{
+                  width: width - 24,
+                  height: 98, // approx height of bubble + text
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <ActivityIndicator color="#9ca3af" />
+              </View>
+            ) : null // Or show a "No stories" placeholder
+          }
           renderItem={({ item }) => {
-            const u = item as User & { isYou?: boolean };
-            if ((u as any).isYou) {
+            const u = item as StoryUser;
+            if (u.isYou) {
               const hasStory = (u.stories ?? []).length > 0;
               return (
                 <YouBubble
@@ -1026,13 +1138,22 @@ export default function Chats() {
                 />
               );
             }
-            const isSeen = seenStoryUserIds.has(String((u as any).id));
+
+            // Adapt StoryUser to User prop for StoryBubble
+            const userProp: User = {
+              id: String(u.user_id),
+              username: u.user_name,
+              profile_picture: u.user_image,
+              stories: u.stories.map((s) => s.story_image),
+            };
+            const isSeen = seenStoryUserIds.has(String(u.user_id));
+
             return (
               <StoryBubble
-                user={u}
+                user={userProp}
                 isSeen={isSeen}
-                onOpen={openStoryModal}
-                onOpenProfile={openProfileModal}
+                onOpen={() => openStoryModal(u)}
+                onOpenProfile={() => openProfileModal(u.user_image)}
               />
             );
           }}
@@ -1043,7 +1164,8 @@ export default function Chats() {
       <View className="px-3 mt-2">
         <Pressable
           onPress={() => router.push("/chat/Search")}
-          accessibilityLabel="Open people search">
+          accessibilityLabel="Open people search"
+        >
           <SearchBar
             value=""
             onChangeText={() => {}}
@@ -1091,11 +1213,13 @@ export default function Chats() {
           visible={profileModalVisible}
           transparent={false}
           animationType="fade"
-          onRequestClose={() => setProfileModalVisible(false)}>
+          onRequestClose={() => setProfileModalVisible(false)}
+        >
           <View className="flex-1 bg-black">
             <Pressable
               className="absolute top-10 left-4 z-50 p-2"
-              onPress={() => setProfileModalVisible(false)}>
+              onPress={() => setProfileModalVisible(false)}
+            >
               <Text className="text-white text-2xl">✕</Text>
             </Pressable>
             {profileModalImage ? (
@@ -1121,7 +1245,8 @@ export default function Chats() {
           visible={storiesVisible}
           transparent={false}
           animationType="fade"
-          onRequestClose={() => setStoriesVisible(false)}>
+          onRequestClose={() => setStoriesVisible(false)}
+        >
           <View className="flex-1 bg-black">
             <Stories
               storiesData={storiesViewerData}
@@ -1146,20 +1271,23 @@ export default function Chats() {
           visible={previewOpen}
           transparent={false}
           animationType="slide"
-          onRequestClose={() => setPreviewOpen(false)}>
+          onRequestClose={() => setPreviewOpen(false)}
+        >
           <View
             className="flex-1 bg-black"
-            style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
+            style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+          >
             <Pressable
               onPress={() => setPreviewOpen(false)}
               accessibilityLabel="Close preview"
               style={{
                 position: "absolute",
                 top: insets.top ? insets.top + 6 : 12,
-                right: 10,
+                left: 10, // ✅ MOVED to left
                 zIndex: 10,
                 backgroundColor: "transparent",
-              }}>
+              }}
+            >
               <Ionicons name="close" size={28} color="#ffffff" />
             </Pressable>
 
@@ -1168,7 +1296,8 @@ export default function Chats() {
                 previewIsVideo ? (
                   <PreviewVideo
                     uri={previewUri}
-                    onHudVisibleChange={(v) => setHudVisible(v)}
+                    // ⛔ REMOVED: Faulty prop
+                    // onHudVisibleChange={() => setHudVisible(true)}
                   />
                 ) : (
                   <Image
@@ -1182,28 +1311,31 @@ export default function Chats() {
               )}
             </View>
 
-            {!hudVisible && (
-              <Pressable
-                onPress={confirmPreviewAdd}
-                disabled={uploading}
-                accessibilityLabel="Add to story"
-                style={{
-                  position: "absolute",
-                  bottom: (insets.bottom || 16) + 12,
-                  alignSelf: "center",
-                  width: 50,
-                  height: 50,
-                  borderRadius: 32,
-                  backgroundColor: "transparent",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: uploading ? 0.7 : 1,
-                  borderWidth: 2,
-                  borderColor: "rgba(255,255,255,0.9)",
-                }}>
+            {/* ✅ FIXED: Removed !hudVisible wrapper */}
+            <Pressable
+              onPress={confirmPreviewAdd}
+              disabled={uploading}
+              accessibilityLabel="Add to story"
+              style={{
+                position: "absolute",
+                top: insets.top ? insets.top + 6 : 12, // ✅ MOVED to top right
+                right: 10, // ✅ MOVED to right
+                alignSelf: "center",
+                width: 50, // ✅ Increased size for easier tapping
+                height: 50, // ✅ Increased size
+                borderRadius: 25, // ✅ Adjusted border radius
+                backgroundColor: "rgba(0, 0, 0, 0.5)", // ✅ Added background
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: uploading ? 0.7 : 1,
+              }}
+            >
+              {uploading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
                 <Ionicons name="arrow-forward" size={30} color="#ffffff" />
-              </Pressable>
-            )}
+              )}
+            </Pressable>
           </View>
         </Modal>
       )}
@@ -1214,10 +1346,12 @@ export default function Chats() {
           visible={cameraModalVisible}
           transparent={false}
           animationType="slide"
-          onRequestClose={() => setCameraModalVisible(false)}>
+          onRequestClose={() => setCameraModalVisible(false)}
+        >
           <StoriesCamera
             onMediaCaptured={handleMediaCaptured}
             onClose={() => setCameraModalVisible(false)}
+            disableVideo={true}
           />
         </Modal>
       )}

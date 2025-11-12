@@ -1042,7 +1042,7 @@ const ProfileScreen = ({
         contentContainerStyle={{
           flexGrow: 1,
           paddingBottom:
-            Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom, // Tab bar height + extra space
+            Platform.OS === "ios" ? insets.bottom + 45 : insets.bottom + 55, // Tab bar height + extra space
         }}
         nestedScrollEnabled={true}
       >

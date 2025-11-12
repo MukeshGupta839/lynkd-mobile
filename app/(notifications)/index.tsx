@@ -1,4 +1,6 @@
-import { useContext, useEffect, useState } from "react";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useContext, useEffect, useMemo } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -11,39 +13,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ScreenHeaderBack from "@/components/ScreenHeaderBack";
 import { AuthContext } from "@/context/AuthContext";
-import { fetchUserFollowings } from "@/lib/api/api";
-import { apiCall } from "@/lib/api/apiService";
-import { Feather, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-const LynkdLogo = require("@/assets/icon.png");
-
-type NotificationType =
-  | "Overview"
-  | "Users"
-  | "Shop"
-  | "Orders"
-  | "UsersAccepted"
-  | "comment"
-  | "like";
-
-interface NotificationItem {
-  id: string;
-  name: string;
-  time: string;
-  message: string;
-  avatar: any;
-  type: NotificationType;
-  read: boolean;
-  request?: boolean;
-  followPending?: boolean;
-  userByFollowerId?: string;
-  postID?: string;
-  onPress?: () => void;
-}
+// ✅ Import the store and types
+import {
+  useNotificationStore,
+  type NotificationItem,
+} from "@/stores/useNotificationStore"; // Adjust path as needed
 
 const filterTypes = [
   { key: "Overview", label: "Overview", icon: "apps" },
@@ -52,392 +30,79 @@ const filterTypes = [
   { key: "Orders", label: "Orders", icon: "receipt" },
 ] as const;
 
-const allNotifications: NotificationItem[] = [
-  {
-    id: "welcome",
-    name: "Welcome to Lynkd App",
-    time: "",
-    message:
-      "Welcome to Lynkd App. We are excited to have you on board. Start exploring now!",
-    avatar: LynkdLogo,
-    type: "Overview",
-    read: false,
-  },
-];
-
 const Notifications = () => {
   const router = useRouter();
   const authContext = useContext(AuthContext);
   const user = authContext?.user;
   const insets = useSafeAreaInsets();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState("Overview");
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [filteredNotifications, setFilteredNotifications] = useState<
-    NotificationItem[]
-  >([]);
-  const [followedUsers, setFollowedUsers] = useState<string[]>([]);
 
-  // Time formatting helper
-  const getTimeFromDateObject = (createdAt: Date) => {
-    const hours = createdAt.getHours();
-    const minutes = createdAt.getMinutes();
-    const ampm = hours >= 12 ? "pm" : "am";
-    const hours12 = hours % 12 || 12;
-    const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
-    return `${hours12}:${formattedMinutes} ${ampm}`;
-  };
+  // ✅ Get all state and actions from the Zustand store
+  const {
+    isLoading,
+    isRefreshing,
+    filter,
+    followedUsers,
+    setFilter,
+    loadNotifications,
+    acceptFollowRequest,
+    rejectFollowRequest,
+    followUser,
+    markAsRead,
+    setFollowPending,
+  } = useNotificationStore();
 
-  // Fetch follow requests
-  const fetchFollowRequests = async () => {
-    try {
-      if (!user?.id) return [];
+  const notifications = useNotificationStore((state) => state.notifications);
 
-      const response = await apiCall(
-        `/api/follows/followRequests/${user.id}`,
-        "GET"
-      );
-      const followRequests = response?.followerRequests || [];
-
-      const followRequestNotifications = followRequests
-        ?.map((request: any) => {
-          const createdAt = new Date(request.created_at);
-          const now = new Date();
-          const localCreatedAt = new Date(
-            createdAt.getTime() - createdAt.getTimezoneOffset() * 60000
-          );
-          const diffInMinutes = Math.floor(
-            (now.getTime() - localCreatedAt.getTime()) / 60000
-          );
-
-          let time;
-          if (diffInMinutes < 60) {
-            time = getTimeFromDateObject(localCreatedAt);
-          } else if (diffInMinutes < 1440) {
-            time = getTimeFromDateObject(localCreatedAt);
-          } else if (diffInMinutes < 43200) {
-            const days = Math.floor(diffInMinutes / 1440);
-            time = days === 1 ? "1 day ago" : `${days} days ago`;
-          } else {
-            const months = Math.floor(diffInMinutes / 43200);
-            time = months === 1 ? "1 month ago" : `${months} months ago`;
-          }
-
-          const trimmedName = (
-            (request.userByFollowerId?.first_name?.trim() || "") +
-            " " +
-            (request.userByFollowerId?.last_name?.trim() || "")
-          ).trim();
-
-          if (request.status === "pending") {
-            return {
-              id: request.id,
-              name: request.userByFollowerId.username,
-              userByFollowerId: request.userByFollowerId.id,
-              time: time,
-              message: `${trimmedName} has requested to follow you.`,
-              avatar: request.userByFollowerId.profile_picture,
-              type: "Users" as NotificationType,
-              request: true,
-              read: false,
-              createdAt: localCreatedAt.toISOString(),
-            };
-          } else {
-            return {
-              id: request.id,
-              name: request.userByFollowerId.username,
-              userByFollowerId: request.userByFollowerId.id,
-              time: time,
-              message: `${trimmedName} has followed you.`,
-              avatar: request.userByFollowerId.profile_picture,
-              type: "UsersAccepted" as NotificationType,
-              request: false,
-              read: false,
-              createdAt: localCreatedAt.toISOString(),
-            };
-          }
-        })
-        .filter((notif: any) => notif?.message?.length > 0);
-
-      // Fetch followed requests (accepted requests)
-      const response2 = await apiCall(
-        `/api/follows/followedRequests/${user.id}`,
-        "GET"
-      );
-      const followedRequests = response2?.followedRequests || [];
-
-      const followedRequestNotifications = followedRequests
-        .map((request: any) => {
-          const createdAt = new Date(request.created_at);
-          const now = new Date();
-          const localCreatedAt = new Date(
-            createdAt.getTime() - createdAt.getTimezoneOffset() * 60000
-          );
-          const diffInMinutes = Math.floor(
-            (now.getTime() - localCreatedAt.getTime()) / 60000
-          );
-
-          let time;
-          if (diffInMinutes < 60) {
-            time = `${diffInMinutes} min ago`;
-          } else if (diffInMinutes < 1440) {
-            time = `${Math.floor(diffInMinutes / 60)} hours ago`;
-          } else if (diffInMinutes < 43200) {
-            time = `${Math.floor(diffInMinutes / 1440)} days ago`;
-          } else {
-            time = `${Math.floor(diffInMinutes / 43200)} months ago`;
-          }
-
-          const trimmedName = (
-            (request.user?.first_name?.trim() || "") +
-            " " +
-            (request.user?.last_name?.trim() || "")
-          ).trim();
-
-          if (!request.user.is_creator) {
-            return {
-              id: request.id,
-              name: request.user.username,
-              time: time,
-              message: `${trimmedName} has accepted your follow request.`,
-              avatar: request.user?.profile_picture,
-              type: "UsersAccepted" as NotificationType,
-              request: false,
-              read: false,
-              createdAt: localCreatedAt.toISOString(),
-              userByFollowerId: request.user.id,
-            };
-          }
-          return null;
-        })
-        .filter(Boolean);
-
-      return [
-        ...followRequestNotifications,
-        ...followedRequestNotifications,
-      ].sort(
-        (a: any, b: any) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    } catch (error) {
-      console.error("Error fetching follow requests:", error);
-      return [];
+  const filteredNotifications = useMemo(() => {
+    if (filter === "Overview") {
+      return notifications;
     }
-  };
-
-  // Fetch general notifications
-  const fetchNotifications = async () => {
-    try {
-      if (!user?.id) return [];
-
-      const response = await apiCall(
-        `/api/notifications/user/${user.id}`,
-        "GET"
+    if (filter === "Users") {
+      return notifications.filter(
+        (n) => n.type === "Users" || n.type === "UsersAccepted"
       );
-      const notifications = response?.data?.notifications || [];
-
-      const notificationItems = notifications.map((notification: any) => {
-        const createdAt = new Date(notification.created_at);
-        const now = new Date();
-        const localCreatedAt = new Date(
-          createdAt.getTime() - createdAt.getTimezoneOffset() * 60000
-        );
-        const diffInMinutes = Math.floor(
-          (now.getTime() - localCreatedAt.getTime()) / 60000
-        );
-
-        let time;
-        if (diffInMinutes < 60) {
-          time = `${diffInMinutes} min ago`;
-        } else if (diffInMinutes < 1440) {
-          time = `${Math.floor(diffInMinutes / 60)} hours ago`;
-        } else if (diffInMinutes < 43200) {
-          time = `${Math.floor(diffInMinutes / 1440)} days ago`;
-        } else {
-          time = `${Math.floor(diffInMinutes / 43200)} months ago`;
-        }
-
-        return {
-          id: notification.id,
-          name: notification.title,
-          time: time,
-          message: notification.message,
-          avatar: notification?.user?.profile_picture,
-          type: notification.type as NotificationType,
-          read: false,
-          postID: notification.post_id,
-          createdAt: localCreatedAt.toISOString(),
-        };
-      });
-
-      return notificationItems.sort(
-        (a: any, b: any) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
-      return [];
     }
-  };
+    return notifications.filter((n) => n.type === filter);
+  }, [notifications, filter]); // Dependencies: Only re-run if these change!
 
-  // Fetch user followings
-  const fetchFollowings = async () => {
-    try {
-      if (!user?.id) return;
+  console.log("filteredNotifications:", filteredNotifications);
 
-      const response = await fetchUserFollowings(user.id);
-      const followingIds =
-        response?.data?.map((f: any) => f.following_id) || [];
-      setFollowedUsers(followingIds);
-    } catch (error) {
-      console.error("Error fetching followings:", error);
+  // Load notifications on mount
+  useEffect(() => {
+    if (user?.id) {
+      loadNotifications(user.id);
     }
-  };
-
-  // Load all notifications
-  const loadNotifications = async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-
-      const [followNotifs, generalNotifs] = await Promise.all([
-        fetchFollowRequests(),
-        fetchNotifications(),
-      ]);
-
-      await fetchFollowings();
-
-      const allCombinedNotifications = [
-        ...followNotifs,
-        ...generalNotifs,
-        ...allNotifications,
-      ].sort((a: any, b: any) => {
-        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-        return dateB.getTime() - dateA.getTime();
-      });
-
-      setNotifications(allCombinedNotifications);
-    } catch (error) {
-      console.error("Error loading notifications:", error);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  // Accept follow request
-  const acceptFollowRequest = async (requestId: string) => {
-    try {
-      const response = await apiCall(
-        `/api/follows/acceptRequest/${requestId}`,
-        "POST"
-      );
-      if (response?.status === "success") {
-        setNotifications((prev) => prev.filter((n) => n.id !== requestId));
-        await fetchFollowings();
-      }
-    } catch (error) {
-      console.error("Error accepting follow request:", error);
-    }
-  };
-
-  // Reject follow request
-  const rejectFollowRequest = async (requestId: string) => {
-    try {
-      const response = await apiCall(
-        `/api/follows/rejectRequest/${requestId}`,
-        "DELETE"
-      );
-      if (response?.status === "success") {
-        setNotifications((prev) => prev.filter((n) => n.id !== requestId));
-      }
-    } catch (error) {
-      console.error("Error rejecting follow request:", error);
-    }
-  };
-
-  // Follow user
-  const followUser = async (userID: string) => {
-    try {
-      if (!user?.id) return;
-
-      const response = await apiCall(
-        `/api/follows/follow/${user.id}/${userID}`,
-        "POST"
-      );
-      if (response.data) {
-        await fetchFollowings();
-      }
-    } catch (error) {
-      console.error("Error following user:", error);
-    }
-  };
+  }, [user?.id, loadNotifications]);
 
   // Handle notification click
-  const handleNotificationClick = (id: string) => {
-    const focusedNotification = notifications.find((n) => n.id === id);
-    if (!focusedNotification) return;
+  const handleNotificationClick = (item: NotificationItem) => {
+    if (!item) return;
 
-    // Mark as read
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+    // Mark as read in the store
+    markAsRead(item.id);
 
     // Navigate based on type
-    if (
-      focusedNotification.type === "Users" ||
-      focusedNotification.type === "UsersAccepted"
-    ) {
-      if (focusedNotification.userByFollowerId) {
+    if (item.type === "Users" || item.type === "UsersAccepted") {
+      if (item.userByFollowerId) {
         router.push({
           pathname: "/(profiles)/" as any,
-          params: { user: focusedNotification.userByFollowerId },
+          params: { user: item.userByFollowerId },
         });
       }
-    } else if (
-      focusedNotification.type === "comment" ||
-      focusedNotification.type === "like"
-    ) {
-      if (focusedNotification.postID) {
+    } else if (item.type === "comment" || item.type === "like") {
+      if (item.postID) {
         router.push({
           pathname: "/(profiles)/profilePosts" as any,
-          params: { showOnlyPost: focusedNotification.postID },
+          params: { showOnlyPost: item.postID },
         });
       }
     }
 
-    // Execute onPress if available
-    focusedNotification.onPress?.();
+    item.onPress?.();
   };
 
-  useEffect(() => {
-    if (filter === "Overview") {
-      setFilteredNotifications(notifications);
-      return;
-    }
-
-    if (filter === "Users") {
-      setFilteredNotifications(
-        notifications.filter(
-          (n) => n.type === "Users" || n.type === "UsersAccepted"
-        )
-      );
-      return;
-    }
-
-    setFilteredNotifications(notifications.filter((n) => n.type === filter));
-  }, [filter, notifications]);
-
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  const handleFilterChange = (newFilter: string) => setFilter(newFilter);
+  // ✅ --- All internal logic functions are now removed ---
+  // (fetchFollowRequests, fetchNotifications, fetchFollowings, etc.)
 
   const NotificationCard = ({
     item,
@@ -447,7 +112,8 @@ const Notifications = () => {
     index: number;
   }) => {
     const itemAnimation = new Animated.Value(0);
-    const isFollowed = followedUsers.includes(item.userByFollowerId || "");
+    // ✅ Check followedUsers list from the store
+    const isFollowed = followedUsers.includes(item.userByFollowerId ?? "");
 
     useEffect(() => {
       Animated.timing(itemAnimation, {
@@ -476,37 +142,39 @@ const Notifications = () => {
         <TouchableOpacity
           className={`flex-row p-4 rounded-xl ${item.read ? "bg-gray-50" : "bg-white"}`}
           activeOpacity={0.7}
-          onPress={() => handleNotificationClick(item.id)}
+          onPress={() => handleNotificationClick(item)}
         >
-          <View className="relative mr-3 h-12 w-9">
+          <View className="relative mr-3 h-12 w-12">
             <Image
               source={
                 typeof item.avatar === "string"
                   ? { uri: item.avatar || "https://via.placeholder.com/40" }
                   : item.avatar
               }
-              className="h-9 w-9 rounded-full bg-gray-200"
+              className="h-11 w-11 rounded-full bg-gray-200 border border-gray-300"
             />
             {["comment", "like", "Users", "UsersAccepted"].includes(
               item.type
             ) && (
-                <View className="absolute -bottom-1 -right-1 h-6 w-6 items-center justify-center rounded-full bg-white border-2 border-white">
-                  <Ionicons
-                    name={
-                      item.type === "like"
-                        ? "heart"
-                        : item.type === "comment"
-                          ? "chatbubble"
-                          : "person"
-                    }
-                    size={14}
-                    color={item.type === "like" ? "#ee0000" : "#000"}
-                  />
-                </View>
-              )}
+              <View
+                className={`absolute -bottom-1 -right-1 h-6 w-6 items-center justify-center rounded-full ${item.type === "like" ? "bg-red-600" : item.type === "Users" || item.type === "UsersAccepted" ? "bg-blue-600" : "bg-green-400"} border border-white`}
+              >
+                <Ionicons
+                  name={
+                    item.type === "like"
+                      ? "heart"
+                      : item.type === "comment"
+                        ? "chatbubble"
+                        : "person"
+                  }
+                  size={14}
+                  color={"#fff"}
+                />
+              </View>
+            )}
           </View>
           <View className="flex-1 justify-between">
-            <View className="flex-1">
+            <View>
               <Text
                 className="text-base font-opensans-semibold text-gray-900"
                 numberOfLines={1}
@@ -527,11 +195,12 @@ const Notifications = () => {
         </TouchableOpacity>
 
         {/* Action buttons for follow requests */}
-        {item.type === "Users" && item.request && (
+        {item.type === "Users" && item.request && user?.id && (
           <View className="flex-row px-4 pb-3 gap-2">
             <TouchableOpacity
               className="flex-1 bg-black py-2 rounded-lg items-center"
-              onPress={() => acceptFollowRequest(item.id)}
+              // ✅ Call store action
+              onPress={() => acceptFollowRequest(item.id, user.id)}
             >
               <Text className="text-white font-opensans-semibold text-sm">
                 Accept
@@ -539,6 +208,7 @@ const Notifications = () => {
             </TouchableOpacity>
             <TouchableOpacity
               className="flex-1 bg-gray-200 py-2 rounded-lg items-center"
+              // ✅ Call store action
               onPress={() => rejectFollowRequest(item.id)}
             >
               <Text className="text-gray-800 font-opensans-semibold text-sm">
@@ -549,35 +219,39 @@ const Notifications = () => {
         )}
 
         {/* Follow back button */}
-        {item.type === "UsersAccepted" &&
-          !item.request &&
-          item.userByFollowerId &&
-          !isFollowed && (
-            <View className="px-4 pb-3">
+        {item.type === "UsersAccepted" && !item.request && (
+          <View className="px-4 pb-3">
+            {!isFollowed && (
               <TouchableOpacity
-                className={`py-2 rounded-lg items-center ${item.followPending ? "bg-gray-200" : "bg-black"
-                  }`}
+                className={`py-2 rounded-lg items-center ${
+                  item.followPending ? "bg-gray-200" : "bg-black"
+                }`}
                 onPress={() => {
-                  if (!item.followPending && item.userByFollowerId) {
-                    followUser(item.userByFollowerId);
-                    setNotifications((prev) =>
-                      prev.map((n) =>
-                        n.id === item.id ? { ...n, followPending: true } : n
-                      )
-                    );
+                  if (
+                    !item.followPending &&
+                    item.userByFollowerId &&
+                    user?.id
+                  ) {
+                    // 1. Calls the API
+                    followUser(user.id, item.userByFollowerId);
+
+                    // 2. Immediately updates the UI to "Pending"
+                    setFollowPending(item.id);
                   }
                 }}
                 disabled={item.followPending}
               >
                 <Text
-                  className={`font-opensans-semibold text-sm ${item.followPending ? "text-gray-600" : "text-white"
-                    }`}
+                  className={`font-opensans-semibold text-sm ${
+                    item.followPending ? "text-gray-600" : "text-white"
+                  }`}
                 >
                   {item.followPending ? "Pending" : "Follow Back"}
                 </Text>
               </TouchableOpacity>
-            </View>
-          )}
+            )}
+          </View>
+        )}
       </Animated.View>
     );
   };
@@ -611,11 +285,12 @@ const Notifications = () => {
           {filterTypes.map((type) => (
             <TouchableOpacity
               key={type.key}
-              onPress={() => handleFilterChange(type.key)}
-              className={`flex-row items-center rounded-lg border px-3 py-2 gap-2 ${filter === type.key
+              onPress={() => setFilter(type.key)} // ✅ Call store action
+              className={`flex-row items-center rounded-full border px-3 py-2 gap-2 ${
+                filter === type.key
                   ? "bg-black border-gray-300"
                   : "bg-white border-gray-200"
-                }`}
+              }`}
             >
               <Ionicons
                 name={type.icon}
@@ -623,7 +298,11 @@ const Notifications = () => {
                 color={filter === type.key ? "#fff" : "#6B7280"}
               />
               <Text
-                className={`text-sm ${filter === type.key ? "font-opensans-semibold text-white" : "font-opensans-regular text-gray-800"}`}
+                className={`text-sm ${
+                  filter === type.key
+                    ? "font-opensans-semibold text-white"
+                    : "font-opensans-regular text-gray-800"
+                }`}
               >
                 {type.label}
               </Text>
@@ -654,7 +333,10 @@ const Notifications = () => {
             refreshControl={
               <RefreshControl
                 refreshing={isRefreshing}
-                onRefresh={() => loadNotifications(true)}
+                // ✅ Call store action
+                onRefresh={() => {
+                  if (user?.id) loadNotifications(user.id, true);
+                }}
                 colors={["#000"]}
                 tintColor="#000"
               />

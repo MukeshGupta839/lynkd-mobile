@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 // app/(profiles)/userReels.tsx
 /// <reference types="react" />
 import PostOptionsBottomSheet from "@/components/PostOptionsBottomSheet";
@@ -65,6 +64,21 @@ import {
 const { width, height } = Dimensions.get("screen");
 const BOTTOM_NAV_HEIGHT = 80;
 const TRUNCATE_LEN = 25;
+
+// put near the top, e.g. under imports
+type HLSOrMP4 = {
+  uri: string;
+  contentType?: "hls" | "mp4";
+  headers?: Record<string, string>;
+};
+
+const toVideoSource = (url?: string): HLSOrMP4 | null => {
+  if (!url) return null;
+  // If backend provides HLS, great:
+  if (/\.m3u8(\?|$)/i.test(url)) return { uri: url, contentType: "hls" };
+  // If you *must* keep MP4s around temporarily:
+  return { uri: url, contentType: "mp4" };
+};
 
 const AnimatedFlatList = Reanimated.createAnimatedComponent(
   FlatList
@@ -425,9 +439,7 @@ const PostItem: React.FC<{
                   <Image
                     source={{ uri: avatarUri! }}
                     className="w-14 h-14 rounded-full"
-                    onError={() => {
-                      setImgError(true);
-                    }}
+                    onError={() => setImgError(true)}
                   />
                 ) : (
                   <View className="w-12 h-12 rounded-full bg-gray-500 justify-center items-center">
@@ -587,68 +599,20 @@ const ProfileReelsFeed: React.FC = () => {
     reset,
   } = useReelsStore();
 
-  // ✅ CRITICAL: Load reels data from navigation params (passed from ProfileScreen)
-  useEffect(() => {
-    if (params.userReelsData && typeof params.userReelsData === "string") {
-      try {
-        const parsed = JSON.parse(params.userReelsData);
-        console.log(
-          "📦 Received reels data from params:",
-          parsed.length,
-          "reels"
-        );
-        useReelsStore.setState({ reels: parsed });
-
-        // Set initial media immediately
-        if (parsed.length > 0) {
-          const initialIdx = params.initialIndex
-            ? parseInt(String(params.initialIndex), 10)
-            : 0;
-          const validIdx =
-            !isNaN(initialIdx) && initialIdx >= 0 && initialIdx < parsed.length
-              ? initialIdx
-              : 0;
-
-          console.log("🎯 Setting initial index to:", validIdx);
-          setCurrentIndex(validIdx);
-        }
-      } catch (e) {
-        console.error("❌ Error parsing userReelsData:", e);
-      }
-    }
-  }, [params.userReelsData, params.initialIndex]);
-
-  // ✅ Scroll to initial index after data is loaded
-  useEffect(() => {
-    if (params.initialIndex && posts.length > 0 && flatListRef.current) {
+  // ✅ Initialize currentIndex from params if available
+  const [currentIndex, setCurrentIndex] = useState<number>(() => {
+    if (params.initialIndex) {
       const idx = parseInt(String(params.initialIndex), 10);
-      if (!isNaN(idx) && idx >= 0 && idx < posts.length) {
-        console.log("📜 Scrolling to index:", idx);
-        setTimeout(() => {
-          try {
-            flatListRef.current?.scrollToIndex({ index: idx, animated: false });
-          } catch (e) {
-            console.log("Scroll to index error:", e);
-          }
-        }, 200);
-      }
+      return !isNaN(idx) && idx >= 0 ? idx : 0;
     }
-  }, [params.initialIndex, posts.length]);
-
-  // ✅ Reset store on unmount
-  useEffect(() => {
-    return () => {
-      console.log("🧹 Cleaning up UserReels store");
-      reset();
-    };
-  }, [reset]);
-
-  const [currentIndex, setCurrentIndex] = useState<number>(0);
+    return 0;
+  });
   const [followedUsers, setFollowedUsers] = useState<number[]>([]);
   const [showPostOptionsFor, setShowPostOptionsFor] = useState<RawReel | null>(
     null
   );
   const [reportVisible, setReportVisible] = useState(false);
+  const [focusedPost] = useState<any>(null); // Only for ReportPostBottomSheet props
 
   const focused = useIsFocused();
 
@@ -704,7 +668,7 @@ const ProfileReelsFeed: React.FC = () => {
 
   // Helper: determine whether the video for the given index is already
   // effectively playing/loaded so we can skip showing thumbnail/spinner overlays.
-  const isIndexPlayingOrLoaded = async (index: number) => {
+  const isIndexPlayingOrLoaded = useCallback(async (index: number) => {
     try {
       // If we've explicitly marked it loaded (prefetch or cache), skip overlays
       if (loadedSetRef.current.has(index)) return true;
@@ -742,7 +706,9 @@ const ProfileReelsFeed: React.FC = () => {
       // ignore errors and fall back to showing overlays
     }
     return false;
-  };
+    // Intentionally empty deps - this reads latest refs/state via closures
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Manage thumbnail overlay delay: show after short delay, hide immediately when loaded
@@ -771,7 +737,7 @@ const ProfileReelsFeed: React.FC = () => {
         loadingThumbTimeoutRef.current = null;
       }
     };
-  }, [mediaLoading]);
+  }, [mediaLoading, currentIndex, isIndexPlayingOrLoaded]);
 
   // loadedSetRef tracks which indices have finished loading at least once
   const loadedSetRef = useRef<Set<number>>(new Set());
@@ -820,6 +786,60 @@ const ProfileReelsFeed: React.FC = () => {
   const videoErrorsRef = useRef<Map<number, boolean>>(new Map());
   const [hasVideoError, setHasVideoError] = useState(false);
 
+  // Handler for video load failures - ensures all players are paused/muted
+  const handleVideoLoadError = (index: number, reason?: any) => {
+    try {
+      console.error("❌ Handling video load error for index:", index, reason);
+      videoErrorsRef.current.set(index, true);
+      setHasVideoError(true);
+      // stop media loading UI
+      setMediaLoading(false);
+      setShowLoadingSpinner(false);
+      setShowLoadingThumbnail(false);
+
+      // Show swap placeholder on Android so user doesn't see artifacts
+      if (Platform.OS === "android") setAndroidSwapInProgress(true);
+
+      // Pause/mute the single/shared player if present
+      try {
+        const p = playerRef.current as any;
+        if (p) {
+          if (typeof p.pause === "function") p.pause();
+          else if (typeof p.pauseAsync === "function")
+            p.pauseAsync().catch(() => {});
+          if (typeof p.setIsMuted === "function") p.setIsMuted(true);
+          else if ("muted" in p) p.muted = true;
+        }
+      } catch (e) {
+        console.error("Error pausing shared player on error:", e);
+      }
+
+      // Pause and mute both slot players (Android two-slot system)
+      try {
+        const slots = slotPlayersRef.current || [];
+        for (let i = 0; i < slots.length; i++) {
+          const sp = slots[i];
+          if (!sp) continue;
+          try {
+            if (typeof sp.pause === "function") sp.pause();
+            else if (typeof sp.pauseAsync === "function")
+              sp.pauseAsync().catch(() => {});
+            if (typeof sp.setIsMuted === "function") sp.setIsMuted(true);
+            else if ("muted" in sp) sp.muted = true;
+          } catch (e) {
+            console.error(`Error pausing slot ${i} on video error:`, e);
+          }
+        }
+      } catch (e) {
+        console.error("Error iterating slot players on video error:", e);
+      }
+
+      // Keep the Android swap placeholder visible so user sees thumbnail until they swipe/ retry
+    } catch (e) {
+      console.error("Error in handleVideoLoadError:", e);
+    }
+  };
+
   // ✅ Added: open comments handler
   const openCommentsFor = useCallback(
     (post: RawReel) => {
@@ -830,19 +850,79 @@ const ProfileReelsFeed: React.FC = () => {
     [fetchCommentsStore]
   );
 
-  // ✅ Fetch user's liked posts and followings on mount
+  // ✅ CRITICAL: Load reels data from navigation params (passed from ProfileScreen)
   useEffect(() => {
-    if (user?.id) {
-      fetchUserLikedPosts(user.id);
-      fetchUserFollowings();
+    if (params.userReelsData && typeof params.userReelsData === "string") {
+      try {
+        const parsed = JSON.parse(params.userReelsData);
+        console.log(
+          "📦 Received reels data from params:",
+          parsed.length,
+          "reels"
+        );
+        useReelsStore.setState({ reels: parsed });
+
+        // Set initial media immediately
+        if (parsed.length > 0) {
+          const initialIdx = params.initialIndex
+            ? parseInt(String(params.initialIndex), 10)
+            : 0;
+          const validIdx =
+            !isNaN(initialIdx) && initialIdx >= 0 && initialIdx < parsed.length
+              ? initialIdx
+              : 0;
+
+          console.log("🎯 Setting initial index to:", validIdx);
+          console.log(
+            "🔄 Resetting from previous index:",
+            currentIndex,
+            "to:",
+            validIdx
+          );
+
+          // ✅ CRITICAL: Always reset index when params change (handles component reuse by React Navigation)
+          setCurrentIndex(validIdx);
+          // ✅ CRITICAL: Also set currentMedia immediately so Android slot initialization works
+          setCurrentMedia(parsed[validIdx]);
+          setMediaLoading(true);
+        }
+      } catch (e) {
+        console.error("❌ Error parsing userReelsData:", e);
+      }
     }
-  }, [user?.id, fetchUserLikedPosts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.userReelsData, params.initialIndex]);
+
+  // ✅ Scroll to initial index after data is loaded
+  useEffect(() => {
+    if (params.initialIndex && posts.length > 0 && flatListRef.current) {
+      const idx = parseInt(String(params.initialIndex), 10);
+      if (!isNaN(idx) && idx >= 0 && idx < posts.length) {
+        console.log("📜 Scrolling to index:", idx);
+        setTimeout(() => {
+          try {
+            flatListRef.current?.scrollToIndex({ index: idx, animated: false });
+          } catch (e) {
+            console.log("Scroll to index error:", e);
+          }
+        }, 200);
+      }
+    }
+  }, [params.initialIndex, posts.length]);
+
+  // ✅ Reset store on unmount
+  useEffect(() => {
+    return () => {
+      console.log("🧹 Cleaning up UserReels store");
+      reset();
+    };
+  }, [reset]);
 
   // ✅ REMOVED: Sync effect that was causing unnecessary re-renders
   // The liked status is now calculated directly in PostItem using useMemo,
   // so we don't need to update the posts array when likedPostIDs changes
 
-  const fetchUserFollowings = async () => {
+  const fetchUserFollowings = useCallback(async () => {
     if (!user?.id) return;
     try {
       const response = await apiCall(
@@ -858,7 +938,23 @@ const ProfileReelsFeed: React.FC = () => {
     } catch (error) {
       console.error("❌ Error fetching user followings:", error);
     }
-  };
+  }, [user?.id]);
+
+  // ✅ Fetch user's liked posts and followings on mount
+  useEffect(() => {
+    if (user?.id) {
+      fetchUserLikedPosts(user.id);
+      fetchUserFollowings();
+    }
+  }, [user?.id, fetchUserLikedPosts, fetchUserFollowings]);
+
+  // ✅ Fetch user's liked posts and followings on mount
+  useEffect(() => {
+    if (user?.id) {
+      fetchUserLikedPosts(user.id);
+      fetchUserFollowings();
+    }
+  }, [user?.id, fetchUserLikedPosts, fetchUserFollowings]);
 
   const toggleLike = async (postId: number) => {
     if (!user?.id) return;
@@ -896,8 +992,8 @@ const ProfileReelsFeed: React.FC = () => {
           if (typeof (pl as any).addListener === "function") {
             (pl as any).addListener("error", (error: any) => {
               console.error("❌ Player error event:", error);
-              videoErrorsRef.current.set(currentIndex, true);
-              setHasVideoError(true);
+              // Centralized handler will pause/mute players and show placeholder
+              handleVideoLoadError(currentIndex, error);
             });
             console.log("👂 Error listener added");
           }
@@ -1098,6 +1194,25 @@ const ProfileReelsFeed: React.FC = () => {
   // to avoid showing the previous player's last frame (native surface artifact).
   const [androidSwapInProgress, setAndroidSwapInProgress] = useState(false);
 
+  // ✅ CRITICAL FIX: Initialize slotAUri when currentMedia becomes available
+  // This handles the case where currentMedia is null during initial useState (when params load async)
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    if (!currentMedia?.media_url) return;
+
+    const targetUri = String(currentMedia.media_url);
+
+    // ✅ Initialize or update slotAUri if it doesn't match currentMedia
+    // This ensures the slot always reflects the current media, even after params load
+    if (slotAUri !== targetUri) {
+      console.log(
+        "🎬 Initializing/updating slotAUri for Android with currentMedia:",
+        targetUri
+      );
+      setSlotAUri(targetUri);
+    }
+  }, [currentMedia, slotAUri]);
+
   const slotPlayersRef = useRef<any[]>([null, null]);
   const slotReadyRef = useRef<Record<number, boolean>>({});
 
@@ -1105,16 +1220,65 @@ const ProfileReelsFeed: React.FC = () => {
   const slot0Opacity = useSharedValue(activeSlot === 0 ? 1 : 0);
   const slot1Opacity = useSharedValue(activeSlot === 1 ? 1 : 0);
   useEffect(() => {
-    slot0Opacity.value = withTiming(activeSlot === 0 ? 1 : 0, {
-      duration: 0,
-    });
-    slot1Opacity.value = withTiming(activeSlot === 1 ? 1 : 0, {
-      duration: 0,
-    });
-  }, [activeSlot]);
+    // ✅ For fast swipes: instant hide inactive, instant show active
+    // NO FADE-IN to prevent any partial visibility during rendering
+    if (activeSlot === 0) {
+      slot1Opacity.value = 0; // Instant hide slot1
+      slot0Opacity.value = 1; // INSTANT show slot0 (no animation)
+    } else {
+      slot0Opacity.value = 0; // Instant hide slot0
+      slot1Opacity.value = 1; // INSTANT show slot1 (no animation)
+    }
 
-  const slot0Style = useAnimatedStyle(() => ({ opacity: slot0Opacity.value }));
-  const slot1Style = useAnimatedStyle(() => ({ opacity: slot1Opacity.value }));
+    // ✅ CRITICAL: Always pause and seek the inactive slot to prevent audio overlap and stale frames
+    if (Platform.OS === "android") {
+      const inactiveSlot = activeSlot === 0 ? 1 : 0;
+      const inactivePlayer = slotPlayersRef.current[inactiveSlot];
+      if (inactivePlayer) {
+        try {
+          // Mute immediately to prevent audio bleed
+          if (typeof inactivePlayer.setIsMuted === "function") {
+            inactivePlayer.setIsMuted(true);
+          } else if ("muted" in inactivePlayer) {
+            inactivePlayer.muted = true;
+          }
+
+          // Pause the inactive player
+          if (typeof inactivePlayer.pause === "function") {
+            inactivePlayer.pause();
+          } else if (typeof inactivePlayer.pauseAsync === "function") {
+            inactivePlayer.pauseAsync().catch(() => {});
+          }
+
+          // Seek to start to prevent showing last frame when it becomes active again
+          if (typeof (inactivePlayer as any).seekTo === "function") {
+            (inactivePlayer as any).seekTo(0);
+          } else if (
+            typeof (inactivePlayer as any).setPositionAsync === "function"
+          ) {
+            (inactivePlayer as any).setPositionAsync(0).catch(() => {});
+          }
+
+          console.log(
+            `🔇 Muted, paused and reset inactive slot${inactiveSlot}`
+          );
+        } catch (e) {
+          console.error(`Error pausing slot${inactiveSlot}:`, e);
+        }
+      }
+    }
+  }, [activeSlot, slot0Opacity, slot1Opacity]);
+
+  const slot0Style = useAnimatedStyle(() => ({
+    opacity: slot0Opacity.value,
+    // Use zIndex to ensure inactive slot is behind active slot during crossfade
+    zIndex: slot0Opacity.value > 0.5 ? 2 : 1,
+  }));
+  const slot1Style = useAnimatedStyle(() => ({
+    opacity: slot1Opacity.value,
+    // Use zIndex to ensure inactive slot is behind active slot during crossfade
+    zIndex: slot1Opacity.value > 0.5 ? 2 : 1,
+  }));
 
   // helper to poll a player until it reports a duration or loaded status
   const watchPlayerReady = (pl: any, slotIndex: number) => {
@@ -1144,6 +1308,36 @@ const ProfileReelsFeed: React.FC = () => {
       slotPlayersRef.current[0] = pl;
       if (pl) {
         console.log("slot0 player created", slotAUri);
+
+        // ✅ Enable looping for Android slot player
+        if (typeof (pl as any).setIsLooping === "function") {
+          (pl as any).setIsLooping(true);
+          console.log("🔁 Looping enabled for slot0");
+        } else if ("loop" in (pl as any)) {
+          (pl as any).loop = true;
+          console.log("🔁 Looping enabled for slot0 (alt method)");
+        }
+
+        // Enable sound (unmuted)
+        if (typeof (pl as any).setIsMuted === "function") {
+          (pl as any).setIsMuted(false);
+        } else if ("muted" in (pl as any)) {
+          (pl as any).muted = false;
+        }
+
+        // ✅ CRITICAL: Seek to position 0 to prevent showing previous video's last frame
+        try {
+          if (typeof (pl as any).seekTo === "function") {
+            (pl as any).seekTo(0);
+            console.log("⏮️ Seeked slot0 to position 0");
+          } else if (typeof (pl as any).setPositionAsync === "function") {
+            (pl as any).setPositionAsync(0).catch(() => {});
+            console.log("⏮️ Seeked slot0 to position 0 (async)");
+          }
+        } catch (e) {
+          console.log("Could not seek slot0 to start:", e);
+        }
+
         watchPlayerReady(pl, 0);
       } else {
         slotReadyRef.current[0] = false;
@@ -1158,6 +1352,36 @@ const ProfileReelsFeed: React.FC = () => {
       slotPlayersRef.current[1] = pl;
       if (pl) {
         console.log("slot1 player created", slotBUri);
+
+        // ✅ Enable looping for Android slot player
+        if (typeof (pl as any).setIsLooping === "function") {
+          (pl as any).setIsLooping(true);
+          console.log("🔁 Looping enabled for slot1");
+        } else if ("loop" in (pl as any)) {
+          (pl as any).loop = true;
+          console.log("🔁 Looping enabled for slot1 (alt method)");
+        }
+
+        // Enable sound (unmuted)
+        if (typeof (pl as any).setIsMuted === "function") {
+          (pl as any).setIsMuted(false);
+        } else if ("muted" in (pl as any)) {
+          (pl as any).muted = false;
+        }
+
+        // ✅ CRITICAL: Seek to position 0 to prevent showing previous video's last frame
+        try {
+          if (typeof (pl as any).seekTo === "function") {
+            (pl as any).seekTo(0);
+            console.log("⏮️ Seeked slot1 to position 0");
+          } else if (typeof (pl as any).setPositionAsync === "function") {
+            (pl as any).setPositionAsync(0).catch(() => {});
+            console.log("⏮️ Seeked slot1 to position 0 (async)");
+          }
+        } catch (e) {
+          console.log("Could not seek slot1 to start:", e);
+        }
+
         watchPlayerReady(pl, 1);
       } else {
         slotReadyRef.current[1] = false;
@@ -1175,24 +1399,216 @@ const ProfileReelsFeed: React.FC = () => {
 
     // If already in a slot and ready, switch immediately
     if (slotAUri === targetUri && slotReadyRef.current[0]) {
+      // ✅ Show swap placeholder briefly to cover transition
+      setAndroidSwapInProgress(true);
+
+      // ✅ Pause the other slot before switching
+      const prevPlayer = slotPlayersRef.current[1];
+      if (prevPlayer) {
+        try {
+          if (typeof prevPlayer.pause === "function") {
+            prevPlayer.pause();
+          } else if (typeof prevPlayer.pauseAsync === "function") {
+            prevPlayer.pauseAsync().catch(() => {});
+          }
+          console.log("🔇 Paused slot1 player before switching to slot0");
+        } catch (e) {
+          console.error("Error pausing slot1:", e);
+        }
+      }
+
       setActiveSlot(0);
       playerRef.current = slotPlayersRef.current[0] ?? playerRef.current;
       setMediaLoading(false);
       setShowLoadingSpinner(false);
       setShowLoadingThumbnail(false);
+
+      // ✅ Ensure the new active player is playing
+      const newPlayer = slotPlayersRef.current[0];
+      if (newPlayer) {
+        try {
+          if (typeof newPlayer.play === "function") {
+            newPlayer.play();
+          } else if (typeof newPlayer.playAsync === "function") {
+            newPlayer.playAsync().catch(() => {});
+          }
+          console.log("▶️ Started slot0 player");
+
+          // ✅ CRITICAL: Wait for video to actually start playing before removing placeholder
+          // This prevents flickering by ensuring the first frame is rendered
+          if (typeof newPlayer.getStatusAsync === "function") {
+            let waitedMs = 0;
+            const CHECK_MS = 50;
+            const MAX_MS = 800;
+            const pollInterval = setInterval(async () => {
+              try {
+                const status: any = await newPlayer.getStatusAsync();
+                const isPlaying = !!status?.isPlaying;
+                const pos = Number(
+                  status?.positionMillis ?? status?.position ?? 0
+                );
+                // Wait for both playing AND position to advance
+                if (isPlaying && pos > 50) {
+                  clearInterval(pollInterval);
+                  setTimeout(() => {
+                    setAndroidSwapInProgress(false);
+                  }, 150); // Small additional delay for surface rendering
+                  return;
+                }
+              } catch {}
+              waitedMs += CHECK_MS;
+              if (waitedMs >= MAX_MS) {
+                clearInterval(pollInterval);
+                setTimeout(() => {
+                  setAndroidSwapInProgress(false);
+                }, 150);
+              }
+            }, CHECK_MS);
+          } else {
+            // Fallback: use timeout if getStatusAsync not available
+            setTimeout(() => {
+              setAndroidSwapInProgress(false);
+            }, 600);
+          }
+        } catch (e) {
+          console.error("Error playing slot0:", e);
+          setTimeout(() => {
+            setAndroidSwapInProgress(false);
+          }, 400);
+        }
+      } else {
+        setTimeout(() => {
+          setAndroidSwapInProgress(false);
+        }, 400);
+      }
       return;
     }
     if (slotBUri === targetUri && slotReadyRef.current[1]) {
+      // ✅ Show swap placeholder briefly to cover transition
+      setAndroidSwapInProgress(true);
+
+      // ✅ Pause the other slot before switching
+      const prevPlayer = slotPlayersRef.current[0];
+      if (prevPlayer) {
+        try {
+          if (typeof prevPlayer.pause === "function") {
+            prevPlayer.pause();
+          } else if (typeof prevPlayer.pauseAsync === "function") {
+            prevPlayer.pauseAsync().catch(() => {});
+          }
+          console.log("🔇 Paused slot0 player before switching to slot1");
+        } catch (e) {
+          console.error("Error pausing slot0:", e);
+        }
+      }
+
       setActiveSlot(1);
       playerRef.current = slotPlayersRef.current[1] ?? playerRef.current;
       setMediaLoading(false);
       setShowLoadingSpinner(false);
       setShowLoadingThumbnail(false);
+
+      // ✅ Ensure the new active player is playing
+      const newPlayer = slotPlayersRef.current[1];
+      if (newPlayer) {
+        try {
+          if (typeof newPlayer.play === "function") {
+            newPlayer.play();
+          } else if (typeof newPlayer.playAsync === "function") {
+            newPlayer.playAsync().catch(() => {});
+          }
+          console.log("▶️ Started slot1 player");
+
+          // ✅ CRITICAL: Wait for video to actually start playing before removing placeholder
+          // This prevents flickering by ensuring the first frame is rendered
+          if (typeof newPlayer.getStatusAsync === "function") {
+            let waitedMs = 0;
+            const CHECK_MS = 50;
+            const MAX_MS = 800;
+            const pollInterval = setInterval(async () => {
+              try {
+                const status: any = await newPlayer.getStatusAsync();
+                const isPlaying = !!status?.isPlaying;
+                const pos = Number(
+                  status?.positionMillis ?? status?.position ?? 0
+                );
+                // Wait for both playing AND position to advance
+                if (isPlaying && pos > 50) {
+                  clearInterval(pollInterval);
+                  setTimeout(() => {
+                    setAndroidSwapInProgress(false);
+                  }, 150); // Small additional delay for surface rendering
+                  return;
+                }
+              } catch {}
+              waitedMs += CHECK_MS;
+              if (waitedMs >= MAX_MS) {
+                clearInterval(pollInterval);
+                setTimeout(() => {
+                  setAndroidSwapInProgress(false);
+                }, 150);
+              }
+            }, CHECK_MS);
+          } else {
+            // Fallback: use timeout if getStatusAsync not available
+            setTimeout(() => {
+              setAndroidSwapInProgress(false);
+            }, 600);
+          }
+        } catch (e) {
+          console.error("Error playing slot1:", e);
+          setTimeout(() => {
+            setAndroidSwapInProgress(false);
+          }, 400);
+        }
+      } else {
+        setTimeout(() => {
+          setAndroidSwapInProgress(false);
+        }, 400);
+      }
       return;
     }
 
     // Otherwise load into inactive slot
     const inactive = activeSlot === 0 ? 1 : 0;
+
+    // ✅ CRITICAL FIX: Immediately hide the inactive slot's opacity BEFORE loading new content
+    // This prevents showing the previous video's last frame during the load
+    if (inactive === 0) {
+      slot0Opacity.value = 0; // Hide slot0 immediately
+    } else {
+      slot1Opacity.value = 0; // Hide slot1 immediately
+    }
+
+    // ✅ CRITICAL: Immediately pause and hide the inactive slot before loading new content
+    // This prevents showing stale frames from the previous video
+    const inactivePlayer = slotPlayersRef.current[inactive];
+    if (inactivePlayer) {
+      try {
+        // Mute immediately
+        if (typeof inactivePlayer.setIsMuted === "function") {
+          inactivePlayer.setIsMuted(true);
+        } else if ("muted" in inactivePlayer) {
+          inactivePlayer.muted = true;
+        }
+
+        // Pause
+        if (typeof inactivePlayer.pause === "function") {
+          inactivePlayer.pause();
+        } else if (typeof inactivePlayer.pauseAsync === "function") {
+          inactivePlayer.pauseAsync().catch(() => {});
+        }
+        console.log(
+          `🔇 Pre-emptively hidden, muted and paused slot${inactive} before loading new content`
+        );
+      } catch (e) {
+        console.error(`Error pre-pausing slot${inactive}:`, e);
+      }
+    }
+
+    // Mark the inactive slot as not ready immediately to prevent premature switching
+    slotReadyRef.current[inactive] = false;
+
     // prefer local cached file if present
     const localCached = localFileUrisRef.current.get(currentIndex);
     const uriToUse = localCached ?? targetUri;
@@ -1239,8 +1655,8 @@ const ProfileReelsFeed: React.FC = () => {
             // native surface has actually rendered the new frame.
             if (typeof p.getStatusAsync === "function") {
               let waitedMs = 0;
-              const CHECK_MS = 80;
-              const MAX_MS = 600;
+              const CHECK_MS = 50; // Check more frequently
+              const MAX_MS = 1000; // Wait longer for video to actually start playing
               try {
                 await new Promise<void>((resolve) => {
                   const tid = setInterval(async () => {
@@ -1248,7 +1664,8 @@ const ProfileReelsFeed: React.FC = () => {
                       const s: any = await p.getStatusAsync();
                       const isPlaying = !!s?.isPlaying;
                       const pos = Number(s?.positionMillis ?? s?.position ?? 0);
-                      if (isPlaying || pos > 30) {
+                      // ✅ Wait for BOTH playing AND position to advance (ensures frame is rendered)
+                      if (isPlaying && pos > 50) {
                         clearInterval(tid);
                         resolve();
                         return;
@@ -1271,8 +1688,12 @@ const ProfileReelsFeed: React.FC = () => {
         setMediaLoading(false);
         setShowLoadingSpinner(false);
         setShowLoadingThumbnail(false);
-        // new slot is active/playing — stop forcing the swap placeholder
-        setAndroidSwapInProgress(false);
+
+        // ✅ CRITICAL: Keep placeholder visible longer to ensure video surface has fully rendered
+        // Android's TextureView needs extra time to show the first frame
+        setTimeout(() => {
+          setAndroidSwapInProgress(false);
+        }, 500); // Increased from 250ms to 500ms for better coverage
       } else {
         waited += 120;
         if (waited > 3000) {
@@ -1286,7 +1707,15 @@ const ProfileReelsFeed: React.FC = () => {
     }, 120);
 
     return () => clearInterval(interval);
-  }, [currentIndex, slotAUri, slotBUri, activeSlot, posts]);
+  }, [
+    currentIndex,
+    slotAUri,
+    slotBUri,
+    activeSlot,
+    posts,
+    slot0Opacity,
+    slot1Opacity,
+  ]);
 
   // CONTINUOUS PLAYBACK MONITORING: Preload next video while current is playing
   useEffect(() => {
@@ -1776,8 +2205,8 @@ const ProfileReelsFeed: React.FC = () => {
                 `❌ Video ${currentIndex} failed to load:`,
                 status.error
               );
-              videoErrorsRef.current.set(currentIndex, true);
-              setHasVideoError(true);
+              // Use centralized handler to ensure players are paused/muted
+              handleVideoLoadError(currentIndex, status?.error);
               if (pollTimer) {
                 clearInterval(pollTimer);
                 pollTimer = null;
@@ -1832,18 +2261,12 @@ const ProfileReelsFeed: React.FC = () => {
                         "❌ Video URL validation failed:",
                         response.status
                       );
-                      videoErrorsRef.current.set(currentIndex, true);
-                      setHasVideoError(true);
-                      setMediaLoading(false);
-                      setShowLoadingSpinner(false);
+                      handleVideoLoadError(currentIndex, response.status);
                     }
                   })
                   .catch((error) => {
                     console.error("❌ Failed to validate video URL:", error);
-                    videoErrorsRef.current.set(currentIndex, true);
-                    setHasVideoError(true);
-                    setMediaLoading(false);
-                    setShowLoadingSpinner(false);
+                    handleVideoLoadError(currentIndex, error);
                   })
                   .finally(() => {
                     if (pollTimer) {
@@ -1853,10 +2276,7 @@ const ProfileReelsFeed: React.FC = () => {
                   });
               } else {
                 console.error("❌ Invalid video URL:", videoUrl);
-                videoErrorsRef.current.set(currentIndex, true);
-                setHasVideoError(true);
-                setMediaLoading(false);
-                setShowLoadingSpinner(false);
+                handleVideoLoadError(currentIndex, "Invalid URL");
                 if (pollTimer) {
                   clearInterval(pollTimer);
                   pollTimer = null;
@@ -2014,12 +2434,17 @@ const ProfileReelsFeed: React.FC = () => {
         clearTimeout(loadingThumbTimeoutRef.current);
       }
     };
-  }, [currentIndex]); // ✅ FIXED: Only depend on currentIndex, not posts array (prevents reload on like/unlike)
+  }, [currentIndex, isIndexPlayingOrLoaded, posts]); // ✅ FIXED: Only depend on currentIndex, not posts array (prevents reload on like/unlike)
 
   // Handle screen focus/blur - pause when screen is not focused
   useEffect(() => {
     console.log("🎯 Screen focus changed:", focused);
     if (focused && !mediaLoading && !manualPausedRef.current) {
+      // ✅ CRITICAL: Only resume if we have valid posts data
+      if (posts.length === 0) {
+        console.log("⏭️ No posts yet, skipping auto-play on focus");
+        return;
+      }
       // Screen just became focused and video is loaded - start playing
       console.log("▶️ Screen focused - resuming playback");
       safePlay().then(() => {
@@ -2032,7 +2457,7 @@ const ProfileReelsFeed: React.FC = () => {
         setIsPlayingState(false);
       });
     }
-  }, [focused, mediaLoading, safePlay, safePause]);
+  }, [focused, mediaLoading, safePlay, safePause, posts.length]);
 
   // cleanup on unmount
   useEffect(() => {
@@ -2048,7 +2473,9 @@ const ProfileReelsFeed: React.FC = () => {
         }
       })();
     };
-  }, []); // only on unmount
+    // Only on unmount - player ref accessed from cleanup
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // SINGLE vs DOUBLE tap handling: if second tap occurs within DELAY, treat as double-tap
   const DOUBLE_PRESS_DELAY = 260;
@@ -2185,6 +2612,13 @@ const ProfileReelsFeed: React.FC = () => {
     // User started an active swipe — immediately suppress any loading UI
     // to avoid flicker while the list is animating between items.
     setIsUserScrolling(true);
+
+    // ✅ CRITICAL FIX for Android: Show swap placeholder immediately when user starts swiping
+    // This prevents showing the previous video's last frame during the swipe transition
+    if (Platform.OS === "android") {
+      setAndroidSwapInProgress(true);
+    }
+
     // Cancel pending spinner timeout and hide overlays immediately
     try {
       if (loadingTimeoutRef.current) {
@@ -2303,7 +2737,7 @@ const ProfileReelsFeed: React.FC = () => {
     // Just clear local state
     setRefreshing(false);
     console.log("✅ Refresh complete");
-  }, [safePause, scrollY]);
+  }, [safePause, scrollY, user?.id]); // user?.id included for completeness even though checked inside
 
   // Register tab press handlers for scroll to top and refresh
   useEffect(() => {
@@ -2493,6 +2927,7 @@ const ProfileReelsFeed: React.FC = () => {
                       top: 0,
                       right: 0,
                       bottom: 0,
+                      zIndex: 1, // Lower z-index than swap placeholder
                     },
                     slot0Style as any,
                   ]}
@@ -2519,6 +2954,7 @@ const ProfileReelsFeed: React.FC = () => {
                       top: 0,
                       right: 0,
                       bottom: 0,
+                      zIndex: 1, // Lower z-index than swap placeholder
                     },
                     slot1Style as any,
                   ]}
@@ -2536,7 +2972,7 @@ const ProfileReelsFeed: React.FC = () => {
                   ) : null}
                 </Reanimated.View>
                 {/* Android placeholder during swap: blurred thumbnail if available,
-                    otherwise solid black. This covers native surface artifacts. */}
+                    otherwise solid black. This covers native surface artifacts during fast swipes. */}
                 {androidSwapInProgress && (
                   <View
                     pointerEvents="none"
@@ -2549,7 +2985,8 @@ const ProfileReelsFeed: React.FC = () => {
                       alignItems: "center",
                       justifyContent: "center",
                       backgroundColor: "#000",
-                      zIndex: 26,
+                      zIndex: 100, // Much higher z-index to ensure it's ALWAYS on top
+                      elevation: 100, // Android elevation to render above native video surfaces
                     }}
                   >
                     {currentMedia?.thumbnail_url ? (
@@ -2557,7 +2994,7 @@ const ProfileReelsFeed: React.FC = () => {
                         source={{ uri: currentMedia.thumbnail_url }}
                         style={{ width, height }}
                         resizeMode="cover"
-                        blurRadius={8}
+                        blurRadius={10} // Slightly more blur for smoother transition
                         onError={() => {}}
                       />
                     ) : null}
@@ -2889,8 +3326,6 @@ const ProfileReelsFeed: React.FC = () => {
         disableIntervalMomentum={true}
         snapToInterval={height}
         snapToAlignment="start"
-        bounces={false}
-        overScrollMode="never"
       />
 
       {/* ✅ Added: Comments sheet instance */}
@@ -3044,7 +3479,7 @@ const ProfileReelsFeed: React.FC = () => {
       <ReportPostBottomSheet
         show={reportVisible}
         setShow={setReportVisible}
-        postId={showPostOptionsFor?.id?.toString() || ""}
+        postId={focusedPost?.id || ""}
         userId={user?.id || ""}
       />
     </View>

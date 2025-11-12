@@ -106,6 +106,8 @@ export const useReelsStore = create<ReelsState>((set, get) => ({
 
       const response = await fetchReelsApi(userId, 0);
 
+      console.log("🚀 Prefetch response:", response);
+
       if (response && response.data && Array.isArray(response.data)) {
         // Filter out invalid videos
         const validReels = response.data.filter((reel) => {
