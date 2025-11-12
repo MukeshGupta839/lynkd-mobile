@@ -12,11 +12,13 @@ import React, {
   useState,
 } from "react";
 import {
+  DeviceEventEmitter,
   FlatList,
   Image,
   InteractionManager,
   Keyboard,
   Modal,
+  NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
   Pressable,
@@ -46,23 +48,23 @@ import Location from "../../assets/posts/location.svg";
 
 import {
   CHAT_LIST_DUMMY,
-  LOGGED_USER,
   PostPreview as RegistryPostPreview,
   getMessagesWith,
   getPostPreview as getRegistryPostPreview,
 } from "@/constants/chat";
 import Octicons from "@expo/vector-icons/Octicons";
 
-// Reanimated (for animated bottom spacer)
+import { apiCall } from "@/lib/api/apiService";
+import io from "socket.io-client";
+
+// 🔹 Reanimated (V1 feature)
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
 
-/* -------------------------------------------------------
-   Types
--------------------------------------------------------- */
+/* ----------------------------- */
 type PostPreview = RegistryPostPreview & {
   author_avatar?: string;
   likes?: number;
@@ -71,10 +73,12 @@ type PostPreview = RegistryPostPreview & {
 };
 
 type Message = {
-  id: string;
+  id: string; // server id OR temporary local id
+  clientId?: string; // optimistic idempotency key
   text?: string;
   image?: string;
-  createdAt: string;
+  createdAt: string; // ISO
+  createdAtMs: number; // number
   userId: string;
   username?: string;
   product?: { id: string; name: string } | null;
@@ -83,11 +87,61 @@ type Message = {
   postPreview?: PostPreview;
 };
 
-const DEFAULT_AVATAR = "https://www.gravatar.com/avatar/?d=mp";
+type ServerMessage = {
+  id?: string;
+  client_id?: string;
+  sender_id: string;
+  receiver_id: string;
+  content?: string;
+  message_type?: "text" | "shared_post";
+  shared_post?: any;
+  created_at?: string;
+  is_read?: boolean;
+};
 
-/* -------------------------------------------------------
-   Helpers
--------------------------------------------------------- */
+const DEFAULT_AVATAR = "https://www.gravatar.com/avatar/?d=mp";
+const SOCKET_PATH = "/socket.io/";
+const ENDPOINT = `${process.env.API_URL ?? ""}`;
+
+/* ----------------------------- */
+const toMs = (iso?: string): number => {
+  if (!iso) return Date.now();
+  const hasTZ = /[zZ]|[+\-]\d{2}:?\d{2}$/.test(iso);
+  const safe = hasTZ ? iso : `${iso}Z`;
+  const t = Date.parse(safe);
+  return Number.isFinite(t) ? t : Date.now();
+};
+const toIso = (msOrIso: number | string | undefined) => {
+  if (typeof msOrIso === "number") return new Date(msOrIso).toISOString();
+  return new Date(toMs(msOrIso)).toISOString();
+};
+
+const isValidId = (v?: string) => {
+  if (!v) return false;
+  const s = String(v);
+  if (s === "me" || s === "other") return false;
+  const reNum = /^\d+$/;
+  const reUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return reNum.test(s) || reUuid.test(s) || s.length >= 3;
+};
+const makeClientId = () =>
+  `cid_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+/* ---------------- ONLY-ID DEDUPE ---------------- */
+const mergeById = (items: Message[]): Message[] => {
+  const map = new Map<string, Message>();
+  for (const m of items) {
+    if (!m) continue;
+    if (m.id) {
+      map.set(m.id, m);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.createdAtMs - a.createdAtMs);
+};
+
+/* ------------------------------------------------------------- */
+
 function normalizePreview(raw?: any): PostPreview | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const v =
@@ -113,53 +167,164 @@ function normalizePreview(raw?: any): PostPreview | undefined {
   };
 }
 
-/* ---------------------------
-   Message bubble
---------------------------- */
+const formatFromServer = (
+  msg: ServerMessage,
+  me: { id: string; username: string },
+  them: { id: string; username: string }
+): Message => {
+  const kind = msg.message_type ?? "text";
+  const isText = kind === "text";
+  const createdAtMs = toMs(msg.created_at);
+  return {
+    id: msg.id || Math.random().toString(36).slice(2),
+    clientId: msg.client_id,
+    text: isText ? (msg.content ?? "") : undefined,
+    createdAt: new Date(createdAtMs).toISOString(),
+    createdAtMs,
+    userId: String(msg.sender_id),
+    username: String(msg.sender_id) === me.id ? me.username : them.username,
+    messageType: isText ? "text" : "post",
+    postId: !isText ? String(msg.shared_post?.id ?? "") : undefined,
+    postPreview: !isText ? normalizePreview(msg.shared_post) : undefined,
+  };
+};
+
+const toServerMessage = (
+  local: Message,
+  meId: string,
+  themId: string
+): ServerMessage => ({
+  id: local.id,
+  client_id: local.clientId,
+  sender_id: meId,
+  receiver_id: themId,
+  content: local.text ?? "",
+  message_type: local.messageType === "post" ? "shared_post" : "text",
+  created_at: local.createdAt,
+  is_read: false,
+});
+
+/* --------------------------- */
+const startOfDay = (ms: number) => {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+const isSameDay = (a: number, b: number) => startOfDay(a) === startOfDay(b);
+const labelForDay = (ms: number) => {
+  const now = new Date();
+  const d = new Date(ms);
+  const diffDays = Math.round(
+    (startOfDay(now.getTime()) - startOfDay(ms)) / 86400000
+  );
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+};
+const withinGroup = (a: Message, b: Message) => {
+  if (!a || !b) return false;
+  if (String(a.userId) !== String(b.userId)) return false;
+  return Math.abs(a.createdAtMs - b.createdAtMs) <= 2 * 60 * 1000;
+};
+
+/* ---------- pending-per-text queue ---------- */
+const trimKey = (s?: string) => (s ?? "").trim();
+function pushPending(
+  mapRef: React.MutableRefObject<Map<string, string[]>>,
+  textKey: string,
+  optimisticId: string
+) {
+  const key = trimKey(textKey);
+  if (!key) return;
+  const q = mapRef.current.get(key) ?? [];
+  q.push(optimisticId);
+  mapRef.current.set(key, q);
+}
+function popPending(
+  mapRef: React.MutableRefObject<Map<string, string[]>>,
+  textKey: string
+): string | undefined {
+  const key = trimKey(textKey);
+  if (!key) return undefined;
+  const q = mapRef.current.get(key);
+  if (!q || q.length === 0) return undefined;
+  const id = q.shift();
+  if (!q.length) mapRef.current.delete(key);
+  else mapRef.current.set(key, q);
+  return id;
+}
+function removeSpecificPending(
+  mapRef: React.MutableRefObject<Map<string, string[]>>,
+  textKey: string,
+  optimisticId: string
+) {
+  const key = trimKey(textKey);
+  const q = mapRef.current.get(key);
+  if (!q) return;
+  const idx = q.indexOf(optimisticId);
+  if (idx >= 0) q.splice(idx, 1);
+  if (!q.length) mapRef.current.delete(key);
+  else mapRef.current.set(key, q);
+}
+
+const DayDivider = ({ label }: { label: string }) => (
+  <View className="w-full items-center my-3">
+    <View
+      style={{
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        backgroundColor: "#ffffff",
+        shadowColor: "#000",
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
+      }}>
+      <Text className="text-[11px] text-gray-600">{label}</Text>
+    </View>
+  </View>
+);
+
+/* --------------------------- */
+const TIME_RIGHT_PAD = 50; // keep for post/product bubbles
+
 const MessageBubble = React.memo(function MessageBubble({
   message,
   mine,
-  onPressImage,
   maxBubbleWidth,
+  onPressImage,
   onLongPress,
   onPress,
   selected,
-  showTime,
-  smallSpacer,
-  timeMarginTop,
-  timeMarginBottom,
   onMeasure,
   onOpenReel,
   onOpenFeedPost,
+  isFirstInGroup,
+  isLastInGroup,
 }: {
   message: Message;
   mine: boolean;
-  onPressImage: (uri?: string) => void;
   maxBubbleWidth: number;
+  onPressImage: (uri?: string) => void;
   onLongPress?: (id: string) => void;
   onPress?: (id: string) => void;
   selected?: boolean;
-  showTime?: boolean;
-  smallSpacer: number;
-  timeMarginTop: number;
-  timeMarginBottom: number;
   onMeasure?: (id: string, height: number) => void;
   onOpenReel?: (postId?: string) => void;
   onOpenFeedPost?: (postId?: string) => void;
+  isFirstInGroup: boolean;
+  isLastInGroup: boolean;
 }) {
-  const containerStyle = selected
-    ? {
-        backgroundColor: "rgba(37, 99, 235, 0.08)",
-        borderRadius: 12,
-        paddingVertical: 6,
-        paddingHorizontal: 6,
-      }
-    : undefined;
-
   const timeText = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
+  const timeInsideColor = mine ? "#4b5563" : "#6b7280";
 
   const postCardWidth = Math.min(maxBubbleWidth, 320);
   const postMediaHeight = Math.round(postCardWidth);
@@ -205,39 +370,105 @@ const MessageBubble = React.memo(function MessageBubble({
 
   const sourceUri = previewThumb || generatedThumb || previewImage || undefined;
 
+  const baseRadius = 18;
+  const rightTop = mine ? (isFirstInGroup ? baseRadius : 6) : baseRadius;
+  const rightBottom = mine ? (isLastInGroup ? 6 : baseRadius) : baseRadius;
+  const leftTop = mine ? baseRadius : isFirstInGroup ? baseRadius : 6;
+  const leftBottom = mine ? baseRadius : isLastInGroup ? 6 : baseRadius;
+
+  const bubbleCommonStyle = {
+    borderTopLeftRadius: leftTop,
+    borderTopRightRadius: rightTop,
+    borderBottomLeftRadius: leftBottom,
+    borderBottomRightRadius: rightBottom,
+    position: "relative",
+    minHeight: 36,
+  } as const;
+
+  const containerSpacing = isFirstInGroup ? 8 : 2;
+
+  // Absolute time badge (for non-text)
+  const Time = ({ bottom = 6 }: { bottom?: number }) => (
+    <Text
+      numberOfLines={1}
+      ellipsizeMode="clip"
+      allowFontScaling={false}
+      style={{
+        position: "absolute",
+        right: 8,
+        bottom,
+        fontSize: 10,
+        lineHeight: 12,
+        includeFontPadding: false,
+        color: timeInsideColor,
+        minWidth: 56,
+        textAlign: "right",
+      }}>
+      {timeText}
+    </Text>
+  );
+
   return (
-    <>
+    <View style={{ marginTop: containerSpacing }}>
       <Pressable
         onLongPress={() => onLongPress?.(message.id)}
         onPress={() => onPress?.(message.id)}
         accessibilityLabel="Message"
-        style={containerStyle}
         onLayout={(e) =>
           onMeasure?.(message.id, Math.round(e.nativeEvent.layout.height))
-        }
-      >
+        }>
         <View className={`flex-row ${mine ? "justify-end pr-3" : "pl-3"} mb-0`}>
           <View
             style={{ maxWidth: maxBubbleWidth }}
-            className={`${mine ? "items-end" : "items-start"}`}
-          >
+            className={`${mine ? "items-end" : "items-start"}`}>
+            {/* Product bubble */}
             {message.product ? (
-              <View className="bg-white border border-black/100 rounded-3xl p-3">
+              <View
+                style={[
+                  bubbleCommonStyle,
+                  {
+                    backgroundColor: mine ? "#DCF8C6" : "#FFFFFF",
+                    paddingTop: 10,
+                    paddingBottom: 20,
+                    paddingHorizontal: 12,
+                    paddingRight: TIME_RIGHT_PAD,
+                    borderWidth: mine ? 0 : 1,
+                    borderColor: "#E5E7EB",
+                    shadowColor: mine ? "#000" : undefined,
+                    shadowOpacity: mine ? 0.06 : 0,
+                    shadowRadius: mine ? 6 : 0,
+                    shadowOffset: mine ? { width: 0, height: 2 } : undefined,
+                    elevation: mine ? 1 : 0,
+                  },
+                ]}>
                 <Text className="font-semibold text-black">
                   {message.product.name}
                 </Text>
                 <Text className="text-xs text-gray-500 mt-1">
                   Product attached
                 </Text>
+                <Time bottom={6} />
               </View>
             ) : null}
 
+            {/* Post bubble */}
             {message.messageType === "post" && message.postId ? (
               message.postPreview ? (
                 <View
-                  className="bg-white border border-gray-200 rounded-2xl mt-1 overflow-hidden"
-                  style={{ width: postCardWidth }}
-                >
+                  style={[
+                    bubbleCommonStyle,
+                    {
+                      backgroundColor: mine ? "#DCF8C6" : "#FFFFFF",
+                      borderWidth: mine ? 0 : 1,
+                      borderColor: "#E5E7EB",
+                      overflow: "hidden",
+                      shadowColor: mine ? "#000" : undefined,
+                      shadowOpacity: mine ? 0.06 : 0,
+                      shadowRadius: mine ? 6 : 0,
+                      shadowOffset: mine ? { width: 0, height: 2 } : undefined,
+                      elevation: mine ? 1 : 0,
+                    },
+                  ]}>
                   <View className="flex-row items-center px-3 pt-3">
                     <Image
                       source={{ uri: previewAvatar }}
@@ -269,11 +500,8 @@ const MessageBubble = React.memo(function MessageBubble({
                       height: postMediaHeight,
                       marginTop: 8,
                       overflow: "hidden",
-                      borderTopLeftRadius: 12,
-                      borderTopRightRadius: 12,
                       backgroundColor: "#000",
-                    }}
-                  >
+                    }}>
                     {sourceUri ? (
                       <Image
                         source={{ uri: sourceUri }}
@@ -283,57 +511,33 @@ const MessageBubble = React.memo(function MessageBubble({
                     ) : (
                       <View style={{ flex: 1, backgroundColor: "#000" }} />
                     )}
-
-                    {previewVideo ? (
-                      <>
-                        <View
-                          style={{
-                            position: "absolute",
-                            left: 0,
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            backgroundColor: "rgba(0,0,0,0.12)",
-                          }}
-                        />
-                        <View
-                          style={{
-                            position: "absolute",
-                            left: 0,
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <View
-                            style={{
-                              width: 56,
-                              height: 56,
-                              borderRadius: 28,
-                              backgroundColor: "rgba(0,0,0,0.45)",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <Ionicons name="play" size={28} color="#fff" />
-                          </View>
-                        </View>
-                      </>
-                    ) : null}
                   </Pressable>
 
                   {previewCaption ? (
-                    <View className="px-3 pt-3 pb-3">
+                    <View className="px-3 pt-3 pb-6">
                       <Text numberOfLines={2} className="text-xs text-gray-800">
                         {previewCaption}
                       </Text>
                     </View>
-                  ) : null}
+                  ) : (
+                    <View style={{ height: 18 }} />
+                  )}
+
+                  <Time bottom={6} />
                 </View>
               ) : (
-                <View className="bg-white border border-gray-200 rounded-2xl p-3 mt-1">
+                <View
+                  style={[
+                    bubbleCommonStyle,
+                    {
+                      backgroundColor: mine ? "#DCF8C6" : "#FFFFFF",
+                      padding: 12,
+                      paddingBottom: 10,
+                      paddingRight: TIME_RIGHT_PAD,
+                      borderWidth: mine ? 0 : 1,
+                      borderColor: "#E5E7EB",
+                    },
+                  ]}>
                   <Text className="font-semibold text-black">
                     {mine ? "You shared a post" : "Shared a post"}
                   </Text>
@@ -343,83 +547,141 @@ const MessageBubble = React.memo(function MessageBubble({
                       Tap to view
                     </Text>
                   </View>
+                  <Time bottom={6} />
                 </View>
               )
             ) : null}
 
+            {/* TEXT bubble — inline time like WhatsApp */}
             {message.text ? (
               <View
-                className={`py-2 px-3 mt-1  ${
-                  mine
-                    ? "bg-[#DCF8C6] border border-gray-200 rounded-2xl rounded-br-sm"
-                    : "bg-[#FFFFFF] rounded-2xl rounded-bl-sm"
-                }`}
-              >
-                <Text className="text-black">{message.text}</Text>
+                style={[
+                  bubbleCommonStyle,
+                  {
+                    backgroundColor: mine ? "#DCF8C6" : "#FFFFFF",
+                    paddingTop: 8,
+                    paddingBottom: 8,
+                    paddingHorizontal: 12,
+                    borderWidth: mine ? 0 : 1,
+                    borderColor: "#E5E7EB",
+                    shadowColor: mine ? "#000" : undefined,
+                    shadowOpacity: mine ? 0.06 : 0,
+                    shadowRadius: mine ? 6 : 0,
+                    shadowOffset: mine ? { width: 0, height: 2 } : undefined,
+                    elevation: mine ? 1 : 0,
+                  },
+                ]}>
+                <Text
+                  style={{
+                    color: "#111827",
+                    fontSize: 16,
+                    lineHeight: 20,
+                    includeFontPadding: false,
+                  }}>
+                  {message.text}
+                  {"  "}
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      lineHeight: 12,
+                      color: timeInsideColor,
+                    }}>
+                    {` ${timeText}`}
+                  </Text>
+                </Text>
               </View>
             ) : null}
 
+            {/* Image bubble — tap to full-screen preview */}
             {message.image ? (
               <Pressable
                 onPress={() => onPressImage?.(message.image)}
-                className="mt-2"
-              >
-                <Image
-                  source={{ uri: message.image }}
-                  className="w-48 h-36 rounded-lg"
-                  resizeMode="cover"
-                />
+                style={{ borderRadius: 12, overflow: "hidden", marginTop: 2 }}>
+                <View style={{ position: "relative" }}>
+                  <Image
+                    source={{ uri: message.image }}
+                    className="w-48 h-36"
+                    resizeMode="cover"
+                  />
+                  <View
+                    style={{
+                      position: "absolute",
+                      right: 6,
+                      bottom: 6,
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      borderRadius: 10,
+                      backgroundColor: "rgba(0,0,0,0.35)",
+                    }}>
+                    <Text
+                      numberOfLines={1}
+                      allowFontScaling={false}
+                      style={{
+                        fontSize: 10,
+                        color: "#fff",
+                        includeFontPadding: false,
+                        minWidth: 56,
+                        textAlign: "right",
+                        lineHeight: 12,
+                      }}>
+                      {timeText}
+                    </Text>
+                  </View>
+                </View>
               </Pressable>
             ) : null}
           </View>
         </View>
       </Pressable>
-
-      <View style={{ height: smallSpacer }} />
-
-      {showTime ? (
-        <View
-          style={{
-            width: "100%",
-            alignItems: "center",
-            marginTop: timeMarginTop,
-            marginBottom: timeMarginBottom,
-          }}
-        >
-          <Text className="text-xs text-gray-400">{timeText}</Text>
-        </View>
-      ) : null}
-    </>
+    </View>
   );
 });
 MessageBubble.displayName = "MessageBubble";
 
-/* ---------------------------
-   Screen
---------------------------- */
+/* --------------------------- */
 export default function UserChatScreen() {
   const router = useRouter();
-  const { userId, username, profilePicture, loggedUserId, loggedUsername } =
-    useLocalSearchParams<{
-      userId?: string;
-      username?: string;
-      profilePicture?: string;
-      loggedUserId?: string;
-      loggedUsername?: string;
-      loggedAvatar?: string;
-    }>();
 
-  const currentUserId = loggedUserId ?? "me";
+  const {
+    userId,
+    username,
+    profilePicture,
+    loggedUserId,
+    loggedUsername,
+    lastMessage,
+    preview,
+    subtitle,
+    skipHistory,
+  } = useLocalSearchParams<{
+    userId?: string;
+    username?: string;
+    profilePicture?: string;
+    loggedUserId?: string;
+    loggedUsername?: string;
+    loggedAvatar?: string;
+    lastMessage?: string;
+    preview?: string;
+    subtitle?: string;
+    skipHistory?: string;
+  }>();
+
+  const currentUserId = String(loggedUserId ?? "me");
   const currentUsername = loggedUsername ?? "You";
   const [statusOpen, setStatusOpen] = useState(false);
 
   const chattingUser = {
-    userId: userId ?? "other",
+    userId: String(userId ?? "other"),
     username: username ?? "Unknown User",
     profilePicture: profilePicture ?? DEFAULT_AVATAR,
   };
 
-  const cacheKey = `chat-v2-${currentUserId}-${chattingUser.userId}`;
+  const routePreview =
+    (lastMessage as string) ||
+    (preview as string) ||
+    (subtitle as string) ||
+    undefined;
+
+  const cacheKey = `chatHistory-${currentUserId}-${chattingUser.userId}`;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -428,77 +690,39 @@ export default function UserChatScreen() {
   const [showOptions, setShowOptions] = useState(false);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
 
+  // NEW: confirm-send image modal state
+  const [confirmImageUri, setConfirmImageUri] = useState<string | null>(null);
+  const [showSendImageModal, setShowSendImageModal] = useState(false);
+
   const flatListRef = useRef<FlatList<Message> | null>(null);
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  // max bubble width
   const maxBubbleWidth = Math.round(useWindowDimensions().width * 0.78);
-
   const [composerHeight, setComposerHeight] = useState(0);
   const inputRef = useRef<TextInput | null>(null);
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showAttachmentStrip, setShowAttachmentStrip] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
 
-  // measure heights separately (strip vs composer)
-  const [stripH, setStripH] = useState(0);
-  const [composerH, setComposerH] = useState(0); // stored for diagnostics/future use
+  const [composerH, setComposerH] = useState(0);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
-  // Reanimated keyboard height (smooth)
-  const kbH = useSharedValue(0);
-
-  // small trim so last bubble hugs the composer a bit
-  const { bottom: insetBottom } = useSafeAreaInsets();
-  const OPENED_OFFSET = 4;
-
-  const BASE_TRIM = 0; // Same for both platforms
-
-  const headerSpacerStyle = useAnimatedStyle(() => {
-    const target =
-      Platform.OS === "android"
-        ? Math.max(
-            0,
-            kbH.value + Math.max(0, insetBottom + OPENED_OFFSET - BASE_TRIM)
-          )
-        : Math.max(0, kbH.value + OPENED_OFFSET - BASE_TRIM);
-    return { height: target };
-  }, [stripH, showAttachmentStrip, insetBottom]);
-
-  // keyboard listeners -> animate kbH
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const onShow = (e: any) => {
-      const h = e?.endCoordinates?.height ?? 0;
-      setIsKeyboardOpen(true);
-      kbH.value = withTiming(h, {
-        duration: Platform.OS === "ios" ? 180 : 120,
-      });
-    };
-    const onHide = () => {
-      setIsKeyboardOpen(false);
-      kbH.value = withTiming(0, {
-        duration: Platform.OS === "ios" ? 160 : 100,
-      });
-    };
-
-    const s1 = Keyboard.addListener(showEvent, onShow);
-    const s2 = Keyboard.addListener(hideEvent, onHide);
-    return () => {
-      s1.remove();
-      s2.remove();
-    };
-  }, [kbH]);
+  const isAtBottomRef = useRef(true);
+  const initialJumpDoneRef = useRef(false);
 
   const keyboardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendingRef = useRef(false);
   const lastSentRef = useRef<string | null>(null);
+  const sendTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const byClientIdRef = useRef<Map<string, string>>(new Map());
+  const pendingByTextRef = useRef<Map<string, string[]>>(new Map());
+
+  // 🔹 V1: keyboard height (animated)
+  const kbH = useSharedValue(0);
+  const OPENED_OFFSET = 4;
+  const BASE_TRIM = 0;
 
   const dismissKeyboardAndWait = useCallback((): Promise<void> => {
     return new Promise<void>((resolve) => {
@@ -532,7 +756,6 @@ export default function UserChatScreen() {
     [router]
   );
 
-  // height cache
   const heightCache = useRef<Record<string, number>>({});
   const onMeasureItem = useCallback((id: string, height: number) => {
     if (!id) return;
@@ -541,7 +764,6 @@ export default function UserChatScreen() {
     if (!prev || prev !== rounded) heightCache.current[id] = rounded;
   }, []);
 
-  // persist
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistBatched = useCallback(
     (nextMessages: Message[]) => {
@@ -549,47 +771,82 @@ export default function UserChatScreen() {
       persistTimerRef.current = setTimeout(async () => {
         try {
           const lean = nextMessages.map((m) => {
-            if (!m.postPreview) return m;
-            const p = normalizePreview(m.postPreview) as PostPreview;
+            const base: Message = {
+              ...m,
+              createdAt: new Date(m.createdAtMs).toISOString(),
+            };
+            if (!base.postPreview) return base;
+            const p = normalizePreview(base.postPreview) as PostPreview;
             const caption =
               typeof p.caption === "string" ? p.caption.slice(0, 200) : "";
-            return { ...m, postPreview: { ...p, caption } } as Message;
+            return { ...base, postPreview: { ...p, caption } } as Message;
           });
           await SecureStore.setItemAsync(cacheKey, JSON.stringify(lean));
         } catch {}
         persistTimerRef.current = null;
-      }, 400);
+      }, 300);
     },
     [cacheKey]
   );
 
-  const buildUnreadFillers = useCallback(
-    (needed: number, baseText: string): Message[] => {
-      const out: Message[] = [];
-      for (let i = 0; i < needed; i++) {
-        out.push({
-          id: `unreadfill_${Date.now()}_${i}_${Math.random()
-            .toString(36)
-            .slice(2, 7)}`,
-          text: needed > 1 ? `${baseText} (${i + 1})` : baseText,
-          createdAt: new Date(Date.now() - (needed - i) * 60_000).toISOString(),
-          userId: String(chattingUser.userId),
-          username: chattingUser.username,
-          messageType: "text",
-        });
-      }
-      return out;
-    },
-    [chattingUser.userId, chattingUser.username]
+  const findChatListRow = useCallback(() => {
+    const otherId = chattingUser.userId;
+    const otherName = String(chattingUser.username ?? "")
+      .trim()
+      .toLowerCase();
+    const meId = currentUserId;
+
+    let row =
+      CHAT_LIST_DUMMY.find((c: any) => {
+        const a = String(c.sender?.id ?? "");
+        const b = String(c.receiver?.id ?? "");
+        return (a === otherId && b === meId) || (a === meId && b === otherId);
+      }) ||
+      CHAT_LIST_DUMMY.find((c: any) => {
+        const a = String(c.sender?.id ?? "");
+        const b = String(c.receiver?.id ?? "");
+        return a === otherId || b === otherId;
+      }) ||
+      CHAT_LIST_DUMMY.find((c: any) => {
+        const sa = String(
+          c.sender?.username ?? c.sender?.name ?? ""
+        ).toLowerCase();
+        const sb = String(
+          c.receiver?.username ?? c.receiver?.name ?? ""
+        ).toLowerCase();
+        return !!otherName && (sa === otherName || sb === otherName);
+      });
+
+    return row as any | undefined;
+  }, [chattingUser.userId, chattingUser.username, currentUserId]);
+
+  const pickPreviewText = useCallback(
+    (row?: any): string | undefined =>
+      routePreview ??
+      row?.lastMessage?.text ??
+      row?.lastMessage?.content ??
+      row?.content ??
+      row?.message ??
+      row?.preview ??
+      row?.subtitle ??
+      undefined,
+    [routePreview]
   );
 
-  // load messages + cache
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
         const raw = await SecureStore.getItemAsync(cacheKey);
-        const cached: Message[] = raw ? JSON.parse(raw) : [];
+        const cachedRaw: Message[] = raw ? JSON.parse(raw) : [];
+        const cached: Message[] = cachedRaw.map((m) => {
+          const ms = m.createdAtMs ?? toMs(m.createdAt);
+          return {
+            ...m,
+            createdAtMs: ms,
+            createdAt: new Date(ms).toISOString(),
+          };
+        });
 
         const external = getMessagesWith(String(chattingUser.userId)) || [];
         const mappedExternal: Message[] = external.map((ci: any) => {
@@ -598,14 +855,16 @@ export default function UserChatScreen() {
             ? (getRegistryPostPreview(String(ci.postId)) as any)
             : undefined;
           const normalizedPreview = normalizePreview(fromStore ?? fromRegistry);
+          const ms = toMs(ci.created_at);
           return {
-            id: ci.id,
+            id: String(ci.id),
             text: ci.messageType === "text" ? (ci.content ?? "") : undefined,
             messageType: ci.messageType,
-            postId: ci.messageType === "post" ? ci.postId : undefined,
+            postId: ci.messageType === "post" ? String(ci.postId) : undefined,
             postPreview: normalizedPreview,
-            createdAt: ci.created_at,
-            userId: ci.sender?.id ?? "unknown",
+            createdAt: new Date(ms).toISOString(),
+            createdAtMs: ms,
+            userId: String(ci.sender?.id ?? "unknown"),
             username: ci.sender?.username ?? "User",
           } as Message;
         });
@@ -616,60 +875,31 @@ export default function UserChatScreen() {
         );
         let merged = Array.from(map.values());
 
-        const inboxRow = CHAT_LIST_DUMMY.find((c) => {
-          const a = c.sender?.id;
-          const b = c.receiver?.id;
-          const otherId = String(chattingUser.userId);
-          return (
-            (a === otherId && b === LOGGED_USER.id) ||
-            (b === otherId && a === LOGGED_USER.id)
-          );
-        });
-        const desiredUnread =
-          inboxRow && inboxRow.unread
-            ? Math.max(1, inboxRow.unreadCount || 1)
-            : 0;
+        const inboxRow = findChatListRow();
+        const previewText = pickPreviewText(inboxRow);
 
-        const currentIncoming = merged.filter(
-          (m) => m.userId === chattingUser.userId
-        ).length;
-        if (desiredUnread > currentIncoming) {
-          const fillers = buildUnreadFillers(
-            desiredUnread - currentIncoming,
-            inboxRow?.content || "New message"
-          );
-          merged = [...fillers, ...merged];
+        if (merged.length === 0 && previewText) {
+          const ms = Date.now();
+          merged.push({
+            id: `seed_${ms}`,
+            text: String(previewText),
+            createdAt: new Date(ms).toISOString(),
+            createdAtMs: ms,
+            userId: chattingUser.userId,
+            username: chattingUser.username,
+            messageType: "text",
+          });
         }
 
-        merged.sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        merged.sort((a, b) => b.createdAtMs - a.createdAtMs);
+        merged = mergeById(merged);
+
         if (!mounted) return;
 
-        if (merged.length === 0) {
-          merged = [
-            {
-              id: "welcome-1",
-              text: `Say hello to ${chattingUser.username}.`,
-              createdAt: new Date().toISOString(),
-              userId: chattingUser.userId,
-              username: chattingUser.username,
-            },
-          ];
-        }
-
         setMessages(merged);
-
-        InteractionManager.runAfterInteractions(() => {
-          try {
-            flatListRef.current?.scrollToIndex({ index: 0, animated: false });
-          } catch {
-            flatListRef.current?.scrollToOffset({ offset: 0 });
-          }
-        });
-
         persistBatched(merged);
+
+        initialJumpDoneRef.current = true;
       } catch {}
     };
     load();
@@ -680,31 +910,25 @@ export default function UserChatScreen() {
     cacheKey,
     chattingUser.userId,
     chattingUser.username,
-    buildUnreadFillers,
+    currentUserId,
     persistBatched,
+    findChatListRow,
+    pickPreviewText,
   ]);
 
-  const scrollToNewest = useCallback((animated = true) => {
-    InteractionManager.runAfterInteractions(() => {
-      setTimeout(() => {
-        try {
-          flatListRef.current?.scrollToIndex({
-            index: 0,
-            animated,
-            viewPosition: 0,
-          });
-        } catch {
-          try {
-            flatListRef.current?.scrollToOffset({ offset: 0, animated });
-          } catch {}
-        }
-      }, 40);
-    });
-  }, []);
+  const scrollToNewest = useCallback(
+    (animated = true) => {
+      requestAnimationFrame(() => {
+        if (!messages.length) return;
+        flatListRef.current?.scrollToOffset({ offset: 0, animated });
+      });
+    },
+    [messages.length]
+  );
 
   useEffect(() => {
     if (!lastSentRef.current) return;
-    if (messages.length === 0) {
+    if (!messages.length) {
       lastSentRef.current = null;
       return;
     }
@@ -714,34 +938,47 @@ export default function UserChatScreen() {
     }
   }, [messages, scrollToNewest]);
 
+  // add image message after confirm
+  const addImageMessage = useCallback(
+    (uri: string) => {
+      const now = Date.now();
+      const m: Message = {
+        id: Math.random().toString(36).slice(2),
+        clientId: makeClientId(),
+        image: uri,
+        createdAt: new Date(now).toISOString(),
+        createdAtMs: now,
+        userId: currentUserId,
+        username: currentUsername,
+      };
+      byClientIdRef.current.set(m.clientId!, m.id);
+      lastSentRef.current = m.id;
+      setMessages((prev) => {
+        const next = mergeById([m, ...prev]);
+        persistBatched(next);
+        return next;
+      });
+    },
+    [currentUserId, currentUsername, persistBatched]
+  );
+
   const pickImage = useCallback(async () => {
     try {
       await dismissKeyboardAndWait();
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) return;
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "images",
+        mediaTypes: "images" as any,
         quality: 0.9,
       });
       if (result.canceled) return;
 
       const uri = result.assets[0].uri;
-      const m: Message = {
-        id: Math.random().toString(36).slice(2),
-        image: uri,
-        createdAt: new Date().toISOString(),
-        userId: currentUserId,
-        username: currentUsername,
-      };
-      lastSentRef.current = m.id;
-      setMessages((prev) => {
-        const next = [m, ...prev];
-        persistBatched(next);
-        return next;
-      });
+      setConfirmImageUri(uri);
+      setShowSendImageModal(true);
       setShowAttachmentStrip(false);
     } catch {}
-  }, [currentUserId, currentUsername, persistBatched, dismissKeyboardAndWait]);
+  }, [dismissKeyboardAndWait]);
 
   const takePhoto = useCallback(async () => {
     try {
@@ -749,41 +986,34 @@ export default function UserChatScreen() {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) return;
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ["images", "videos"],
+        mediaTypes: ["images", "videos"] as any,
         quality: 0.9,
       });
       if (result.canceled) return;
 
       const uri = result.assets[0].uri;
-      const m: Message = {
-        id: Math.random().toString(36).slice(2),
-        image: uri,
-        createdAt: new Date().toISOString(),
-        userId: currentUserId,
-        username: currentUsername,
-      };
-      lastSentRef.current = m.id;
-      setMessages((prev) => {
-        const next = [m, ...prev];
-        persistBatched(next);
-        return next;
-      });
+      setConfirmImageUri(uri);
+      setShowSendImageModal(true);
       setShowAttachmentStrip(false);
     } catch {}
-  }, [currentUserId, currentUsername, persistBatched, dismissKeyboardAndWait]);
+  }, [dismissKeyboardAndWait]);
 
   const onProductSelect = useCallback(
     (p: { id: string; name: string }) => {
+      const now = Date.now();
       const m: Message = {
         id: Math.random().toString(36).slice(2),
+        clientId: makeClientId(),
         product: { id: p.id, name: p.name },
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(now).toISOString(),
+        createdAtMs: now,
         userId: currentUserId,
         username: currentUsername,
       };
+      byClientIdRef.current.set(m.clientId!, m.id);
       lastSentRef.current = m.id;
       setMessages((prev) => {
-        const next = [m, ...prev];
+        const next = mergeById([m, ...prev]);
         persistBatched(next);
         return next;
       });
@@ -793,24 +1023,275 @@ export default function UserChatScreen() {
     [currentUserId, currentUsername, persistBatched]
   );
 
+  const socketRef = useRef<ReturnType<typeof io> | null>(null);
+  const me = { id: currentUserId, username: currentUsername };
+  const them = {
+    id: chattingUser.userId,
+    username: chattingUser.username,
+  } as const;
+
+  const handleIncoming = useCallback(
+    (incomingRaw: any) => {
+      const normalized: ServerMessage = {
+        id: incomingRaw?.id,
+        client_id: incomingRaw?.client_id ?? incomingRaw?.clientId,
+        sender_id: String(
+          incomingRaw?.sender_id ?? incomingRaw?.senderId ?? ""
+        ),
+        receiver_id: String(
+          incomingRaw?.receiver_id ?? incomingRaw?.receiverId ?? ""
+        ),
+        content: incomingRaw?.content ?? incomingRaw?.text ?? "",
+        message_type:
+          incomingRaw?.message_type ?? incomingRaw?.messageType ?? "text",
+        shared_post: incomingRaw?.shared_post ?? incomingRaw?.sharedPost,
+        created_at:
+          incomingRaw?.created_at ??
+          incomingRaw?.createdAt ??
+          new Date().toISOString(),
+        is_read: incomingRaw?.is_read ?? incomingRaw?.isRead ?? false,
+      };
+
+      // 1) My echo with client_id
+      if (
+        normalized.client_id &&
+        byClientIdRef.current.has(normalized.client_id)
+      ) {
+        const optimisticId = byClientIdRef.current.get(normalized.client_id)!;
+        setMessages((prev) => {
+          const idx = prev.findIndex((m) => m.id === optimisticId);
+          const serverMsg = formatFromServer(normalized, me, them);
+          if (idx === -1) {
+            const next = mergeById([serverMsg, ...prev]);
+            persistBatched(next);
+            return next;
+          }
+          const optText = trimKey(prev[idx].text);
+          const updated = [...prev];
+          updated[idx] = {
+            ...serverMsg,
+            clientId: normalized.client_id,
+            userId: me.id,
+          };
+          const next = mergeById(updated);
+          persistBatched(next);
+          removeSpecificPending(pendingByTextRef, optText, optimisticId);
+          return next;
+        });
+        if (isAtBottomRef.current) scrollToNewest(false);
+        return;
+      }
+
+      // 2) My echo without client_id
+      if (
+        String(normalized.sender_id) === me.id &&
+        String(normalized.receiver_id) === them.id
+      ) {
+        const formattedMine = formatFromServer(normalized, me, them);
+        const textKey = trimKey(formattedMine.text);
+        setMessages((prev) => {
+          const optimisticId = popPending(pendingByTextRef, textKey);
+          if (!optimisticId) {
+            const next = mergeById([formattedMine, ...prev]);
+            persistBatched(next);
+            return next;
+          }
+          const idx = prev.findIndex((m) => m.id === optimisticId);
+          if (idx === -1) {
+            const next = mergeById([formattedMine, ...prev]);
+            persistBatched(next);
+            return next;
+          }
+          const updated = [...prev];
+          updated[idx] = formattedMine;
+          const next = mergeById(updated);
+          persistBatched(next);
+          return next;
+        });
+        if (isAtBottomRef.current) scrollToNewest(false);
+        return;
+      }
+
+      // 3) Their incoming
+      if (
+        String(normalized.sender_id) !== them.id ||
+        String(normalized.receiver_id) !== me.id
+      ) {
+        return;
+      }
+
+      setMessages((prev) => {
+        const formatted = formatFromServer(normalized, me, them);
+        if (formatted.id && prev.some((m) => m.id === formatted.id))
+          return prev;
+        const next = mergeById([formatted, ...prev]);
+        persistBatched(next);
+        return next;
+      });
+
+      DeviceEventEmitter.emit("inbox:update", {
+        partnerId: normalized.sender_id,
+        text: normalized.content ?? "",
+        created_at: normalized.created_at ?? new Date().toISOString(),
+        partnerUsername: chattingUser.username,
+        partnerAvatar: chattingUser.profilePicture,
+      });
+
+      if (isAtBottomRef.current) scrollToNewest(false);
+    },
+    [
+      me,
+      them,
+      persistBatched,
+      chattingUser.username,
+      chattingUser.profilePicture,
+      scrollToNewest,
+    ]
+  );
+
+  useEffect(() => {
+    if (!ENDPOINT || !me.id || !them.id) return;
+
+    const s = io(ENDPOINT, {
+      path: SOCKET_PATH,
+      transports: ["websocket", "polling"],
+      reconnection: true,
+    });
+    socketRef.current = s;
+
+    s.on("connect", () => console.log("socket connected", s.id));
+    s.on("connect_error", (e) => console.log("connect_error", e?.message || e));
+    s.on("disconnect", (r) => console.log("socket disconnected", r));
+
+    s.emit("join", { userId: String(me.id) }, (ack?: any) =>
+      console.log("join ack:", ack)
+    );
+
+    s.on("receiveMessage", handleIncoming);
+    s.on("message", handleIncoming);
+    s.on("newMessage", handleIncoming);
+
+    s.emit("getUserStatus", { userId: them.id });
+
+    return () => {
+      try {
+        s.off("receiveMessage", handleIncoming);
+        s.off("message", handleIncoming);
+        s.off("newMessage", handleIncoming);
+        s.disconnect();
+      } catch {}
+      socketRef.current = null;
+
+      if (sendTimeoutRef.current) {
+        clearTimeout(sendTimeoutRef.current);
+        sendTimeoutRef.current = null;
+      }
+    };
+  }, [ENDPOINT, me.id, them.id, handleIncoming]);
+
+  useEffect(() => {
+    if (skipHistory === "1") return;
+
+    let cancelled = false;
+    const loadHistory = async () => {
+      if (!me.id || !them.id) return;
+      try {
+        const res = await apiCall(
+          `/api/messages/history/${me.id}/${them.id}`,
+          "GET"
+        );
+
+        const list: ServerMessage[] = Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res)
+            ? (res as unknown as ServerMessage[])
+            : [];
+
+        if (cancelled) return;
+
+        const formatted = list.map((m) => formatFromServer(m, me, them));
+        formatted.sort((a, b) => b.createdAtMs - a.createdAtMs);
+
+        setMessages((prev) => {
+          let next = [...prev];
+          for (const fm of formatted) {
+            if (String(fm.userId) === me.id) {
+              const textKey = trimKey(fm.text);
+              const optimisticId = popPending(pendingByTextRef, textKey);
+              if (optimisticId) {
+                const idx = next.findIndex((m) => m.id === optimisticId);
+                if (idx !== -1) next[idx] = fm;
+                else next = mergeById([fm, ...next]);
+              } else {
+                next = mergeById([fm, ...next]);
+              }
+            } else {
+              next = mergeById([fm, ...next]);
+            }
+          }
+          next = mergeById(next);
+          persistBatched(next);
+          return next;
+        });
+        if (isAtBottomRef.current) scrollToNewest(false);
+      } catch (e: any) {
+        console.warn("history fetch error", e?.message || e || "unknown error");
+      }
+    };
+
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [skipHistory, me.id, them.id, persistBatched, scrollToNewest]);
+
+  const safeSendToApi = useCallback(async (payload: ServerMessage) => {
+    try {
+      await apiCall("/api/messages/send", "POST", payload);
+      return true;
+    } catch {
+      try {
+        await apiCall("/api/messages", "POST", payload);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  }, []);
+
   const handleSend = useCallback(() => {
     if (sendingRef.current) return;
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    if (!isValidId(currentUserId) || !isValidId(chattingUser.userId)) {
+      console.warn("Abort send: invalid IDs", {
+        currentUserId,
+        peer: chattingUser.userId,
+      });
+      return;
+    }
+
     sendingRef.current = true;
+    const now = Date.now();
+    const cid = makeClientId();
     const m: Message = {
       id: Math.random().toString(36).slice(2),
+      clientId: cid,
       text: trimmed,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(now).toISOString(),
+      createdAtMs: now,
       userId: currentUserId,
       username: currentUsername,
       messageType: "text",
     };
 
+    byClientIdRef.current.set(cid, m.id);
+    pushPending(pendingByTextRef, trimmed, m.id);
+
     lastSentRef.current = m.id;
     setMessages((prev) => {
-      const next = [m, ...prev];
+      const next = mergeById([m, ...prev]);
       persistBatched(next);
       return next;
     });
@@ -818,50 +1299,80 @@ export default function UserChatScreen() {
     setText("");
     setShowAttachmentStrip(false);
 
-    InteractionManager.runAfterInteractions(() => {
-      setTimeout(() => {
-        scrollToNewest(true);
-        sendingRef.current = false;
-      }, 50);
+    DeviceEventEmitter.emit("inbox:update", {
+      partnerId: chattingUser.userId,
+      text: trimmed,
+      created_at: new Date().toISOString(),
+      partnerUsername: chattingUser.username,
+      partnerAvatar: chattingUser.profilePicture,
     });
-  }, [text, currentUserId, currentUsername, persistBatched, scrollToNewest]);
+
+    const payload = toServerMessage(m, me.id, them.id);
+
+    if (!socketRef.current?.connected) {
+      (async () => {
+        const ok = await safeSendToApi(payload);
+        if (!ok) console.warn("REST send failed");
+        sendingRef.current = false;
+      })();
+    } else {
+      socketRef.current.emit(
+        "sendMessage",
+        payload,
+        (ack?: { ok?: boolean; error?: string }) => {
+          if (ack && ack.error) {
+            (async () => {
+              const ok = await safeSendToApi(payload);
+              if (!ok) console.warn("REST fallback failed (ack error)");
+              sendingRef.current = false;
+            })();
+          } else {
+            sendingRef.current = false;
+          }
+        }
+      );
+
+      if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
+      sendTimeoutRef.current = setTimeout(() => {
+        if (sendingRef.current && !socketRef.current?.connected) {
+          (async () => {
+            const ok = await safeSendToApi(payload);
+            if (!ok) console.warn("Late REST fallback failed");
+            sendingRef.current = false;
+          })();
+        } else {
+          sendingRef.current = false;
+        }
+      }, 8000);
+    }
+
+    scrollToNewest(true);
+  }, [
+    text,
+    currentUserId,
+    currentUsername,
+    persistBatched,
+    scrollToNewest,
+    me.id,
+    them.id,
+    chattingUser.userId,
+    chattingUser.username,
+    chattingUser.profilePicture,
+    safeSendToApi,
+  ]);
 
   const handleClearChat = useCallback(() => {
     setMessages([]);
     persistBatched([]);
   }, [persistBatched]);
 
-  const handleLongPressMessage = useCallback((id: string) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-  }, []);
-
-  const handlePressMessage = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      if (prev.length === 0) return prev;
-      return prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-    });
-  }, []);
-
-  const deleteSelected = useCallback(() => {
-    if (selectedIds.length === 0) return;
-    setMessages((prev) => {
-      const next = prev.filter((m) => !selectedIds.includes(m.id));
-      persistBatched(next);
-      return next;
-    });
-    setSelectedIds([]);
-  }, [persistBatched, selectedIds]);
-
-  // ---------- tighter timestamp spacing ----------
-  const smallSpacer = 3;
-  const timeMarginTop = 4;
-  const timeMarginBottom = 6;
+  const smallSpacer = 1;
 
   const estimateItemHeight = useCallback(
     (msg?: Message) => {
       const avatarH = 36;
-      const bubbleVerticalPadding = 16;
-      const bubbleExtra = 8;
+      const bubbleVerticalPadding = 20;
+      const bubbleExtra = 12;
 
       if (!msg) return Math.round(Math.max(avatarH, 40));
       const cached = heightCache.current[msg.id];
@@ -876,12 +1387,12 @@ export default function UserChatScreen() {
 
       if (msg.messageType === "post") {
         const hasPreview = !!msg.postPreview;
-        const cardH = hasPreview ? 420 : 140;
+        const cardH = hasPreview ? 440 : 160;
         return Math.round(Math.max(avatarH, cardH));
       }
 
       const text = msg.text ?? "";
-      if (!text) return Math.round(Math.max(avatarH, 40));
+      if (!text) return Math.round(Math.max(avatarH, 48));
 
       const approxCharWidth = Math.max(
         6,
@@ -925,61 +1436,46 @@ export default function UserChatScreen() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
-      const mine = item.userId === currentUserId;
-      const isSelected = selectedIds.includes(item.id);
+      const mine = String(item.userId) === String(currentUserId);
 
-      let showTime = true;
-      const nextMsg = messages[index + 1];
-      if (nextMsg) {
-        const sameUser = nextMsg.userId === item.userId;
-        const t1 = new Date(item.createdAt);
-        const t2 = new Date(nextMsg.createdAt);
-        const sameMinute =
-          t1.getHours() === t2.getHours() &&
-          t1.getMinutes() === t2.getMinutes();
-        if (sameUser && sameMinute) showTime = false;
-      }
+      const nextOlder = messages[index + 1];
+      const needDayDivider = nextOlder
+        ? !isSameDay(nextOlder.createdAtMs, item.createdAtMs)
+        : false;
+      const dayLabel = needDayDivider ? labelForDay(item.createdAtMs) : null;
+
+      const prevNewer = messages[index - 1];
+      const firstInGroup = nextOlder ? !withinGroup(nextOlder, item) : true;
+      const lastInGroup = prevNewer ? !withinGroup(item, prevNewer) : true;
 
       return (
-        <MessageBubble
-          message={item}
-          mine={mine}
-          onPressImage={(uri) => {
-            if (selectedIds.length > 0) {
-              setSelectedIds((prev) =>
-                prev.includes(item.id)
-                  ? prev.filter((x) => x !== item.id)
-                  : [...prev, item.id]
-              );
-            } else {
+        <>
+          <MessageBubble
+            message={item}
+            mine={mine}
+            maxBubbleWidth={maxBubbleWidth}
+            onPressImage={(uri) => {
               setSelectedImage(uri ?? null);
               setShowPreviewImage(true);
-            }
-          }}
-          maxBubbleWidth={maxBubbleWidth}
-          onLongPress={handleLongPressMessage}
-          onPress={handlePressMessage}
-          selected={isSelected}
-          showTime={showTime}
-          smallSpacer={smallSpacer}
-          timeMarginTop={timeMarginTop}
-          timeMarginBottom={timeMarginBottom}
-          onMeasure={onMeasureItem}
-          onOpenReel={openReelFromChat}
-          onOpenFeedPost={openFeedPostFromChat}
-        />
+            }}
+            onLongPress={() => {}}
+            onPress={() => {}}
+            selected={false}
+            onMeasure={onMeasureItem}
+            onOpenReel={openReelFromChat}
+            onOpenFeedPost={openFeedPostFromChat}
+            isFirstInGroup={firstInGroup}
+            isLastInGroup={lastInGroup}
+          />
+          <View style={{ height: smallSpacer }} />
+          {needDayDivider ? <DayDivider label={dayLabel!} /> : null}
+        </>
       );
     },
     [
       messages,
       currentUserId,
       maxBubbleWidth,
-      selectedIds,
-      handleLongPressMessage,
-      handlePressMessage,
-      smallSpacer,
-      timeMarginTop,
-      timeMarginBottom,
       onMeasureItem,
       openReelFromChat,
       openFeedPostFromChat,
@@ -999,53 +1495,73 @@ export default function UserChatScreen() {
     []
   );
 
-  const toggleAttachmentStrip = useCallback(
-    () => setShowAttachmentStrip((s) => !s),
-    []
-  );
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    isAtBottomRef.current = y < 30;
+  }, []);
 
-  const onChangeTextHandle = useCallback(
-    (val: string) => {
-      setText(val);
-      if (showAttachmentStrip) setShowAttachmentStrip(false);
-    },
-    [showAttachmentStrip]
-  );
+  // 🔹 V1: header spacer animated style (based on real keyboard height)
+  const headerSpacerStyle = useAnimatedStyle(() => {
+    const insetBottom = insets.bottom || 0;
+    const baseAndroid =
+      kbH.value + Math.max(0, insetBottom + OPENED_OFFSET - BASE_TRIM);
+    const baseIOS = kbH.value + OPENED_OFFSET - BASE_TRIM;
+    const target =
+      Platform.OS === "android"
+        ? Math.max(0, baseAndroid)
+        : Math.max(0, baseIOS);
+    return { height: target };
+  }, [insets.bottom]);
 
-  const onKeyPress = useCallback(
-    (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-      // Allow natural multiline input - no special Enter key handling
-      // Users should use the send button to send messages
-    },
-    []
-  );
+  // 🔹 V1: keyboard listeners drive kbH + isKeyboardOpen
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const onShow = (e: any) => {
+      const h = e?.endCoordinates?.height ?? 0;
+      setIsKeyboardOpen(true);
+      kbH.value = withTiming(h, {
+        duration: Platform.OS === "ios" ? 180 : 120,
+      });
+    };
+    const onHide = () => {
+      setIsKeyboardOpen(false);
+      kbH.value = withTiming(0, {
+        duration: Platform.OS === "ios" ? 160 : 100,
+      });
+    };
+
+    const s1 = Keyboard.addListener(showEvent, onShow);
+    const s2 = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      s1.remove();
+      s2.remove();
+    };
+  }, [kbH]);
+
+  const COMPOSER_OVERLAP = 42; // (kept, though we now use animated spacer)
 
   return (
     <SafeAreaView edges={["left", "right"]} className="flex-1 bg-[#ECE5DD]">
       <StatusBar style="dark" translucent backgroundColor="transparent" />
-      <View style={{ height: insets.top }} className="bg-white" />
+      <View className="bg-white" style={{ height: insets.top }} />
 
       {/* Header */}
-      <View className="flex-row items-center px-1 py-3 border-b border-gray-300 bg-white">
+      <View className="flex-row items-center px-1 py-2 border-b border-gray-300 bg-white">
         <Pressable
-          onPress={() => {
-            if (selectedIds.length > 0) {
-              setSelectedIds([]);
-              return;
-            }
-            router.back();
-          }}
+          onPress={() => router.back()}
           accessibilityLabel="Back"
-          className="pr-3"
-        >
+          className="pr-3">
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </Pressable>
 
         <Pressable
           onPress={() => setProfileModalVisible(true)}
           accessibilityLabel="Open profile"
-          className="mr-3"
-        >
+          className="mr-3">
           <Image
             source={{ uri: chattingUser.profilePicture }}
             className="w-10 h-10 rounded-full"
@@ -1053,37 +1569,39 @@ export default function UserChatScreen() {
         </Pressable>
 
         <View className="flex-1">
-          <Text className="text-base font-semibold text-black">
-            {chattingUser.username}
-          </Text>
-        </View>
-
-        {selectedIds.length > 0 ? (
-          <Pressable
-            onPress={deleteSelected}
-            className="px-3"
-            accessibilityLabel="Delete selected messages"
-            accessibilityHint="Deletes all selected messages"
-          >
-            <Ionicons name="trash" size={22} color="#DC2626" />
-          </Pressable>
-        ) : (
+          {/* Tap name to go to Profile */}
           <Pressable
             onPress={() => {
-              console.log("Ellipsis pressed");
-              setShowOptions(true);
+              setProfileModalVisible(false);
+              router.push({
+                pathname: "/profile",
+                params: {
+                  userId: chattingUser.userId,
+                  username: chattingUser.username,
+                  from: "chat",
+                },
+              });
             }}
-            className="px-2"
-            accessibilityLabel="Chat options"
-            accessibilityHint="Opens chat options"
-            hitSlop={12}
-            style={({ pressed }) => ({
-              opacity: pressed ? 0.6 : 1,
-            })}
-          >
-            <Ionicons name="ellipsis-vertical" size={22} color="#6B7280" />
+            accessibilityLabel="View profile"
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+            <View className="flex-row items-center">
+              <Text className="text-base font-semibold text-black">
+                {chattingUser.username}
+              </Text>
+            </View>
           </Pressable>
-        )}
+        </View>
+
+        <Pressable
+          onPress={() => setShowOptions(true)}
+          className="px-2"
+          accessibilityLabel="Chat options"
+          accessibilityHint="Opens chat options"
+          hitSlop={12}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+          <Ionicons name="ellipsis-vertical" size={22} color="#6B7280" />
+        </Pressable>
       </View>
 
       {/* Messages */}
@@ -1095,45 +1613,59 @@ export default function UserChatScreen() {
         renderItem={renderItem}
         getItemLayout={getItemLayout}
         style={{ flex: 1 }}
-        ListHeaderComponent={<Animated.View style={[headerSpacerStyle]} />}
         ListEmptyComponent={listEmpty}
+        // 🔹 V1: animated header spacer that follows the keyboard
+        ListHeaderComponent={<Animated.View style={[headerSpacerStyle]} />}
         showsVerticalScrollIndicator={false}
-        initialNumToRender={8}
-        maxToRenderPerBatch={12}
-        windowSize={7}
+        initialNumToRender={12}
+        maxToRenderPerBatch={18}
+        windowSize={9}
         removeClippedSubviews={Platform.OS === "android"}
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets={false as any}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        onScrollToIndexFailed={() => {
+          requestAnimationFrame(() => {
+            if (messages.length > 0) {
+              flatListRef.current?.scrollToOffset({
+                offset: 0,
+                animated: false,
+              });
+            }
+          });
+        }}
       />
 
-      {/* Image preview modal */}
+      {/* Full-screen chat image preview */}
       <Modal
         visible={showPreviewImage}
-        transparent
+        transparent={false}
         animationType="slide"
-        onRequestClose={() => setShowPreviewImage(false)}
-      >
-        <Pressable
-          className="flex-1 justify-center items-center bg-[rgba(0,0,0,0.6)]"
-          onPress={() => setShowPreviewImage(false)}
-        >
-          {selectedImage ? (
-            <Image
-              source={{ uri: selectedImage }}
-              style={{
-                width: Math.round(screenWidth * 0.92),
-                height: Math.round(screenWidth * 0.92 * 0.66),
-              }}
-              className="rounded-lg"
-              resizeMode="contain"
-            />
-          ) : (
-            <View className="bg-white p-4 rounded-lg">
-              <Text>No image</Text>
-            </View>
-          )}
-        </Pressable>
+        onRequestClose={() => setShowPreviewImage(false)}>
+        <SafeAreaView className="flex-1 bg-black">
+          <Pressable
+            className="absolute top-10 left-4 z-50 p-2"
+            onPress={() => setShowPreviewImage(false)}
+            accessibilityLabel="Close image preview">
+            <Text className="text-white text-2xl">✕</Text>
+          </Pressable>
+
+          <View className="flex-1 items-center justify-center">
+            {selectedImage ? (
+              <Image
+                source={{ uri: selectedImage }}
+                style={{ width: screenWidth, height: screenHeight }}
+                resizeMode="contain"
+              />
+            ) : (
+              <View className="bg-white p-4 rounded-lg">
+                <Text>No image</Text>
+              </View>
+            )}
+          </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Product modal */}
@@ -1146,19 +1678,17 @@ export default function UserChatScreen() {
         }}
       />
 
-      {/* Profile full screen */}
+      {/* Profile full screen (avatar preview) */}
       <Modal
         visible={profileModalVisible}
         transparent={false}
         animationType="slide"
-        onRequestClose={() => setProfileModalVisible(false)}
-      >
+        onRequestClose={() => setProfileModalVisible(false)}>
         <SafeAreaView className="flex-1 bg-black">
           <Pressable
             className="absolute top-10 left-4 z-50 p-2"
             onPress={() => setProfileModalVisible(false)}
-            accessibilityLabel="Close profile preview"
-          >
+            accessibilityLabel="Close profile preview">
             <Text className="text-white text-2xl">✕</Text>
           </Pressable>
 
@@ -1172,25 +1702,86 @@ export default function UserChatScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Attachment strip + Composer — sticky above the keyboard */}
+      {/* FULL-SCREEN confirm Send Image (updated like WhatsApp) */}
+      <Modal
+        visible={showSendImageModal}
+        transparent={false}
+        animationType="fade"
+        onRequestClose={() => setShowSendImageModal(false)}>
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
+          {/* Close (X) button at top-left */}
+          <Pressable
+            onPress={() => {
+              setShowSendImageModal(false);
+              setConfirmImageUri(null);
+            }}
+            style={{
+              position: "absolute",
+              top: Platform.OS === "ios" ? insets.top + 10 : 30,
+              left: 16,
+              zIndex: 50,
+              padding: 8,
+            }}
+            hitSlop={10}>
+            <Text style={{ color: "#fff", fontSize: 28 }}>✕</Text>
+          </Pressable>
+
+          {/* Image Full Screen */}
+          <View
+            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+            {confirmImageUri ? (
+              <Image
+                source={{ uri: confirmImageUri }}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  resizeMode: "contain",
+                }}
+              />
+            ) : null}
+          </View>
+
+          {/* Send button at bottom-right (floating) */}
+          <View
+            style={{
+              position: "absolute",
+              bottom: Platform.OS === "ios" ? insets.bottom + 20 : 30,
+              right: 20,
+            }}>
+            <Pressable
+              onPress={() => {
+                if (confirmImageUri) addImageMessage(confirmImageUri);
+                setShowSendImageModal(false);
+                setConfirmImageUri(null);
+              }}
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: 50,
+                paddingVertical: 10,
+                paddingHorizontal: 24,
+                elevation: 6,
+              }}
+              hitSlop={10}>
+              <Text style={{ color: "#000", fontWeight: "600", fontSize: 16 }}>
+                Send
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Attachment strip + Composer */}
       <KeyboardStickyView offset={{ opened: 0, closed: 0 }}>
         <View className="bg-transparent">
           {showAttachmentStrip && (
-            <View
-              className="px-3"
-              style={{ overflow: "visible" }}
-              onLayout={(e) =>
-                setStripH(Math.round(e.nativeEvent.layout.height))
-              }
-            >
+            <View className="px-3" style={{ overflow: "visible" }}>
               <View
                 style={{
                   width: Math.max(260, screenWidth - 24),
                   alignSelf: "center",
                   position: "relative",
                   marginBottom: 8,
-                }}
-              >
+                }}>
                 {(() => {
                   const paddingH = 24;
                   const w = Math.max(260, screenWidth - paddingH);
@@ -1225,9 +1816,8 @@ export default function UserChatScreen() {
                         width={w}
                         height={h + td}
                         viewBox={`0 0 ${w} ${h + td}`}
-                        style={{ position: "absolute", top: 0, left: 0 }}
-                      >
-                        <Path d={d} fill="#F3F4F6" />
+                        style={{ position: "absolute", top: 0, left: 0 }}>
+                        <Path d={d} fill={"#F3F4F6"} />
                       </Svg>
 
                       <View
@@ -1236,8 +1826,7 @@ export default function UserChatScreen() {
                           height: h,
                           paddingHorizontal: 12,
                           paddingVertical: 12,
-                        }}
-                      >
+                        }}>
                         <View className="flex-row justify-between">
                           <View className="items-center">
                             <Pressable
@@ -1247,8 +1836,7 @@ export default function UserChatScreen() {
                               style={({ pressed }) => ({
                                 opacity: pressed ? 0.7 : 1,
                                 transform: [{ scale: pressed ? 0.95 : 1 }],
-                              })}
-                            >
+                              })}>
                               <Gallery width={22} height={22} />
                             </Pressable>
                             <Text className="text-xs text-gray-800 mt-2 font-medium">
@@ -1267,8 +1855,7 @@ export default function UserChatScreen() {
                               style={({ pressed }) => ({
                                 opacity: pressed ? 0.7 : 1,
                                 transform: [{ scale: pressed ? 0.95 : 1 }],
-                              })}
-                            >
+                              })}>
                               <Camera width={22} height={22} />
                             </Pressable>
                             <Text className="text-xs text-gray-800 mt-2 font-medium">
@@ -1284,8 +1871,7 @@ export default function UserChatScreen() {
                               style={({ pressed }) => ({
                                 opacity: pressed ? 0.7 : 1,
                                 transform: [{ scale: pressed ? 0.95 : 1 }],
-                              })}
-                            >
+                              })}>
                               <Cart width={22} height={22} />
                             </Pressable>
                             <Text className="text-xs text-gray-800 mt-2 font-medium">
@@ -1304,11 +1890,9 @@ export default function UserChatScreen() {
                               style={({ pressed }) => ({
                                 opacity: pressed ? 0.7 : 1,
                                 transform: [{ scale: pressed ? 0.95 : 1 }],
-                              })}
-                            >
+                              })}>
                               <Location width={22} height={22} />
                             </Pressable>
-
                             <Text className="text-xs text-gray-800 mt-2 font-medium">
                               Location
                             </Text>
@@ -1325,11 +1909,9 @@ export default function UserChatScreen() {
                               style={({ pressed }) => ({
                                 opacity: pressed ? 0.7 : 1,
                                 transform: [{ scale: pressed ? 0.95 : 1 }],
-                              })}
-                            >
+                              })}>
                               <Document width={22} height={22} />
                             </Pressable>
-
                             <Text className="text-xs text-gray-800 mt-2 font-medium">
                               Document
                             </Text>
@@ -1348,43 +1930,38 @@ export default function UserChatScreen() {
             className="px-3 bg-transparent"
             style={{
               paddingBottom: isKeyboardOpen
-                ? 5
+                ? 4
                 : Platform.OS === "ios"
-                  ? insets.bottom - 10
-                  : insets.bottom,
+                  ? Math.max(4, (insets.bottom || 0) - 8)
+                  : 4,
             }}
             onLayout={(e) => {
               const h = Math.round(e.nativeEvent.layout.height);
               if (h !== composerHeight) setComposerHeight(h);
               if (h !== composerH) setComposerH(h);
-            }}
-          >
+            }}>
             <View className="flex-row items-center">
               <Pressable
-                onPress={toggleAttachmentStrip}
+                onPress={() => setShowAttachmentStrip((s) => !s)}
                 accessibilityLabel="Attach"
                 accessibilityHint="Show attachment options"
                 hitSlop={8}
                 className="w-12 h-12 rounded-full bg-black items-center justify-center"
-                style={({ pressed }) => ({
-                  opacity: pressed ? 0.8 : 1,
-                })}
-              >
+                style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
                 <ShareIcon width={24} height={24} fill="#fff" />
               </Pressable>
 
               <View className="flex-1 mx-3">
                 <View
                   className="flex-row items-end bg-white rounded-3xl px-3 py-2 border border-gray-200"
-                  style={{
-                    minHeight: 48,
-                    maxHeight: 120,
-                  }}
-                >
+                  style={{ minHeight: 48, maxHeight: 120 }}>
                   <TextInput
                     ref={inputRef}
                     value={text}
-                    onChangeText={onChangeTextHandle}
+                    onChangeText={(v) => {
+                      setText(v);
+                      setShowAttachmentStrip(false);
+                    }}
                     placeholder="Message"
                     placeholderTextColor="#9CA3AF"
                     className="flex-1 text-base text-gray-700"
@@ -1392,10 +1969,13 @@ export default function UserChatScreen() {
                     accessibilityLabel="Message input"
                     returnKeyType="default"
                     blurOnSubmit={false}
-                    onKeyPress={onKeyPress}
+                    onKeyPress={(
+                      _e: NativeSyntheticEvent<TextInputKeyPressEventData>
+                    ) => {}}
                     onFocus={() => {
                       setTimeout(() => scrollToNewest(true), 60);
                     }}
+                    // 🔹 Removed heuristic onBlur/onTouchStart; we now use real OS events
                     style={{
                       maxHeight: 100,
                       paddingTop: Platform.OS === "ios" ? 8 : 6,
@@ -1407,20 +1987,12 @@ export default function UserChatScreen() {
                   />
 
                   <Pressable
-                    onPress={() => {
-                      console.log("Emoji tapped");
-                      setStatusOpen(true);
-                    }}
+                    onPress={() => setStatusOpen(true)}
                     accessibilityLabel="Emoji"
                     accessibilityHint="Choose emoji"
                     className="items-center justify-center ml-2"
-                    style={{
-                      width: 28,
-                      height: 28,
-                      marginBottom: 2,
-                    }}
-                    hitSlop={6}
-                  >
+                    style={{ width: 28, height: 28, marginBottom: 2 }}
+                    hitSlop={6}>
                     <Ionicons name="happy-outline" size={22} color="#9CA3AF" />
                   </Pressable>
                 </View>
@@ -1434,18 +2006,12 @@ export default function UserChatScreen() {
                   accessibilityLabel="Send message"
                   className="w-12 h-12 rounded-full bg-black items-center justify-center shadow-lg"
                   hitSlop={8}
-                  style={({ pressed }) => ({
-                    opacity: pressed ? 0.8 : 1,
-                  })}
-                >
+                  style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
                   <Ionicons name="paper-plane" size={18} color="#fff" />
                 </Pressable>
               ) : (
                 <Pressable
-                  onPress={() => {
-                    console.log("Record tapped");
-                    setStatusOpen(true);
-                  }}
+                  onPress={() => setStatusOpen(true)}
                   accessibilityLabel="Voice message"
                   accessibilityHint="Record and send voice message"
                   className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-lg"
@@ -1453,8 +2019,7 @@ export default function UserChatScreen() {
                   style={({ pressed }) => ({
                     opacity: pressed ? 0.8 : 1,
                     transform: [{ scale: pressed ? 0.95 : 1 }],
-                  })}
-                >
+                  })}>
                   <FontAwesome5 name="microphone" size={18} color="#111827" />
                 </Pressable>
               )}

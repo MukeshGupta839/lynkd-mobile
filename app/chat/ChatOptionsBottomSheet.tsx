@@ -38,8 +38,7 @@ function OptionRow({
       hitSlop={8}
       style={({ pressed }) => ({
         opacity: pressed ? 0.7 : 1,
-      })}
-    >
+      })}>
       <View className="w-10 h-10 rounded-xl items-center justify-center bg-white border border-gray-200">
         {icon}
       </View>
@@ -65,8 +64,7 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
       animationType="slide"
       onRequestClose={() => setShow(false)}
       supportedOrientations={["portrait", "landscape"]}
-      statusBarTranslucent
-    >
+      statusBarTranslucent>
       {/* Backdrop */}
       <Pressable
         className="flex-1 bg-[rgba(0,0,0,0.4)]"
@@ -77,8 +75,7 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
 
       {/* Sheet */}
       <View
-        className={`bg-white rounded-t-2xl shadow-xl ${Platform.OS === "ios" ? "pb-6" : "pb-4"}`}
-      >
+        className={`bg-white rounded-t-2xl shadow-xl ${Platform.OS === "ios" ? "pb-6" : "pb-4"}`}>
         {/* Handle */}
         <View className="w-full items-center py-3">
           <View className="w-12 h-1.5 bg-gray-300 rounded-full" />
@@ -95,10 +92,17 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
               onClearChat?.();
             }}
           />
-
+          <OptionRow
+            icon={<Ionicons name="archive-sharp" size={20} color="#111827" />}
+            label="Archive"
+            onPress={() => {
+              setShow(false);
+              // parent screen handles opening profile if needed
+            }}
+          />
           {/* Pin chat */}
           <OptionRow
-            icon={<Ionicons name="pin" size={20} color="#111827" />}
+            icon={<Ionicons name="pin-sharp" size={20} color="#111827" />}
             label="Pin chat"
             onPress={() => {
               setShow(false);
@@ -116,22 +120,9 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
             }}
           />
 
-          {/* Separator */}
-          <View className="h-px bg-gray-100 my-2" />
-
-          {/* Additional/secondary actions */}
           <OptionRow
-            icon={<Ionicons name="person" size={20} color="#111827" />}
-            label="View profile"
-            onPress={() => {
-              setShow(false);
-              // parent screen handles opening profile if needed
-            }}
-          />
-
-          <OptionRow
-            icon={<Ionicons name="share-social" size={20} color="#111827" />}
-            label="Share chat"
+            icon={<Ionicons name="volume-mute" size={20} color="#111827" />}
+            label="Mute"
             onPress={() => {
               setShow(false);
               // optional: parent can handle share via prop in future
@@ -148,8 +139,7 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
             hitSlop={8}
             style={({ pressed }) => ({
               opacity: pressed ? 0.7 : 1,
-            })}
-          >
+            })}>
             <Text className="text-base text-black font-medium">Cancel</Text>
           </Pressable>
         </View>
