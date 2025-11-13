@@ -1,6 +1,7 @@
+// ProfileScreen.tsx
 import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -25,10 +26,10 @@ import Octicons from "@expo/vector-icons/Octicons";
 import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
 
 // Components
-import FollowersFollowingSheet from "@/components/FollowersFollowingSheet"; // ⬅️ ADDED
+import FollowersFollowingSheet from "@/components/FollowersFollowingSheet";
 import TextPost from "./TextPost";
 
-// ⬅️ ADDED: api helper
+// api helper
 import { apiCall } from "@/lib/api/apiService";
 
 const { width } = Dimensions.get("window");
@@ -53,7 +54,6 @@ interface UserDetails {
   }[];
 }
 
-// ⬅️ ADDED: lightweight type for users in followers/following lists
 type FollowUser = {
   user_id: number | string;
   username: string;
@@ -73,35 +73,29 @@ interface ProfileScreenProps {
   fetchUserPosts?: (userId: number) => Promise<any[]>;
   fetchUserReels?: (userId: number) => Promise<any[]>;
   fetchUserProducts?: (userId: number) => Promise<any[]>;
-  onFollow?: (userId: number) => Promise<void>;
-  onUnfollow?: (userId: number) => Promise<void>;
+  onFollow?: (userId: number) => Promise<any>;
+  onUnfollow?: (userId: number) => Promise<any>;
   checkFollowStatus?: (userId: number) => Promise<string | null>;
   currentUserId?: number;
-
-  // ⬅️ ADDED (optional): feed data into the sheet without API in this component
   followersData?: FollowUser[];
   followingData?: FollowUser[];
 }
 
 /* =========================================================================
-   ⬇️ ADDED: Default API implementations (only used if props not provided)
+   Default API implementations (only used if props not provided)
    ========================================================================= */
 
 const defaultFetchUserDetails = async (
   userId: number,
   username?: string
 ): Promise<UserDetails> => {
-  // Try username lookup first if provided; else use userId
   const endpoint = username
     ? `/api/users/profile?username=${encodeURIComponent(username)}`
     : `/api/users/${userId}`;
 
   const res = await apiCall(endpoint, "GET");
-
-  // Accept both {data:{...}} and flat {...}
   const u = res?.data ?? res;
 
-  // Map to UserDetails with safe fallbacks
   const details: UserDetails = {
     id: Number(u?.id ?? userId),
     username: String(u?.username ?? username ?? ""),
@@ -129,7 +123,6 @@ const defaultFetchUserDetails = async (
 
 const defaultFetchUserPosts = async (userId: number): Promise<any[]> => {
   const res = await apiCall(`/api/posts/user/${userId}`, "GET");
-  // Normalize to array of posts
   const data = res?.data ?? res ?? [];
   return Array.isArray(data) ? data : [];
 };
@@ -150,18 +143,17 @@ const defaultCheckFollowStatus = async (
   userId: number
 ): Promise<string | null> => {
   const res = await apiCall(`/api/follows/status/${userId}`, "GET");
-  // Expect {status:"followed"|"pending"|""}
   const status = res?.status ?? res?.data?.status ?? "";
   if (typeof status === "string") return status;
   return null;
 };
 
-const defaultOnFollow = async (userId: number): Promise<void> => {
-  await apiCall(`/api/follows/follow/${userId}`, "POST");
+const defaultOnFollow = async (userId: number): Promise<any> => {
+  return apiCall(`/api/follows/follow/${userId}`, "POST");
 };
 
-const defaultOnUnfollow = async (userId: number): Promise<void> => {
-  await apiCall(`/api/follows/unfollow/${userId}`, "POST");
+const defaultOnUnfollow = async (userId: number): Promise<any> => {
+  return apiCall(`/api/follows/unfollow/${userId}`, "POST");
 };
 
 const ProfileScreen = ({
@@ -175,30 +167,31 @@ const ProfileScreen = ({
   onUnfollow,
   checkFollowStatus,
   currentUserId,
-  followersData, // ⬅️ ADDED
-  followingData, // ⬅️ ADDED
+  followersData,
+  followingData,
 }: ProfileScreenProps) => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
-  const isFocused = useIsFocused(); // Track if screen is focused
+  const isFocused = useIsFocused();
 
-  // Prevent double navigation on rapid taps. Use a ref so re-renders don't reset it.
   const isNavigatingRef = useRef(false);
 
-  const safePush = (to: any) => {
-    if (isNavigatingRef.current) return;
-    isNavigatingRef.current = true;
-    try {
-      router.push(to);
-    } catch (err) {
-      console.error("Navigation error:", err);
-    }
-    // Reset after a short delay — router.push doesn't return a promise in expo-router
-    setTimeout(() => {
-      isNavigatingRef.current = false;
-    }, 800);
-  };
+  const safePush = useCallback(
+    (to: any) => {
+      if (isNavigatingRef.current) return;
+      isNavigatingRef.current = true;
+      try {
+        router.push(to);
+      } catch (err) {
+        console.error("Navigation error:", err);
+      }
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 800);
+    },
+    [router]
+  );
 
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [activeTab, setActiveTab] = useState("All");
@@ -215,19 +208,21 @@ const ProfileScreen = ({
   );
   const [following, setFollowing] = useState("");
   const [bioExpanded, setBioExpanded] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0); // Key to trigger refresh
-  // ⬇ add these
+  const [refreshKey, setRefreshKey] = useState(0);
   const [ffLoading, setFfLoading] = useState(false);
   const [ffError, setFfError] = useState<string | null>(null);
 
-  // ⬅️ ADDED: state to control the Followers/Following sheet
+  // NEW: prevent duplicate follow/unfollow taps for header follow button
+  const [followLoading, setFollowLoading] = useState(false);
+
+  // sheet state
   const [showFFSheet, setShowFFSheet] = useState(false);
   const [activeFFTab, setActiveFFTab] = useState<"followers" | "following">(
     "followers"
   );
   const [ffKey, setFfKey] = useState(0);
 
-  // ⬅️ ADDED: local state that actually feeds the sheet (no mock fallback)
+  // local lists
   const [followersList, setFollowersList] = useState<FollowUser[]>(
     followersData ?? []
   );
@@ -235,7 +230,13 @@ const ProfileScreen = ({
     followingData ?? []
   );
 
-  // ⬅️ ADDED: stable function references (use props if provided, else defaults)
+  // per-item busy map
+  const [ffBusyMap, setFfBusyMap] = useState<Record<string, boolean>>({});
+
+  const setBusy = useCallback((id: string | number, v: boolean) => {
+    setFfBusyMap((m) => ({ ...m, [String(id)]: v }));
+  }, []);
+
   const fetchUserDetailsFn = fetchUserDetails ?? defaultFetchUserDetails;
   const fetchUserPostsFn = fetchUserPosts ?? defaultFetchUserPosts;
   const fetchUserReelsFn = fetchUserReels ?? defaultFetchUserReels;
@@ -244,7 +245,6 @@ const ProfileScreen = ({
   const followFn = onFollow ?? defaultOnFollow;
   const unfollowFn = onUnfollow ?? defaultOnUnfollow;
 
-  // Function to format numbers (e.g., 1000 -> 1k)
   const kFormatter = (num: number): string => {
     if (Math.abs(num) > 999999999) {
       return (Math.sign(num) * (Math.abs(num) / 1000000000)).toFixed(1) + "B";
@@ -257,7 +257,232 @@ const ProfileScreen = ({
     }
   };
 
-  // Fetch user details and data
+  // helper to close and reset sheet data
+  const closeSheet = (_?: boolean) => {
+    setShowFFSheet(false);
+    setFollowersList([]);
+    setFollowingList([]);
+  };
+
+  const toUser = (u: any): FollowUser => ({
+    user_id: String(u?.user_id ?? u?.id ?? u?.userId ?? ""),
+    username: u?.username ?? "",
+    first_name: u?.first_name ?? u?.firstName ?? "",
+    last_name: u?.last_name ?? u?.lastName ?? "",
+    is_creator: !!(u?.is_creator ?? u?.verified),
+    profile_picture: u?.profile_picture ?? u?.photoURL ?? "",
+  });
+
+  const refreshFollowLists = async (targetUserId?: number) => {
+    if (!targetUserId) return;
+    setFfLoading(true);
+    setFfError(null);
+
+    try {
+      const res = await apiCall(
+        `/api/follows/followFollowing/${targetUserId}`,
+        "GET"
+      );
+      const payload = res?.data ?? res ?? {};
+
+      const apiFollowers: FollowUser[] = Array.isArray(payload?.followers)
+        ? payload.followers.map(toUser)
+        : [];
+
+      const apiFollowing: FollowUser[] = Array.isArray(payload?.following)
+        ? payload.following.map(toUser)
+        : [];
+
+      setFollowersList(apiFollowers);
+      setFollowingList(apiFollowing);
+    } catch (err: any) {
+      console.error("Failed to refresh follow lists:", err);
+      const status = err?.response?.status;
+      setFfError(
+        status === 404
+          ? `Follow lists not found (404).`
+          : `Failed to load followers/following data`
+      );
+    } finally {
+      setFfLoading(false);
+    }
+  };
+
+  // declare handleUserPress after closeSheet to avoid TS error
+  const handleUserPress = useCallback(
+    (u: FollowUser) => {
+      closeSheet();
+
+      setTimeout(() => {
+        safePush({
+          pathname: "/(profiles)",
+          params: { username: u.username },
+        });
+      }, 60);
+    },
+    [closeSheet, safePush]
+  );
+
+  /**
+   * Optimistic follow:
+   * - Add target to followingList locally (if appropriate)
+   * - Set per-item busy flag
+   * - Call API
+   * - On error rollback; on success optionally merge canonical data
+   */
+  const handleFollow = useCallback(
+    async (id: string | number) => {
+      if (!userID) return;
+      const key = String(id);
+
+      if (ffBusyMap[key]) return;
+      setBusy(key, true);
+
+      // Build optimistic user (if you already render item from UI, this will be short-lived)
+      const optimisticUser: FollowUser = {
+        user_id: key,
+        username: `user_${key}`,
+        profile_picture: "",
+      };
+
+      // Add to followingList optimistically
+      setFollowingList((cur) => {
+        if (cur.some((u) => String(u.user_id) === key)) return cur;
+        return [optimisticUser, ...cur];
+      });
+
+      // Update local count optimistically
+      setUserDetails((d) =>
+        d ? { ...d, followingCount: (d.followingCount || 0) + 1 } : d
+      );
+
+      try {
+        const res = await followFn(Number(id));
+        // If server returns canonical user details, merge them
+        const serverUser =
+          res?.data?.user ??
+          res?.user ??
+          (res && typeof res === "object" && res.username ? res : null);
+
+        if (serverUser && serverUser.id) {
+          // replace optimistic entry with canonical server user if present
+          setFollowingList((cur) =>
+            cur.map((u) =>
+              String(u.user_id) === key
+                ? toUser({ user_id: serverUser.id, ...serverUser })
+                : u
+            )
+          );
+        }
+        // If server returned status 'pending' you might want to update following state
+        // But we keep sheet-specific lists as-is (server canonicalization handled above)
+      } catch (e) {
+        console.error("follow failed, rolling back:", e);
+        // rollback
+        setFollowingList((cur) => cur.filter((u) => String(u.user_id) !== key));
+        setUserDetails((d) =>
+          d
+            ? { ...d, followingCount: Math.max((d.followingCount || 1) - 1, 0) }
+            : d
+        );
+        // Optionally call refreshFollowLists(userID) here if you want full reconcilation
+      } finally {
+        setBusy(key, false);
+      }
+    },
+    [followFn, userID, ffBusyMap, setBusy]
+  );
+
+  /**
+   * Optimistic unfollow:
+   * - Remove from followingList immediately
+   * - Set per-item busy
+   * - Call API
+   * - On error re-insert or call refreshFollowLists
+   */
+  const handleUnfollow = useCallback(
+    async (id: string | number) => {
+      if (!userID) return;
+      const key = String(id);
+
+      if (ffBusyMap[key]) return;
+      setBusy(key, true);
+
+      let removedUser: FollowUser | null = null;
+      setFollowingList((cur) => {
+        const idx = cur.findIndex((u) => String(u.user_id) === key);
+        if (idx === -1) return cur;
+        removedUser = cur[idx];
+        return cur.filter((u) => String(u.user_id) !== key);
+      });
+
+      // update counts optimistically
+      setUserDetails((d) =>
+        d
+          ? { ...d, followingCount: Math.max((d.followingCount || 1) - 1, 0) }
+          : d
+      );
+
+      try {
+        const res = await unfollowFn(Number(id));
+        // if server indicates "already removed" treat as success; otherwise OK
+        // optionally re-sync authoritative lists:
+        // await refreshFollowLists(userID);
+        // setFfKey(k => k + 1);
+      } catch (e: any) {
+        console.error("unfollow failed, rolling back or reconciling:", e);
+        const errMsg = String(e?.message ?? "").toLowerCase();
+        const serverMsg = String(
+          e?.response?.data?.message ?? ""
+        ).toLowerCase();
+        const statusCode = e?.response?.status;
+        const alreadyGone =
+          errMsg.includes("not following") ||
+          errMsg.includes("user was not following") ||
+          serverMsg.includes("not following") ||
+          serverMsg.includes("not found") ||
+          (statusCode && [404, 410].includes(statusCode));
+
+        if (alreadyGone) {
+          // treat as success: ensure authoritative re-sync to reflect server
+          await refreshFollowLists(userID);
+          setFfKey((k) => k + 1);
+        } else {
+          // rollback optimistic removal
+          if (removedUser) {
+            setFollowingList((cur) => [removedUser!, ...cur]);
+          } else {
+            await refreshFollowLists(userID);
+          }
+          // rollback counts
+          setUserDetails((d) =>
+            d ? { ...d, followingCount: (d.followingCount || 0) + 1 } : d
+          );
+        }
+      } finally {
+        setBusy(key, false);
+      }
+    },
+    [unfollowFn, userID, ffBusyMap, setBusy]
+  );
+
+  const handleMessage = useCallback(
+    (u: FollowUser) => {
+      router.push({
+        pathname: "/chat/UserChatScreen",
+        params: {
+          userId: String(u.user_id),
+          username: u.username ?? "User",
+          profilePicture:
+            u.profile_picture ?? "https://www.gravatar.com/avatar/?d=mp",
+          loggedUserId: String(currentUserId ?? ""),
+          loggedUsername: userDetails?.username ?? "",
+        },
+      });
+    },
+    [router, currentUserId, userDetails?.username]
+  );
+
   useEffect(() => {
     const loadUserData = async () => {
       setLoading(true);
@@ -265,48 +490,22 @@ const ProfileScreen = ({
         let actualUserId = userID;
         const mentionedUsername = propUsername || (params.username as string);
 
-        console.log("ProfileScreen loadUserData:", {
-          propUserId,
-          propUsername,
-          userID,
-          actualUserId,
-          mentionedUsername,
-          currentUserId: currentUserId,
-          "params.user": params.user,
-          "params.username": params.username,
-        });
-
-        // If we have a username but no valid userId was passed, fetch user details first to get the userId
-        // This happens when navigating with only username (no userId in params)
         const hasValidUserId = propUserId && propUserId !== currentUserId;
         const needsUserIdResolution =
           mentionedUsername && !hasValidUserId && fetchUserDetailsFn;
 
-        console.log("Resolution check:", {
-          hasValidUserId,
-          needsUserIdResolution,
-        });
-
         if (needsUserIdResolution) {
-          console.log(
-            "Fetching user details from username:",
-            mentionedUsername
-          );
-          // We can call defaultFetchUserDetails with username (userId may be undefined)
           const details = await fetchUserDetailsFn(
             actualUserId ?? 0,
             mentionedUsername
           );
           setUserDetails(details);
 
-          // Update the userID state with the fetched user's ID
           if (details.id && details.id !== actualUserId) {
             actualUserId = details.id;
             setUserID(details.id);
-            console.log("Updated userID from username fetch:", details.id);
           }
         } else {
-          // Fetch user details normally
           if (fetchUserDetailsFn && actualUserId) {
             const details = await fetchUserDetailsFn(
               actualUserId,
@@ -314,13 +513,12 @@ const ProfileScreen = ({
             );
             setUserDetails(details);
           } else {
-            // Mock data fallback
             setUserDetails({
               id: actualUserId || 0,
               username: mentionedUsername || "john_doe",
               first_name: "John",
               last_name: "Doe",
-              bio: "Photography enthusiast • Travel lover • Coffee addict ☕️ ssfsfs sffsfsf sffssfsf sfsfsfs sfsf sfsf sf sf sfsf sfsfsfs sfsf swrwrw wrwrwrwrw wwr wr wwrw wrwrwrrw wr wrwrwr wr wr wqahlskhlfkhashlf hahs ahfslkfh lkfhl akfhslksjhfalksfjh lakshf h afsakhflkfhlskhlak hasf hlakfh. fhashlffhfasl ",
+              bio: "Photography enthusiast • Travel lover • Coffee addict ☕️",
               profile_picture: "https://randomuser.me/api/portraits/men/1.jpg",
               banner_image:
                 "https://img.freepik.com/free-vector/gradient-trendy-background_23-2150417179.jpg",
@@ -340,39 +538,35 @@ const ProfileScreen = ({
           }
         }
 
-        // Now use the actual user ID for all subsequent API calls
-        // Only proceed if we have a valid userId
         if (!actualUserId) {
           console.error("No valid userId found");
           return;
         }
 
-        // Fetch user posts
         if (fetchUserPostsFn) {
           const userPosts = await fetchUserPostsFn(actualUserId);
-          console.log("Loaded posts:", userPosts.length);
-          console.log("Sample post:", userPosts[0]);
           setPosts(userPosts);
         }
 
-        // Fetch user reels
         if (fetchUserReelsFn) {
           const reels = await fetchUserReelsFn(actualUserId);
           setUserReels(reels);
         }
 
-        // Fetch user products
         if (fetchUserProductsFn) {
           const products = await fetchUserProductsFn(actualUserId);
           setProductsAffiliated(products);
         }
 
-        // Check follow status if this is not the current user's profile
         if (checkFollowStatusFn && actualUserId !== currentUserId) {
           const status = await checkFollowStatusFn(actualUserId);
           if (status) {
             setFollowing(status);
+          } else {
+            setFollowing("");
           }
+        } else {
+          setFollowing("");
         }
       } catch (error) {
         console.error("Error loading user data:", error);
@@ -394,13 +588,11 @@ const ProfileScreen = ({
     userID,
     params.user,
     currentUserId,
-    refreshKey, // Add refreshKey to dependencies
+    refreshKey,
   ]);
 
-  // Re-fetch data when screen comes into focus
   useEffect(() => {
     if (isFocused) {
-      console.log("Profile screen focused - triggering refresh");
       setRefreshKey((prev) => prev + 1);
     }
   }, [isFocused]);
@@ -411,30 +603,60 @@ const ProfileScreen = ({
       return;
     }
 
+    if (followLoading) return;
+    setFollowLoading(true);
+
     try {
       if (following === "followed") {
-        // Unfollow
-        await unfollowFn(userID);
-        setFollowing("");
+        const res: any = await unfollowFn(userID as number);
+        const status =
+          res?.status ??
+          res?.data?.status ??
+          (typeof res === "string" ? res : "");
+        if (status === "pending" || status === "followed") {
+          setFollowing(status === "followed" ? "followed" : "pending");
+        } else {
+          setFollowing("");
+        }
+        if (userID) await refreshFollowLists(userID);
       } else {
-        // Follow
-        await followFn(userID);
-        // Some backends return "pending" if private accounts
-        // Here we optimistically set to "followed" unless you need to read response
-        setFollowing("followed");
+        const res: any = await followFn(userID as number);
+        const status =
+          res?.status ??
+          res?.data?.status ??
+          (typeof res === "string" ? res : "") ??
+          "";
+        if (status === "pending" || status === "followed") {
+          setFollowing(status);
+        } else {
+          try {
+            const check = await checkFollowStatusFn(userID);
+            setFollowing(check ?? "");
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          } catch (err) {
+            setFollowing("followed");
+          }
+        }
+        if (userID) await refreshFollowLists(userID);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error toggling follow:", error);
+      try {
+        const check = await checkFollowStatusFn(userID);
+        setFollowing(check ?? "");
+      } catch (err) {
+        console.error("Failed to re-check follow status after error:", err);
+      }
+    } finally {
+      setFollowLoading(false);
     }
   };
 
-  // ⬅️ UPDATED: open Followers/Following sheet and fetch via API
   const handleOpenSheet = async (label: string) => {
     if (userID !== currentUserId || label === "Posts") return;
 
     const tab = label.toLowerCase() as "followers" | "following";
 
-    // ✅ Step 1: set tab, show sheet, and start loader
     setShowFFSheet(true);
     setActiveFFTab(tab);
     setFfLoading(true);
@@ -443,7 +665,6 @@ const ProfileScreen = ({
     setFollowingList([]);
 
     try {
-      // ✅ Step 2: fetch API data
       const res = await apiCall(
         `/api/follows/followFollowing/${userID}`,
         "GET"
@@ -469,24 +690,14 @@ const ProfileScreen = ({
           profile_picture: u.profile_picture ?? u.photoURL,
         })) ?? [];
 
-      // ✅ Step 3: update data (sheet will re-render live)
-
       setFollowersList(apiFollowers);
       setFollowingList(apiFollowing);
     } catch (err) {
       console.error("Failed to fetch follow lists:", err);
       setFfError("Failed to load followers/following data");
     } finally {
-      // ✅ Step 4: stop loader once done
       setFfLoading(false);
     }
-  };
-
-  // ⬅️ ADDED: helper to close and reset sheet data (accept optional bool to match setter signature)
-  const closeSheet = (_?: boolean) => {
-    setShowFFSheet(false);
-    setFollowersList([]);
-    setFollowingList([]);
   };
 
   const stats = [
@@ -506,14 +717,9 @@ const ProfileScreen = ({
     const groupedImages: { [key: string]: any[] } = {};
     const months: string[] = [];
 
-    // Filter for posts with images (not text posts) and valid media_url
     const filteredPosts = posts.filter(
       (post) => post.text_post !== true && post.media_url
     );
-
-    console.log("renderGridLayout - Total posts:", posts.length);
-    console.log("renderGridLayout - Filtered posts:", filteredPosts.length);
-    console.log("renderGridLayout - First post:", posts[0]);
 
     if (filteredPosts.length === 0) {
       return (
@@ -540,10 +746,9 @@ const ProfileScreen = ({
       groupedImages[key].push(image);
     });
 
-    // Calculate responsive dimensions for small screens
-    const containerWidth = width - 32; // Account for horizontal padding
+    const containerWidth = width - 32;
     const gap = 4;
-    const imageHeight = Math.min(220, containerWidth * 0.6); // Responsive height with max limit
+    const imageHeight = Math.min(220, containerWidth * 0.6);
 
     return (
       <View>
@@ -553,7 +758,6 @@ const ProfileScreen = ({
               {date}
             </Text>
             <View className="w-full">
-              {/* Single image - full width */}
               {dateImages.length === 1 && (
                 <TouchableOpacity
                   className="w-full rounded-xl overflow-hidden"
@@ -566,8 +770,7 @@ const ProfileScreen = ({
                         focusedIndexPost: dateImages[0].id,
                       },
                     })
-                  }
-                >
+                  }>
                   <Image
                     source={{ uri: dateImages[0].media_url }}
                     className="w-full h-full"
@@ -585,7 +788,6 @@ const ProfileScreen = ({
                 </TouchableOpacity>
               )}
 
-              {/* Two images - side by side with equal width */}
               {dateImages.length === 2 && (
                 <View className="flex-row justify-between">
                   {dateImages.map((image, index) => (
@@ -594,7 +796,7 @@ const ProfileScreen = ({
                       className="rounded-xl overflow-hidden"
                       style={{
                         width: (containerWidth - gap) / 2,
-                        height: imageHeight * 0.8, // Slightly shorter for better proportion
+                        height: imageHeight * 0.8,
                       }}
                       onPress={() =>
                         safePush({
@@ -604,8 +806,7 @@ const ProfileScreen = ({
                             focusedIndexPost: image.id,
                           },
                         })
-                      }
-                    >
+                      }>
                       <Image
                         source={{ uri: image.media_url }}
                         className="w-full h-full"
@@ -627,10 +828,8 @@ const ProfileScreen = ({
                 </View>
               )}
 
-              {/* Three images - one large on left, two stacked on right */}
               {dateImages.length === 3 && (
                 <View className="flex-row" style={{ gap: gap }}>
-                  {/* Large image on left */}
                   <TouchableOpacity
                     className="rounded-xl overflow-hidden"
                     style={{
@@ -645,8 +844,7 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       })
-                    }
-                  >
+                    }>
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -657,7 +855,6 @@ const ProfileScreen = ({
                     />
                   </TouchableOpacity>
 
-                  {/* Two smaller images stacked on right */}
                   <View className="flex-1" style={{ gap: gap }}>
                     {dateImages.slice(1, 3).map((image) => (
                       <TouchableOpacity
@@ -674,8 +871,7 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           })
-                        }
-                      >
+                        }>
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -690,10 +886,8 @@ const ProfileScreen = ({
                 </View>
               )}
 
-              {/* Four or more images - one large on top, three small below */}
               {dateImages.length >= 4 && (
                 <View>
-                  {/* Large featured image */}
                   <TouchableOpacity
                     className="w-full rounded-xl overflow-hidden mb-1"
                     style={{ height: imageHeight }}
@@ -705,8 +899,7 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       })
-                    }
-                  >
+                    }>
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -717,7 +910,6 @@ const ProfileScreen = ({
                     />
                   </TouchableOpacity>
 
-                  {/* Three images in a row below */}
                   <View className="flex-row justify-between">
                     {dateImages.slice(1, 4).map((image, index) => (
                       <TouchableOpacity
@@ -735,8 +927,7 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           })
-                        }
-                      >
+                        }>
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -745,7 +936,6 @@ const ProfileScreen = ({
                           }}
                           resizeMode="cover"
                         />
-                        {/* Show overlay on last image if there are more */}
                         {index === 2 && dateImages.length > 4 && (
                           <View className="absolute inset-0 bg-black/60 justify-center items-center">
                             <Text className="text-white text-lg font-bold">
@@ -766,13 +956,9 @@ const ProfileScreen = ({
   };
 
   const renderSquareGrid = () => {
-    // Filter for posts with images (not text posts) and valid media_url
     const filteredPosts = posts.filter(
       (post) => post.text_post !== true && post.media_url
     );
-
-    console.log("renderSquareGrid - Total posts:", posts.length);
-    console.log("renderSquareGrid - Filtered posts:", filteredPosts.length);
 
     if (filteredPosts.length === 0) {
       return (
@@ -785,12 +971,10 @@ const ProfileScreen = ({
       );
     }
 
-    // Calculate responsive dimensions
-    const containerWidth = width - 32; // Account for horizontal padding
+    const containerWidth = width - 32;
     const gap = 2;
-    const imageSize = (containerWidth - gap * 2) / 3; // 3 images per row with gaps
+    const imageSize = (containerWidth - gap * 2) / 3;
 
-    // Group images into rows of 3
     const rows = [];
     for (let i = 0; i < filteredPosts.length; i += 3) {
       rows.push(filteredPosts.slice(i, i + 3));
@@ -816,8 +1000,7 @@ const ProfileScreen = ({
                       focusedIndexPost: image.id,
                     },
                   })
-                }
-              >
+                }>
                 <Image
                   source={{ uri: image.media_url }}
                   className="w-full h-full"
@@ -826,7 +1009,6 @@ const ProfileScreen = ({
               </TouchableOpacity>
             ))}
 
-            {/* Fill remaining space if row has less than 3 images */}
             {row.length < 3 && (
               <View
                 style={{
@@ -854,13 +1036,11 @@ const ProfileScreen = ({
       );
     }
 
-    // Calculate responsive dimensions
-    const containerWidth = width - 32; // Account for horizontal padding
+    const containerWidth = width - 32;
     const gap = 2;
-    const videoWidth = (containerWidth - gap * 2) / 3; // 3 videos per row with gaps
-    const videoHeight = videoWidth * 1.5; // 3:2 aspect ratio for videos
+    const videoWidth = (containerWidth - gap * 2) / 3;
+    const videoHeight = videoWidth * 1.5;
 
-    // Group videos into rows of 3
     const rows = [];
     for (let i = 0; i < userReels.length; i += 3) {
       rows.push(userReels.slice(i, i + 3));
@@ -869,53 +1049,44 @@ const ProfileScreen = ({
     return (
       <View>
         {rows.map((row, rowIndex) => (
-          <View
-            key={rowIndex}
-            className="flex-row mb-1 gap-1"
-            style={{ gap: gap }}
-          >
-            {row.map((video, videoIndex) => {
-              return (
-                <TouchableOpacity
-                  key={video.id}
-                  className="rounded-xl overflow-hidden relative"
-                  style={{
-                    width: videoWidth,
-                    height: videoHeight,
-                  }}
-                  onPress={() => {
-                    // Find the index of the clicked video
-                    const clickedIndex = userReels.findIndex(
-                      (r) => r.id === video.id
-                    );
+          <View key={rowIndex} className="flex-row mb-1 gap-1" style={{ gap }}>
+            {row.map((video, videoIndex) => (
+              <TouchableOpacity
+                key={video.id}
+                className="rounded-xl overflow-hidden relative"
+                style={{
+                  width: videoWidth,
+                  height: videoHeight,
+                }}
+                onPress={() => {
+                  const clickedIndex = userReels.findIndex(
+                    (r) => r.id === video.id
+                  );
 
-                    safePush({
-                      pathname: "/(profiles)/userReels",
-                      params: {
-                        userReelsData: JSON.stringify(userReels), // Pass all reels data
-                        initialIndex:
-                          clickedIndex >= 0 ? clickedIndex.toString() : "0", // Pass the clicked reel index
-                        username: userDetails?.username || "",
-                      },
-                    });
-                  }}
-                >
-                  <Image
-                    source={{ uri: video.thumbnail_url }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
-                  <View className="absolute bottom-2 left-2 flex-row items-center bg-black/50 px-2 py-1 rounded-xl">
-                    <Feather name="play" size={16} color="#fff" />
-                    <Text className="text-white text-xs ml-1">
-                      {kFormatter(video?.reels_views_aggregate.aggregate.count)}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                  safePush({
+                    pathname: "/(profiles)/userReels",
+                    params: {
+                      userReelsData: JSON.stringify(userReels),
+                      initialIndex:
+                        clickedIndex >= 0 ? clickedIndex.toString() : "0",
+                      username: userDetails?.username || "",
+                    },
+                  });
+                }}>
+                <Image
+                  source={{ uri: video.thumbnail_url }}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
+                <View className="absolute bottom-2 left-2 flex-row items-center bg-black/50 px-2 py-1 rounded-xl">
+                  <Feather name="play" size={16} color="#fff" />
+                  <Text className="text-white text-xs ml-1">
+                    {kFormatter(video?.reels_views_aggregate.aggregate.count)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
 
-            {/* Fill remaining space if row has less than 3 videos */}
             {row.length < 3 && (
               <View
                 style={{
@@ -948,8 +1119,7 @@ const ProfileScreen = ({
           <TouchableOpacity
             key={product.id}
             className="mb-4 rounded-xl overflow-hidden bg-gray-50 border border-gray-200"
-            style={{ width: (width - 40) / 2 }}
-          >
+            style={{ width: (width - 40) / 2 }}>
             <Image
               source={{ uri: product.main_image }}
               className="w-full h-40"
@@ -972,7 +1142,6 @@ const ProfileScreen = ({
   };
 
   const renderTextPosts = () => {
-    // Filter for text posts only
     const filteredPosts = posts.filter((post) => post.text_post === true);
 
     if (filteredPosts.length === 0) {
@@ -1042,11 +1211,9 @@ const ProfileScreen = ({
         contentContainerStyle={{
           flexGrow: 1,
           paddingBottom:
-            Platform.OS === "ios" ? insets.bottom + 45 : insets.bottom + 55, // Tab bar height + extra space
+            Platform.OS === "ios" ? insets.bottom + 45 : insets.bottom + 55,
         }}
-        nestedScrollEnabled={true}
-      >
-        {/* Header with Banner - Fixed height */}
+        nestedScrollEnabled={true}>
         <View className="relative h-52">
           <Image
             source={{
@@ -1066,26 +1233,22 @@ const ProfileScreen = ({
 
           <View
             className="absolute inset-0 flex-row justify-between px-4"
-            style={{ paddingTop: insets.top - 10 }}
-          >
+            style={{ paddingTop: insets.top - 10 }}>
             <TouchableOpacity
               className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-              onPress={() => router.back()}
-            >
+              onPress={() => router.back()}>
               <MaterialIcons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
 
             {userID === currentUserId && (
               <TouchableOpacity
                 className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-                onPress={() => safePush("/(settings)")}
-              >
+                onPress={() => safePush("/(settings)")}>
                 <Ionicons name="settings-outline" size={24} color="#fff" />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Social Media Buttons */}
           <View className="flex-row absolute bottom-9 right-4 gap-2">
             {userDetails?.social_media_accounts &&
               userDetails.social_media_accounts.length > 0 && (
@@ -1099,8 +1262,7 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://instagram.com/${userDetails.social_media_accounts![0].instagram_username}`
                           )
-                        }
-                      >
+                        }>
                         <FontAwesome5 name="instagram" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1113,8 +1275,7 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://twitter.com/${userDetails.social_media_accounts![0].twitter_username}`
                           )
-                        }
-                      >
+                        }>
                         <FontAwesome5 name="twitter" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1127,8 +1288,7 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://youtube.com/${userDetails.social_media_accounts![0].youtube_username}`
                           )
-                        }
-                      >
+                        }>
                         <FontAwesome5 name="youtube" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1137,16 +1297,13 @@ const ProfileScreen = ({
           </View>
         </View>
 
-        {/* Profile Info Section */}
         <View className="px-4 pt-4 bg-gray-100 rounded-t-3xl rounded-t-6 -mt-4">
           <View className="flex-row items-start">
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={async () => {
-                // Copy profile link functionality
                 console.log("Profile link copied");
-              }}
-            >
+              }}>
               <Image
                 source={{
                   uri:
@@ -1185,11 +1342,9 @@ const ProfileScreen = ({
             </View>
           </View>
 
-          {/* Bio Section - Optimized for expansion */}
           <TouchableOpacity
             onPress={() => setBioExpanded(!bioExpanded)}
-            className="py-2"
-          >
+            className="py-2">
             {userDetails?.bio && (
               <Text className="text-base text-gray-700 leading-5">
                 {bioExpanded
@@ -1201,15 +1356,13 @@ const ProfileScreen = ({
             )}
           </TouchableOpacity>
 
-          {/* Stats Section */}
           <View className="flex-row justify-around py-1 border-gray-200 mb-1">
             {stats.map((stat, index) => (
               <TouchableOpacity
                 key={index}
                 className="items-center"
                 onPress={() => handleOpenSheet(stat.label)}
-                disabled={userID !== currentUserId || stat.label === "Posts"}
-              >
+                disabled={userID !== currentUserId || stat.label === "Posts"}>
                 <Text className="text-sm font-bold text-gray-900">
                   {kFormatter(stat.value)}
                 </Text>
@@ -1218,22 +1371,19 @@ const ProfileScreen = ({
             ))}
           </View>
 
-          {/* Action Buttons */}
           <View className="flex-row justify-between mb-6">
             {userID === currentUserId ? (
               <>
                 <TouchableOpacity
                   className="flex-1 h-10 rounded-full justify-center items-center bg-white mr-2"
-                  onPress={() => safePush("/(profiles)/editProfile")}
-                >
+                  onPress={() => safePush("/(profiles)/editProfile")}>
                   <Text className="text-sm font-semibold text-gray-900">
                     Edit Profile
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 h-10 rounded-full justify-center items-center bg-gray-900 ml-2"
-                  onPress={() => safePush("/(profiles)/InviteHome")}
-                >
+                  onPress={() => safePush("/(profiles)/InviteHome")}>
                   <Text className="text-sm font-semibold text-white">
                     Invite
                   </Text>
@@ -1246,17 +1396,18 @@ const ProfileScreen = ({
                     following === "followed" ? "bg-white" : "bg-gray-900"
                   }`}
                   onPress={toggleFollow}
-                >
+                  disabled={followLoading}>
                   <Text
                     className={`text-sm font-semibold ${
                       following === "followed" ? "text-gray-900" : "text-white"
-                    }`}
-                  >
-                    {following === "followed"
-                      ? "Following"
-                      : following === "pending"
-                        ? "Requested"
-                        : "Follow"}
+                    }`}>
+                    {followLoading
+                      ? "Requesting..."
+                      : following === "followed"
+                        ? "Following"
+                        : following === "pending"
+                          ? "Requested"
+                          : "Follow"}
                   </Text>
                 </TouchableOpacity>
 
@@ -1271,7 +1422,6 @@ const ProfileScreen = ({
             )}
           </View>
 
-          {/* Content Tabs and Display */}
           {userDetails.is_creator ||
           following === "followed" ||
           userDetails.id === currentUserId ? (
@@ -1283,8 +1433,7 @@ const ProfileScreen = ({
                     className={`w-12 h-12 rounded-full justify-center items-center ${
                       activeTab === tab ? "bg-gray-900" : "bg-white"
                     }`}
-                    onPress={() => setActiveTab(tab)}
-                  >
+                    onPress={() => setActiveTab(tab)}>
                     {tab === "All" && (
                       <FontAwesome
                         name="snowflake-o"
@@ -1333,7 +1482,6 @@ const ProfileScreen = ({
               </View>
             </>
           ) : (
-            // Private account view
             <View className="items-center justify-center py-12">
               <View className="w-16 h-16 rounded-full bg-white justify-center items-center mb-4">
                 <Ionicons name="lock-closed" size={24} color="#1a1a1a" />
@@ -1349,22 +1497,32 @@ const ProfileScreen = ({
         </View>
       </ScrollView>
 
-      {/* ⬇️ ADDED: Followers / Following Bottom Sheet */}
       <FollowersFollowingSheet
         show={showFFSheet}
         setShow={closeSheet}
         followers={followersList}
         followings={followingList}
-        enableDemoData={true}
+        enableDemoData
         activeTab={activeFFTab}
-        loading={ffLoading} // ⬅️ pass loader state
-        error={ffError} // ⬅️ pass error state (sheet shows red text)
-        onUserPress={(u) =>
-          safePush({
-            pathname: "/(profiles)",
-            params: { username: u.username },
-          })
-        }
+        loading={ffLoading}
+        error={ffError}
+        onUserPress={(u: FollowUser) => {
+          closeSheet();
+          setTimeout(() => {
+            safePush({
+              pathname: "/(profiles)",
+              params: { username: u.username },
+            });
+          }, 60);
+        }}
+        onFollow={(id: string | number) => handleFollow(id)}
+        onUnfollow={(id: string | number) => handleUnfollow(id)}
+        onMessage={(u: FollowUser) => {
+          closeSheet();
+          setTimeout(() => {
+            handleMessage(u);
+          }, 60);
+        }}
       />
     </View>
   );

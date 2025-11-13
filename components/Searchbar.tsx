@@ -1,5 +1,5 @@
 import { Search } from "lucide-react-native";
-import { Text, TextInput, View } from "react-native";
+import { Text, TextInput, useWindowDimensions, View } from "react-native";
 
 type Props = {
   value?: string;
@@ -20,19 +20,38 @@ export default function SearchBar({
   innerClassName = "",
   readOnly = false,
 }: Props) {
+  const { height } = useWindowDimensions();
+
+  // Dynamically adjust height and padding
+  const baseHeight = height < 700 ? 44 : height < 850 ? 36 : 48;
+  const verticalPadding = baseHeight * 0.18; // consistent vertical spacing (top/bottom)
+
   return (
     <View
       className={[
-        "w-full h-13 self-center bg-white border border-gray-200 rounded-xl overflow-hidden",
+        "w-full bg-white border border-gray-200 rounded-3xl overflow-hidden",
         className,
-      ].join(" ")}>
+      ].join(" ")}
+      style={{
+        height: baseHeight,
+      }}>
       <View
         className={[
-          "flex-1 flex-row items-center justify-between px-3",
+          "flex-1 flex-row items-center justify-between",
           innerClassName,
-        ].join(" ")}>
+        ].join(" ")}
+        style={{
+          paddingHorizontal: 12,
+          paddingVertical: verticalPadding,
+        }}>
         {readOnly ? (
-          <Text className="flex-1 mr-2 text-base text-gray-400">
+          <Text
+            className="flex-1 text-base text-gray-400"
+            style={{
+              paddingVertical: 0,
+              includeFontPadding: false,
+              textAlignVertical: "center",
+            }}>
             {placeholder}
           </Text>
         ) : (
@@ -42,9 +61,12 @@ export default function SearchBar({
             onSubmitEditing={onSubmitEditing}
             placeholder={placeholder}
             placeholderTextColor="#6B7280"
-            className="flex-1 mr-2 text-base text-gray-700"
+            className="flex-1 text-base text-gray-700"
             style={{
-              paddingVertical: 0, // ensures caret is vertically centered
+              paddingVertical: 0,
+              includeFontPadding: false,
+              textAlignVertical: "center",
+              fontSize: 15,
             }}
             autoCapitalize="none"
             autoCorrect={false}
@@ -52,7 +74,14 @@ export default function SearchBar({
           />
         )}
 
-        <Search size={20} strokeWidth={2} color="black" />
+        <View
+          style={{
+            justifyContent: "center",
+            alignItems: "center",
+            height: "100%",
+          }}>
+          <Search size={20} strokeWidth={2} color="black" />
+        </View>
       </View>
     </View>
   );

@@ -1,4 +1,5 @@
 // components/FollowersFollowingSheet.tsx
+import { SkeletonList } from "@/components/Placeholder/FollowersFollowingSkeletons";
 import SearchBar from "@/components/Searchbar";
 import {
   BottomSheetBackdrop,
@@ -7,7 +8,6 @@ import {
   BottomSheetView,
   type BottomSheetModal as BottomSheetModalType,
 } from "@gorhom/bottom-sheet";
-import { LinearGradient } from "expo-linear-gradient";
 import React, {
   useCallback,
   useEffect,
@@ -16,14 +16,12 @@ import React, {
   useState,
 } from "react";
 import {
-  Alert,
   Animated,
   Dimensions,
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -51,123 +49,46 @@ interface FollowersFollowingSheetProps {
   setShow: (show: boolean) => void;
   followers: FollowUser[];
   followings: FollowUser[];
-  activeTab?: TabKey; // which tab to open on
+  activeTab?: TabKey;
   onUserPress?: (user: FollowUser) => void;
-  loading?: boolean; // show skeletons when true
+  loading?: boolean;
   error?: string | null;
-  onFollow?: (userId: string | number) => Promise<void> | void;
+  onFollow?: (
+    userId: string | number
+  ) => Promise<"followed" | "pending" | void> | ("followed" | "pending" | void);
   onUnfollow?: (userId: string | number) => Promise<void> | void;
   onMessage?: (user: FollowUser) => void;
-  confirmUnfollow?: boolean;
   enableDemoData?: boolean;
+  refreshKey?: number;
 }
 
 /* ======================== Constants / Helpers ======================== */
 const { height: WIN_H, width: WIN_W } = Dimensions.get("window");
-const SCREEN_W = WIN_W;
+const toKey = (id: string | number) => String(id);
 
-/* ======================== Skeleton Loader ======================== */
-const Shimmer: React.FC<{
-  height: number;
-  borderRadius?: number;
-  style?: any;
-}> = ({ height, borderRadius = 8, style }) => {
-  const translateX = useRef(new Animated.Value(-SCREEN_W)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(translateX, {
-        toValue: SCREEN_W,
-        duration: 1000,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [translateX]);
-
-  return (
-    <View
-      style={[
-        {
-          overflow: "hidden",
-          backgroundColor: "#ECEFF3",
-          height,
-          borderRadius,
-        },
-        style,
-      ]}
-    >
-      <Animated.View
-        style={[StyleSheet.absoluteFillObject, { transform: [{ translateX }] }]}
-      >
-        <LinearGradient
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          colors={["transparent", "rgba(255,255,255,0.65)", "transparent"]}
-          style={{ width: 120, height: "100%" }}
-        />
-      </Animated.View>
-    </View>
-  );
-};
-
-const SkeletonRow: React.FC = () => (
-  <View
-    style={{
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      paddingVertical: 10,
-    }}
-  >
-    <Shimmer height={40} borderRadius={20} style={{ width: 40 }} />
-    <View style={{ flex: 1, gap: 6 }}>
-      <Shimmer height={14} borderRadius={6} style={{ width: "60%" }} />
-      <Shimmer height={12} borderRadius={6} style={{ width: "40%" }} />
-    </View>
-    <Shimmer height={30} borderRadius={10} style={{ width: 108 }} />
-  </View>
-);
-
-const SkeletonList: React.FC<{ count?: number }> = ({ count = 10 }) => (
-  <View style={{ paddingVertical: 8 }}>
-    {Array.from({ length: count }).map((_, i) => (
-      <SkeletonRow key={i} />
-    ))}
-  </View>
-);
-
-/* ======================== Component ======================== */
 const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   show,
   setShow,
   followers,
   followings,
-  activeTab: activeTabProp = "followers", // default to followers tab
+  activeTab: activeTabProp = "followers",
   onUserPress,
   loading = false,
   error = null,
   onFollow,
   onUnfollow,
   onMessage,
-  confirmUnfollow = true,
   enableDemoData = false,
 }) => {
   const insets = useSafeAreaInsets();
   const modalRef = useRef<BottomSheetModalType>(null);
 
-  // Snap points: 50%, 80%, 90%
   const snapPoints = useMemo(() => [WIN_H * 0.5, WIN_H * 0.8, WIN_H * 0.9], []);
-  const initialIndex = 2; // open near-full
+  const initialIndex = 2;
 
-  // Present/dismiss
   useEffect(() => {
-    if (show) {
-      modalRef.current?.present();
-    } else {
-      modalRef.current?.dismiss();
-    }
+    if (show) modalRef.current?.present();
+    else modalRef.current?.dismiss();
   }, [show]);
 
   const close = useCallback(() => setShow(false), [setShow]);
@@ -196,7 +117,6 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   }, [followings, enableDemoData]);
 
   /* ======================== Tabs / Pager ======================== */
-  // Pages order: [Followers (0), Following (1)]
   const PAGE_FOLLOWERS = 0;
   const PAGE_FOLLOWING = 1;
 
@@ -206,9 +126,7 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   const pagerRef = useRef<ScrollView>(null);
   const [pageW, setPageW] = useState<number>(WIN_W);
   const [pagerReady, setPagerReady] = useState(false);
-
-  // Keep a key tied to target tab to ensure initial contentOffset applies
-  const pagerKey = `pager-${pageW}-${activeTabProp}`;
+  const pagerKey = `pager-${pageW}-${activeTab}`;
 
   const onPagerLayout = (e: any) => {
     const w = e.nativeEvent.layout.width;
@@ -216,31 +134,26 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
     setPagerReady(true);
   };
 
-  // Type-safe timer ref
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const syncToTab = useCallback(
     (animate = false) => {
       if (!pagerReady || !show) return;
-      const index =
-        activeTabProp === "following" ? PAGE_FOLLOWING : PAGE_FOLLOWERS;
+      const index = activeTab === "following" ? PAGE_FOLLOWING : PAGE_FOLLOWERS;
       pagerRef.current?.scrollTo({ x: index * pageW, y: 0, animated: animate });
     },
-    [pagerReady, show, activeTabProp, pageW]
+    [pagerReady, show, activeTab, pageW]
   );
 
-  // Align pager after sheet opens & whenever target tab prop changes
   useEffect(() => {
     if (!show || !pagerReady) return;
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    // Wait a bit so BottomSheet can finish its opening animation/layout
     syncTimeoutRef.current = setTimeout(() => syncToTab(false), 300);
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
   }, [show, pagerReady, activeTabProp, syncToTab]);
 
-  // Re-sync once loader flips off (layout/content height changes can nudge)
   useEffect(() => {
     if (!loading && show && pagerReady) {
       const t = setTimeout(() => syncToTab(false), 50);
@@ -288,52 +201,43 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
     [query]
   );
 
-  // Relationship sets for fast lookups (who I follow, who follows me)
-  const makeIdSet = (arr?: FollowUser[]) => {
-    const s = new Set<string | number>();
-    (arr || []).forEach((u) => s.add(u.user_id));
+  const toIdSet = (arr?: FollowUser[]) => {
+    const s = new Set<string>();
+    (arr || []).forEach((u) => s.add(toKey(u.user_id)));
     return s;
   };
-  const setsEqual = (a: Set<any>, b: Set<any>) => {
-    if (a.size !== b.size) return false;
-    for (const v of a) if (!b.has(v)) return false;
-    return true;
-  };
 
-  const [iFollowSet, setIFollowSet] = useState<Set<string | number>>(() =>
-    makeIdSet(safeFollowings)
+  const iFollowSet = useMemo(() => toIdSet(safeFollowings), [safeFollowings]);
+  const theyFollowMeSet = useMemo(
+    () => toIdSet(safeFollowers),
+    [safeFollowers]
   );
-  useEffect(() => {
-    const next = makeIdSet(safeFollowings);
-    setIFollowSet((prev) => (setsEqual(prev, next) ? prev : next));
-  }, [safeFollowings]);
 
-  const [theyFollowMeSet, setTheyFollowMeSet] = useState<Set<string | number>>(
-    () => makeIdSet(safeFollowers)
+  // Local-only pending cache (no persistence)
+  const [requestPendingSet, setRequestPendingSet] = useState<Set<string>>(
+    new Set<string>()
   );
-  useEffect(() => {
-    const next = makeIdSet(safeFollowers);
-    setTheyFollowMeSet((prev) => (setsEqual(prev, next) ? prev : next));
-  }, [safeFollowers]);
 
-  // Map for quick user lookups
   const userMap = useMemo(() => {
-    const m = new Map<string | number, FollowUser>();
-    safeFollowers?.forEach((u) => m.set(u.user_id, u));
-    safeFollowings?.forEach((u) => m.set(u.user_id, u));
+    const m = new Map<string, FollowUser>();
+    safeFollowers?.forEach((u) => m.set(toKey(u.user_id), u));
+    safeFollowings?.forEach((u) => m.set(toKey(u.user_id), u));
     return m;
   }, [safeFollowers, safeFollowings]);
 
-  // Ordered following list (preserve original followings order)
   const followingList: FollowUser[] = useMemo(() => {
     const arr: FollowUser[] = [];
     iFollowSet.forEach((id) => {
       const u = userMap.get(id);
       if (u) arr.push(u);
     });
-    const order = new Map((safeFollowings || []).map((u, i) => [u.user_id, i]));
+    const order = new Map(
+      (safeFollowings || []).map((u, i) => [toKey(u.user_id), i])
+    );
     arr.sort(
-      (a, b) => (order.get(a.user_id) ?? 9999) - (order.get(b.user_id) ?? 9999)
+      (a, b) =>
+        (order.get(toKey(a.user_id)) ?? 9999) -
+        (order.get(toKey(b.user_id)) ?? 9999)
     );
     return arr;
   }, [iFollowSet, safeFollowings, userMap]);
@@ -349,75 +253,212 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   const followingCount = iFollowSet.size;
   const followersCount = theyFollowMeSet.size;
 
-  /* ======================== Follow / Unfollow handlers ======================== */
-  const isIFollowing = (id: string | number) => iFollowSet.has(id);
-  const isTheyFollowMe = (id: string | number) => theyFollowMeSet.has(id);
+  const isIFollowing = (id: string | number) => iFollowSet.has(toKey(id));
+  const isTheyFollowMe = (id: string | number) =>
+    theyFollowMeSet.has(toKey(id));
+  const isRequestPending = (id: string | number) =>
+    requestPendingSet.has(toKey(id));
 
-  const [pendingFollow, setPendingFollow] = useState<Set<string | number>>(
+  const [pendingFollow, setPendingFollow] = useState<Set<string>>(new Set());
+  const [pendingUnfollow, setPendingUnfollow] = useState<Set<string>>(
     new Set()
   );
-  const [pendingUnfollow, setPendingUnfollow] = useState<Set<string | number>>(
-    new Set()
-  );
-  const isPending = (id: string | number) =>
-    pendingFollow.has(id) || pendingUnfollow.has(id);
+  const isBusy = (id: string | number) => {
+    const k = toKey(id);
+    return pendingFollow.has(k) || pendingUnfollow.has(k);
+  };
+
+  /* ======================== Actions ======================== */
 
   const doFollow = async (id: string | number) => {
-    if (isIFollowing(id) || isPending(id)) return;
-    setPendingFollow((s) => new Set(s).add(id));
-    setIFollowSet((prev) => new Set(prev).add(id)); // optimistic
+    const k = toKey(id);
+    if (isBusy(k)) return;
+    if (isIFollowing(k)) return;
+
+    // Mark as pending locally (component-only)
+    setRequestPendingSet((prev) => {
+      const n = new Set(prev);
+      n.add(k);
+      return n;
+    });
+    setPendingFollow((s) => new Set(s).add(k));
+
     try {
-      await onFollow?.(id);
-    } catch {
-      // revert
-      setIFollowSet((prev) => {
+      const result = await onFollow?.(id);
+      const status =
+        (typeof result === "string" ? result : undefined) ?? "pending";
+      if (status === "followed") {
+        // If server says followed immediately, remove pending
+        setRequestPendingSet((prev) => {
+          const n = new Set(prev);
+          n.delete(k);
+          return n;
+        });
+      }
+    } catch (err) {
+      // Remove pending locally on error
+      setRequestPendingSet((prev) => {
         const n = new Set(prev);
-        n.delete(id);
+        n.delete(k);
         return n;
       });
     } finally {
       setPendingFollow((s) => {
         const n = new Set(s);
-        n.delete(id);
+        n.delete(k);
         return n;
       });
     }
   };
 
+  /**
+   * doUnfollow (component-local handling)
+   *
+   * - If there's a pending request (we sent request but not following), cancelling/decline flow:
+   *   - Remove pending locally immediately.
+   *   - Call onUnfollow (should call cancel/decline endpoint on server).
+   *   - If server errors with "already removed" treat as success.
+   *   - If server errors otherwise, re-add pending locally.
+   *
+   * - If we currently follow the user, call onUnfollow to unfollow and keep UI consistent.
+   */
   const doUnfollow = async (id: string | number) => {
-    if (!isIFollowing(id) || isPending(id)) return;
+    const k = toKey(id);
+    if (isBusy(k)) return;
 
-    const run = async () => {
-      setPendingUnfollow((s) => new Set(s).add(id));
-      // optimistic remove
-      setIFollowSet((prev) => {
+    console.log(
+      `[FFSheet] doUnfollow START id=${k} isIFollowing=${isIFollowing(
+        k
+      )} isRequestPending=${isRequestPending(k)}`
+    );
+
+    // If pending (we sent request but not following), attempt cancel/decline flow
+    if (!isIFollowing(k) && isRequestPending(k)) {
+      // Optimistically remove from local pending set
+      setRequestPendingSet((prev) => {
         const n = new Set(prev);
-        n.delete(id);
+        n.delete(k);
         return n;
       });
+
+      setPendingUnfollow((s) => new Set(s).add(k));
+
       try {
+        console.log(`[FFSheet] calling onUnfollow for pending id=${k}`);
         await onUnfollow?.(id);
-      } catch {
-        // revert
-        setIFollowSet((prev) => new Set(prev).add(id));
+        console.log(`[FFSheet] onUnfollow succeeded for pending id=${k}`);
+        // nothing else to do — pending already removed
+      } catch (err: any) {
+        const errMsg = String(err?.message ?? "").toLowerCase();
+        const serverMsg = String(
+          err?.response?.data?.message ?? err?.response?.data ?? ""
+        ).toLowerCase();
+        const statusCode = err?.response?.status;
+
+        const alreadyGone =
+          errMsg.includes("not following") ||
+          errMsg.includes("user was not following") ||
+          errMsg.includes("not found") ||
+          serverMsg.includes("not following") ||
+          serverMsg.includes("not found") ||
+          (statusCode && [404, 410].includes(statusCode));
+
+        if (alreadyGone) {
+          console.log(
+            `[FFSheet] onUnfollow treated-as-success for pending id=${k} (server says already removed)`,
+            err
+          );
+          // already removed on server, keep it removed locally
+          setRequestPendingSet((prev) => {
+            const n = new Set(prev);
+            n.delete(k);
+            return n;
+          });
+        } else {
+          console.error(`[FFSheet] onUnfollow FAILED for pending id=${k}`, err);
+          // rollback: re-add pending only for genuine failure
+          setRequestPendingSet((prev) => {
+            const n = new Set(prev);
+            n.add(k);
+            return n;
+          });
+        }
       } finally {
         setPendingUnfollow((s) => {
           const n = new Set(s);
-          n.delete(id);
+          n.delete(k);
           return n;
         });
       }
-    };
+      return;
+    }
 
-    if (confirmUnfollow) {
-      Alert.alert("Unfollow?", "You will stop seeing their posts.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Unfollow", style: "destructive", onPress: run },
-      ]);
-    } else {
-      run();
+    // If not following and not pending, nothing to do
+    if (!isIFollowing(k)) {
+      return;
+    }
+
+    // Normal unfollow flow (we currently follow the user)
+    setPendingUnfollow((s) => new Set(s).add(k));
+    try {
+      console.log(`[FFSheet] calling onUnfollow for unfollow id=${k}`);
+      await onUnfollow?.(id);
+      console.log(`[FFSheet] onUnfollow succeeded for unfollow id=${k}`);
+      // ensure any pending local mark removed
+      setRequestPendingSet((prev) => {
+        const n = new Set(prev);
+        if (n.has(k)) n.delete(k);
+        return n;
+      });
+    } catch (err: any) {
+      const errMsg = String(err?.message ?? "").toLowerCase();
+      const serverMsg = String(
+        err?.response?.data?.message ?? err?.response?.data ?? ""
+      ).toLowerCase();
+      const statusCode = err?.response?.status;
+
+      const alreadyGone =
+        errMsg.includes("not following") ||
+        errMsg.includes("not found") ||
+        serverMsg.includes("not following") ||
+        serverMsg.includes("not found") ||
+        (statusCode && [404, 410].includes(statusCode));
+
+      if (alreadyGone) {
+        console.log(
+          `[FFSheet] onUnfollow treated-as-success for unfollow id=${k} (server says already removed)`,
+          err
+        );
+        setRequestPendingSet((prev) => {
+          const n = new Set(prev);
+          n.delete(k);
+          return n;
+        });
+      } else {
+        console.error(`[FFSheet] onUnfollow FAILED for unfollow id=${k}`, err);
+      }
+    } finally {
+      setPendingUnfollow((s) => {
+        const n = new Set(s);
+        n.delete(k);
+        return n;
+      });
     }
   };
+
+  /* Reconcile: if someone appears in iFollowSet remove from pending store */
+  useEffect(() => {
+    if (!requestPendingSet.size) return;
+    setRequestPendingSet((prev) => {
+      const n = new Set(prev);
+      for (const id of Array.from(prev)) {
+        if (iFollowSet.has(id)) {
+          n.delete(id);
+        }
+      }
+      return n;
+    });
+  }, [iFollowSet, requestPendingSet.size]);
 
   /* ======================== UI Atoms ======================== */
   const BTN_H = 30;
@@ -441,26 +482,60 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
   const btnTextOutline = "text-[12px] text-black";
   const btnTextFill = "text-[12px] text-white font-semibold";
 
+  const disabledPendingStyle = {
+    ...btnOutline,
+    backgroundColor: "#F3F4F6", // light gray bg for disabled
+    borderColor: "#E5E7EB",
+  };
+  const disabledPendingText = "text-[12px] text-gray-500";
+
   const UserRow = ({ u }: { u: FollowUser }) => {
     const fullName = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim();
     const displayName = fullName || u.username;
-    const iFollow = isIFollowing(u.user_id);
-    const theyFollow = isTheyFollowMe(u.user_id);
-    const pending = isPending(u.user_id);
+    const idKey = toKey(u.user_id);
+    const iFollow = isIFollowing(idKey);
+    const theyFollow = isTheyFollowMe(idKey);
+    const reqPending = isRequestPending(idKey);
+    const busy = isBusy(idKey);
 
-    const buttonLabel = iFollow
-      ? "Unfollow"
-      : theyFollow
-        ? "Follow back"
-        : "Follow";
-    const outline = iFollow;
+    let buttonLabel = "Follow";
+    if (iFollow) buttonLabel = "Unfollow";
+    else if (reqPending) buttonLabel = "Pending";
+    else if (theyFollow) buttonLabel = "Follow back";
+
+    const outline = iFollow || reqPending;
+
+    // Make pending unclickable: if reqPending, button disabled and no-op.
     const onPress = iFollow
-      ? () => doUnfollow(u.user_id)
-      : () => doFollow(u.user_id);
+      ? () => doUnfollow(idKey)
+      : reqPending
+        ? () => {
+            /* intentionally disabled — pending state is unclickable */
+          }
+        : () => doFollow(idKey);
+
     const pendingText = iFollow ? "Removing..." : "Following...";
     const isPendingNow = iFollow
-      ? pendingUnfollow.has(u.user_id)
-      : pendingFollow.has(u.user_id);
+      ? pendingUnfollow.has(idKey)
+      : pendingFollow.has(idKey);
+
+    // determine disabled state for follow/unfollow TouchableOpacity
+    const buttonDisabled = busy || reqPending;
+
+    // === requested behavior: Message ENABLED only when iFollow === true ===
+    const messageDisabled = !iFollow;
+
+    // choose style/text class
+    const buttonStyle = reqPending
+      ? disabledPendingStyle
+      : outline
+        ? btnOutline
+        : btnFill;
+    const textClass = reqPending
+      ? disabledPendingText
+      : outline
+        ? btnTextOutline
+        : btnTextFill;
 
     return (
       <View className="flex-row items-center py-2 gap-3">
@@ -476,12 +551,10 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
         <TouchableOpacity
           style={{ flex: 1 }}
           activeOpacity={0.7}
-          onPress={() => (onMessage ? onMessage(u) : onUserPress?.(u))}
-        >
+          onPress={() => onUserPress?.(u)}>
           <Text
             className="text-[14px] font-semibold text-black"
-            numberOfLines={1}
-          >
+            numberOfLines={1}>
             {displayName}
           </Text>
         </TouchableOpacity>
@@ -492,37 +565,23 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
             flexDirection: "row",
             alignItems: "center",
             columnGap: ACTIONS_GAP,
-          }}
-        >
+          }}>
           <TouchableOpacity
             onPress={() => (onMessage ? onMessage(u) : onUserPress?.(u))}
-            disabled={pending}
+            disabled={messageDisabled}
             activeOpacity={0.9}
-            style={[btnOutline, { opacity: pending ? 0.5 : 1 }]}
-          >
-            <Text
-              className={btnTextOutline}
-              numberOfLines={1}
-              allowFontScaling={false}
-            >
+            style={[btnOutline, { opacity: messageDisabled ? 0.5 : 1 }]}>
+            <Text className={btnTextOutline} numberOfLines={1}>
               Message
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={onPress}
-            disabled={pending}
+            disabled={buttonDisabled}
             activeOpacity={0.9}
-            style={[
-              outline ? btnOutline : btnFill,
-              { opacity: pending ? 0.5 : 1 },
-            ]}
-          >
-            <Text
-              className={outline ? btnTextOutline : btnTextFill}
-              numberOfLines={1}
-              allowFontScaling={false}
-            >
+            style={[buttonStyle, { opacity: buttonDisabled ? 0.6 : 1 }]}>
+            <Text className={textClass} numberOfLines={1}>
               {isPendingNow ? pendingText : buttonLabel}
             </Text>
           </TouchableOpacity>
@@ -530,6 +589,13 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
       </View>
     );
   };
+
+  /* ======================== Debug logging ======================== */
+  useEffect(() => {
+    console.log("[FFSheet] iFollowSet:", Array.from(iFollowSet));
+    console.log("[FFSheet] theyFollowMeSet:", Array.from(theyFollowMeSet));
+    console.log("[FFSheet] requestPendingSet:", Array.from(requestPendingSet));
+  }, [iFollowSet, theyFollowMeSet, requestPendingSet]);
 
   /* ======================== Render ======================== */
   return (
@@ -547,33 +613,26 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
       keyboardBlurBehavior="none"
       handleIndicatorStyle={{ backgroundColor: "#cfd2d7" }}
       backgroundStyle={{ backgroundColor: "#fff" }}
-      topInset={0}
-    >
+      topInset={0}>
       <BottomSheetView
         style={{
           paddingBottom: Math.max(insets.bottom, 12),
-
           paddingTop: 12,
           flex: 1,
-        }}
-      >
-        {/* Header (built-in handle only) */}
+        }}>
         <View>
-          {/* Tabs: order matches swipe pages (Followers | Following) */}
           <View className="flex-row mb-2  px-3">
             <TouchableOpacity
               className={`flex-1 items-center  py-2 ${
                 activeTab === "followers" ? "border-b-2 border-black" : ""
               }`}
-              onPress={() => goToTab("followers")}
-            >
+              onPress={() => goToTab("followers")}>
               <Text
                 className={`text-base ${
                   activeTab === "followers"
                     ? "text-black font-semibold"
                     : "text-gray-500"
-                }`}
-              >
+                }`}>
                 Followers ({followersCount})
               </Text>
             </TouchableOpacity>
@@ -582,15 +641,13 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
               className={`flex-1 items-center py-2 ${
                 activeTab === "following" ? "border-b-2 border-black" : ""
               }`}
-              onPress={() => goToTab("following")}
-            >
+              onPress={() => goToTab("following")}>
               <Text
                 className={`text-base ${
                   activeTab === "following"
                     ? "text-black font-semibold"
                     : "text-gray-500"
-                }`}
-              >
+                }`}>
                 Following ({followingCount})
               </Text>
             </TouchableOpacity>
@@ -604,9 +661,8 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
           </View>
         </View>
 
-        {/* Body */}
         {error ? (
-          <View className="flex-1 justify-center items-center  py-6">
+          <View className="flex-1 justify-center items-center py-6">
             <Text className="text-red-500 text-sm">{error}</Text>
           </View>
         ) : (
@@ -622,7 +678,7 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
               keyboardShouldPersistTaps="handled"
               contentOffset={{
                 x:
-                  (activeTabProp === "following"
+                  (activeTab === "following"
                     ? PAGE_FOLLOWING
                     : PAGE_FOLLOWERS) * pageW,
                 y: 0,
@@ -630,9 +686,7 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
               style={{ flex: 1, marginTop: 8 }}
               decelerationRate="fast"
               disableIntervalMomentum
-              scrollEventThrottle={16}
-            >
-              {/* Followers page (index 0) */}
+              scrollEventThrottle={16}>
               <BottomSheetScrollView
                 style={{ width: pageW }}
                 contentContainerStyle={{
@@ -640,8 +694,7 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
                   paddingHorizontal: 12,
                 }}
                 keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled
-              >
+                nestedScrollEnabled>
                 {loading ? (
                   <SkeletonList />
                 ) : dataFollowers.length === 0 ? (
@@ -650,12 +703,11 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
                   </View>
                 ) : (
                   dataFollowers.map((u) => (
-                    <UserRow key={String(u.user_id)} u={u} />
+                    <UserRow key={toKey(u.user_id)} u={u} />
                   ))
                 )}
               </BottomSheetScrollView>
 
-              {/* Following page (index 1) */}
               <BottomSheetScrollView
                 style={{ width: pageW }}
                 contentContainerStyle={{
@@ -663,8 +715,7 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
                   paddingHorizontal: 12,
                 }}
                 keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled
-              >
+                nestedScrollEnabled>
                 {loading ? (
                   <SkeletonList />
                 ) : dataFollowing.length === 0 ? (
@@ -673,7 +724,7 @@ const FollowersFollowingSheet: React.FC<FollowersFollowingSheetProps> = ({
                   </View>
                 ) : (
                   dataFollowing.map((u) => (
-                    <UserRow key={String(u.user_id)} u={u} />
+                    <UserRow key={toKey(u.user_id)} u={u} />
                   ))
                 )}
               </BottomSheetScrollView>
