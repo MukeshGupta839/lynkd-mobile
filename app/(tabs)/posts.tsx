@@ -1,6 +1,10 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 // app/(tabs)/posts.tsx
 /// <reference types="react" />
+import {
+  registerTabPressHandler,
+  unregisterTabPressHandler,
+} from "@/lib/tabBarVisibility";
 import { Ionicons } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useIsFocused } from "@react-navigation/native";
@@ -26,6 +30,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  RefreshControl,
   Text,
   TouchableOpacity,
   Vibration,
@@ -36,6 +41,7 @@ import Reanimated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Send from "../../assets/posts/send.svg";
 
 // Import components
@@ -83,6 +89,7 @@ const StyledText: React.FC<any> = ({ children, className, style, ...rest }) => (
 const VideoFeed: React.FC = () => {
   const router = useRouter();
   const { user } = useAuth();
+  const { top } = useSafeAreaInsets();
   const flatListRef = useRef<any>(null);
   const isFocused = useIsFocused(); // Track if screen is focused
 
@@ -96,6 +103,7 @@ const VideoFeed: React.FC = () => {
     error,
     fetchReels,
     loadMoreReels,
+    refreshReels,
     fetchUserLikedPosts,
     toggleLike,
     fetchCommentsOfAPost,
@@ -111,6 +119,7 @@ const VideoFeed: React.FC = () => {
   );
   const [reportVisible, setReportVisible] = useState(false);
   const [focusedPost] = useState<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
   // ✅ ENHANCED: Focus-aware video play state management system
   const [videoPlayStates, setVideoPlayStates] = useState<Map<number, boolean>>(
     new Map()
@@ -338,6 +347,64 @@ const VideoFeed: React.FC = () => {
     }
   }, [reels.length]); // Remove currentIndex to prevent excessive re-renders
 
+  const onRefresh = useCallback(async () => {
+    if (!user?.id) return;
+
+    console.log("🔄 Refreshing reels...");
+    setRefreshing(true);
+
+    // Pause all videos
+    setVideoPlayStates((prev) => {
+      const newMap = new Map(prev);
+      reels.forEach((_, index) => newMap.set(index, false));
+      return newMap;
+    });
+
+    // Reset index to top
+    setCurrentIndex(0);
+
+    // Scroll FlashList to top
+    try {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    } catch (e) {
+      console.log("Scroll to top error:", e);
+    }
+
+    // Reset batch tracking
+    setLastBatchTriggerIndex(-1);
+
+    // Call the store's refresh action
+    await refreshReels(String(user.id));
+
+    setRefreshing(false);
+  }, [user?.id, refreshReels]);
+
+  // Register tab press handlers for scroll to top and refresh on Posts tab
+  useEffect(() => {
+    const scrollToTop = () => {
+      // Scroll to top and reset UI state
+      setCurrentIndex(0);
+      try {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      } catch (e) {}
+    };
+
+    const refresh = () => {
+      setRefreshing(true);
+      try {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      } catch (e) {}
+      setTimeout(() => {
+        onRefresh();
+      }, 100);
+    };
+
+    registerTabPressHandler("posts", { scrollToTop, refresh });
+    return () => {
+      unregisterTabPressHandler("posts");
+    };
+  }, [onRefresh]);
+
   // ✅ Fetch reels on component mount only if not already loaded
   useEffect(() => {
     if (!user?.id) return;
@@ -440,7 +507,7 @@ const VideoFeed: React.FC = () => {
   ]);
 
   // Show initial loading when no posts yet
-  if (reels.length === 0 && isInitialLoading) {
+  if (reels.length === 0 && isInitialLoading && !refreshing) {
     return (
       <View
         style={{
@@ -450,7 +517,7 @@ const VideoFeed: React.FC = () => {
           alignItems: "center",
         }}
       >
-        <ActivityIndicator size="large" color="#ffffff" />
+        <ActivityIndicator size="large" color="#3e3434" />
         <Text style={{ color: "#ffffff", marginTop: 16, fontSize: 16 }}>
           Loading reels...
         </Text>
@@ -735,6 +802,17 @@ const VideoFeed: React.FC = () => {
           }
         }}
         onEndReachedThreshold={0.3}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#4D70D1"]}
+            tintColor={"#4D70D1"}
+            progressBackgroundColor={"#F3F4F8"}
+            // This prop (from the docs) now works because estimatedItemSize is set
+            progressViewOffset={top + 10}
+          />
+        }
         ListFooterComponent={() => {
           if (isLoadingMore) {
             return (
@@ -1070,11 +1148,13 @@ const PostItem: React.FC<{
 
     const captionExpanded = useSharedValue(0);
     const [captionOpen, setCaptionOpen] = useState(false);
+
     useEffect(() => {
       captionExpanded.value = captionOpen ? 1 : 0;
     }, [captionOpen, captionExpanded]);
+
     const captionAnimatedStyle = useAnimatedStyle(() => ({
-      maxHeight: withTiming(captionExpanded.value ? 200 : 48, {
+      maxHeight: withTiming(captionExpanded.value ? 1000 : 48, {
         duration: 300,
       }),
     }));
@@ -1340,36 +1420,38 @@ const PostItem: React.FC<{
           <Reanimated.View
             style={[{ overflow: "hidden" }, captionAnimatedStyle]}
           >
-            <Text
-              numberOfLines={captionOpen ? undefined : 1}
-              ellipsizeMode="tail"
-              className="text-white text-base mt-2 leading-7"
-            >
-              {captionOpen ? (
-                <>
-                  {item.caption ?? ""}
+            <View>
+              <Text
+                numberOfLines={captionOpen ? undefined : 1}
+                ellipsizeMode="tail"
+                className="text-white text-base mt-2 leading-7"
+                style={{ flexWrap: "wrap" }}
+              >
+                {captionOpen ? (item.caption ?? "") : collapsedCaption}
+                {!captionOpen && needsTruncate ? (
                   <Text
-                    onPress={() => setCaptionOpen(false)}
+                    onPress={() => setCaptionOpen(true)}
                     style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}
                   >
-                    {"  "}Show less
+                    {" "}
+                    ... more
                   </Text>
-                </>
-              ) : (
-                <>
-                  {collapsedCaption}
-                  {needsTruncate ? (
-                    <Text
-                      onPress={() => setCaptionOpen(true)}
-                      style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}
-                    >
-                      {" "}
-                      ... more
-                    </Text>
-                  ) : null}
-                </>
+                ) : null}
+              </Text>
+
+              {captionOpen && (
+                <Text
+                  onPress={() => setCaptionOpen(false)}
+                  style={{
+                    color: "rgba(255,255,255,0.75)",
+                    fontSize: 12,
+                    marginTop: 6,
+                  }}
+                >
+                  Show less
+                </Text>
               )}
-            </Text>
+            </View>
           </Reanimated.View>
         </View>
 

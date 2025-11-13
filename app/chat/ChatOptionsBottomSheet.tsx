@@ -38,7 +38,8 @@ function OptionRow({
       hitSlop={8}
       style={({ pressed }) => ({
         opacity: pressed ? 0.7 : 1,
-      })}>
+      })}
+    >
       <View className="w-10 h-10 rounded-xl items-center justify-center bg-white border border-gray-200">
         {icon}
       </View>
@@ -64,7 +65,8 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
       animationType="slide"
       onRequestClose={() => setShow(false)}
       supportedOrientations={["portrait", "landscape"]}
-      statusBarTranslucent>
+      statusBarTranslucent
+    >
       {/* Backdrop */}
       <Pressable
         className="flex-1 bg-[rgba(0,0,0,0.4)]"
@@ -75,7 +77,8 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
 
       {/* Sheet */}
       <View
-        className={`bg-white rounded-t-2xl shadow-xl ${Platform.OS === "ios" ? "pb-6" : "pb-4"}`}>
+        className={`bg-white rounded-t-2xl shadow-xl ${Platform.OS === "ios" ? "pb-6" : "pb-4"}`}
+      >
         {/* Handle */}
         <View className="w-full items-center py-3">
           <View className="w-12 h-1.5 bg-gray-300 rounded-full" />
@@ -139,7 +142,8 @@ const ChatOptionsBottomSheet = memo(function ChatOptionsBottomSheet({
             hitSlop={8}
             style={({ pressed }) => ({
               opacity: pressed ? 0.7 : 1,
-            })}>
+            })}
+          >
             <Text className="text-base text-black font-medium">Cancel</Text>
           </Pressable>
         </View>

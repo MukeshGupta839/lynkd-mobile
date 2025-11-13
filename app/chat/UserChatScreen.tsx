@@ -1,6 +1,7 @@
 // app/chat/UserChatScreen.tsx
 import ProductModal from "@/components/PostCreation/ProductModal";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -24,7 +25,7 @@ import {
   Pressable,
   Text,
   TextInput,
-  TextInputKeyPressEventData,
+  TextInputKeyPressEvent,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -55,7 +56,8 @@ import {
 import Octicons from "@expo/vector-icons/Octicons";
 
 import { apiCall } from "@/lib/api/apiService";
-import io from "socket.io-client";
+import Constants from "expo-constants";
+import { io } from "socket.io-client";
 
 // 🔹 Reanimated (V1 feature)
 import Animated, {
@@ -101,7 +103,21 @@ type ServerMessage = {
 
 const DEFAULT_AVATAR = "https://www.gravatar.com/avatar/?d=mp";
 const SOCKET_PATH = "/socket.io/";
-const ENDPOINT = `${process.env.API_URL ?? ""}`;
+
+// Resolve socket endpoint: prefer `process.env.API_URL`, then app config, then emulator fallbacks
+const getSocketEndpoint = () => {
+  // Prefer explicit env var set at build time (your previous working code used this)
+  if (typeof process !== "undefined" && process.env && process.env.API_URL) {
+    return process.env.API_URL;
+  }
+
+  const configUrl = Constants.expoConfig?.extra?.API_URL;
+  if (configUrl) return configUrl;
+
+  // emulator / simulator fallbacks (only used when nothing else provided)
+  if (Platform.OS === "android") return "http://10.0.2.2:5000";
+  return "http://localhost:5000";
+};
 
 /* ----------------------------- */
 const toMs = (iso?: string): number => {
@@ -110,10 +126,6 @@ const toMs = (iso?: string): number => {
   const safe = hasTZ ? iso : `${iso}Z`;
   const t = Date.parse(safe);
   return Number.isFinite(t) ? t : Date.now();
-};
-const toIso = (msOrIso: number | string | undefined) => {
-  if (typeof msOrIso === "number") return new Date(msOrIso).toISOString();
-  return new Date(toMs(msOrIso)).toISOString();
 };
 
 const isValidId = (v?: string) => {
@@ -142,8 +154,13 @@ const mergeById = (items: Message[]): Message[] => {
 
 /* ------------------------------------------------------------- */
 
+// app/chat/UserChatScreen.tsx
+
 function normalizePreview(raw?: any): PostPreview | undefined {
   if (!raw || typeof raw !== "object") return undefined;
+
+  // --- START: FIX ---
+  // Read properties from the correct API response structure
   const v =
     raw.verified ??
     raw.isVerified ??
@@ -152,13 +169,20 @@ function normalizePreview(raw?: any): PostPreview | undefined {
     raw.user?.isVerified ??
     raw.is_creator;
 
+  const image = raw.media_url ?? raw.image ?? ""; // Use media_url first
+  const author = raw.user?.username ?? raw.author ?? "Post"; // Use user.username first
+  const authorAvatar =
+    raw.user?.profile_picture ?? raw.author_avatar ?? undefined; // Use user.profile_picture first
+  // --- END: FIX ---
+
   return {
     id: String(raw.id ?? ""),
-    image: typeof raw.image === "string" ? raw.image : "",
-    author: typeof raw.author === "string" ? raw.author : "Post",
+    // --- START: FIX ---
+    image: typeof image === "string" ? image : "",
+    author: typeof author === "string" ? author : "Post",
     caption: typeof raw.caption === "string" ? raw.caption : "",
-    author_avatar:
-      typeof raw.author_avatar === "string" ? raw.author_avatar : undefined,
+    author_avatar: typeof authorAvatar === "string" ? authorAvatar : undefined,
+    // --- END: FIX ---
     videoUrl: typeof raw.videoUrl === "string" ? raw.videoUrl : undefined,
     thumb: typeof raw.thumb === "string" ? raw.thumb : undefined,
     verified: Boolean(v),
@@ -356,6 +380,7 @@ const MessageBubble = React.memo(function MessageBubble({
   useEffect(() => {
     if (!previewVideo || previewThumb || generatedThumb) return;
     let cancelled = false;
+
     (async () => {
       try {
         const { uri } = await VideoThumbnails.getThumbnailAsync(previewVideo, {
@@ -653,7 +678,7 @@ const MessageBubble = React.memo(function MessageBubble({
 MessageBubble.displayName = "MessageBubble";
 
 /* --------------------------- */
-export default function UserChatScreen() {
+const UserChatScreen = () => {
   const router = useRouter();
 
   const {
@@ -682,12 +707,18 @@ export default function UserChatScreen() {
   const currentUserId = String(loggedUserId ?? "me");
   const currentUsername = loggedUsername ?? "You";
   const [statusOpen, setStatusOpen] = useState(false);
+  const [peerOnlineStatus, setPeerOnlineStatus] = useState<
+    "online" | "offline"
+  >("offline");
 
-  const chattingUser = {
-    userId: String(userId ?? "other"),
-    username: username ?? "Unknown User",
-    profilePicture: profilePicture ?? DEFAULT_AVATAR,
-  };
+  const chattingUser = useMemo(
+    () => ({
+      userId: String(userId ?? "other"),
+      username: username ?? "Unknown User",
+      profilePicture: profilePicture ?? DEFAULT_AVATAR,
+    }),
+    [userId, username, profilePicture]
+  );
 
   const routePreview =
     (lastMessage as string) ||
@@ -728,7 +759,9 @@ export default function UserChatScreen() {
   const keyboardTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendingRef = useRef(false);
   const lastSentRef = useRef<string | null>(null);
-  const sendTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // small helper to force a UI tick when sendingRef changes (so disabled state updates)
+  const [, forceTick] = useState(0);
 
   const byClientIdRef = useRef<Map<string, string>>(new Map());
   const pendingByTextRef = useRef<Map<string, string[]>>(new Map());
@@ -795,7 +828,7 @@ export default function UserChatScreen() {
               typeof p.caption === "string" ? p.caption.slice(0, 200) : "";
             return { ...base, postPreview: { ...p, caption } } as Message;
           });
-          await SecureStore.setItemAsync(cacheKey, JSON.stringify(lean));
+          await AsyncStorage.setItem(cacheKey, JSON.stringify(lean));
         } catch {}
         persistTimerRef.current = null;
       }, 300);
@@ -851,7 +884,7 @@ export default function UserChatScreen() {
     let mounted = true;
     const load = async () => {
       try {
-        const raw = await SecureStore.getItemAsync(cacheKey);
+        const raw = await AsyncStorage.getItem(cacheKey);
         const cachedRaw: Message[] = raw ? JSON.parse(raw) : [];
         const cached: Message[] = cachedRaw.map((m) => {
           const ms = m.createdAtMs ?? toMs(m.createdAt);
@@ -1038,11 +1071,48 @@ export default function UserChatScreen() {
   );
 
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
-  const me = { id: currentUserId, username: currentUsername };
-  const them = {
-    id: chattingUser.userId,
-    username: chattingUser.username,
-  } as const;
+  const me = useMemo(
+    () => ({
+      id: currentUserId,
+      username: currentUsername,
+    }),
+    [currentUserId, currentUsername]
+  );
+  const them = useMemo(
+    () => ({
+      id: chattingUser.userId,
+      username: chattingUser.username,
+    }),
+    [chattingUser.userId, chattingUser.username]
+  );
+
+  // Stable refs for current identities so handlers don't force socket reconnection
+  const meRef = useRef(me);
+  const themRef = useRef(them);
+  useEffect(() => {
+    meRef.current = me;
+    themRef.current = them;
+  }, [me, them]);
+
+  // Keep a ref to the latest handleIncoming so socket listeners remain stable
+  const handleIncomingRef = useRef<any>(null);
+
+  // Memoize endpoint so it's stable across renders
+  const socketEndpoint = useMemo(() => getSocketEndpoint(), []);
+
+  // Dedupe any server echoes across event names / retries
+  const seenIncomingKeysRef = useRef<Set<string>>(new Set());
+
+  const makeIncomingKey = (m: ServerMessage) => {
+    if (!m) return `fx:empty`;
+    // prefer strong identity first
+    if (m.id) return `id:${m.id}`;
+    if (m.client_id) return `cid:${m.client_id}`;
+    // fallback composite (rarely used, only if server omits both)
+    const ts = toMs(m.created_at);
+    const body = (m.content || "").slice(0, 64);
+    return `fx:${m.sender_id}|${m.receiver_id}|${ts}|${body}`;
+  };
 
   const handleIncoming = useCallback(
     (incomingRaw: any) => {
@@ -1066,6 +1136,15 @@ export default function UserChatScreen() {
         is_read: incomingRaw?.is_read ?? incomingRaw?.isRead ?? false,
       };
 
+      // ---- hard dedupe guard (prevents double UI adds) ----
+      try {
+        const key = makeIncomingKey(normalized);
+        if (seenIncomingKeysRef.current.has(key)) {
+          return; // we've already processed this payload
+        }
+        seenIncomingKeysRef.current.add(key);
+      } catch {}
+
       // 1) My echo with client_id
       if (
         normalized.client_id &&
@@ -1073,8 +1152,11 @@ export default function UserChatScreen() {
       ) {
         const optimisticId = byClientIdRef.current.get(normalized.client_id)!;
         setMessages((prev) => {
-          const idx = prev.findIndex((m) => m.id === optimisticId);
           const serverMsg = formatFromServer(normalized, me, them);
+          // If we already have this server id, skip (prevents double-insert)
+          if (serverMsg.id && prev.some((m) => m.id === serverMsg.id))
+            return prev;
+          const idx = prev.findIndex((m) => m.id === optimisticId);
           if (idx === -1) {
             const next = mergeById([serverMsg, ...prev]);
             persistBatched(next);
@@ -1163,45 +1245,102 @@ export default function UserChatScreen() {
     ]
   );
 
+  // Keep handleIncomingRef in sync with the latest function
   useEffect(() => {
-    if (!ENDPOINT || !me.id || !them.id) return;
+    handleIncomingRef.current = handleIncoming;
+  }, [handleIncoming]);
 
-    const s = io(ENDPOINT, {
-      path: SOCKET_PATH,
-      transports: ["websocket", "polling"],
-      reconnection: true,
-    });
-    socketRef.current = s;
+  useEffect(() => {
+    const endpoint = getSocketEndpoint();
+    if (!endpoint || !me.id || !them.id) {
+      console.warn("Socket not started: missing endpoint or ids", {
+        endpoint,
+        me: me.id,
+        them: them.id,
+      });
+      return;
+    }
 
-    s.on("connect", () => console.log("socket connected", s.id));
-    s.on("connect_error", (e) => console.log("connect_error", e?.message || e));
-    s.on("disconnect", (r) => console.log("socket disconnected", r));
+    let s: ReturnType<typeof io> | null = null;
+    let wrappedIncoming: ((payload: any) => void) | null = null;
 
-    s.emit("join", { userId: String(me.id) }, (ack?: any) =>
-      console.log("join ack:", ack)
-    );
+    (async () => {
+      try {
+        const token = await SecureStore.getItemAsync("authToken");
 
-    s.on("receiveMessage", handleIncoming);
-    s.on("message", handleIncoming);
-    s.on("newMessage", handleIncoming);
+        const opts: any = {
+          path: SOCKET_PATH,
+          transports: ["websocket", "polling"],
+          reconnection: true,
+        };
+        if (token) opts.auth = { token };
 
-    s.emit("getUserStatus", { userId: them.id });
+        console.log("connecting socket to", endpoint, opts);
+        s = io(endpoint, opts);
+        socketRef.current = s;
+
+        s.on("connect", () => {
+          console.log("socket connected", s?.id);
+        });
+
+        // Emit join right away (server will accept/queue if not yet connected)
+        try {
+          s.emit("join", { userId: String(me.id) }, (ack?: any) =>
+            console.log("join ack:", ack)
+          );
+        } catch (e) {
+          console.warn("join emit failed", e);
+        }
+
+        s.on("connect_error", (e) =>
+          console.log("connect_error", e?.message || e)
+        );
+        s.on("disconnect", (r) => console.log("socket disconnected", r));
+
+        wrappedIncoming = (payload: any) => {
+          try {
+            if (handleIncomingRef.current) handleIncomingRef.current(payload);
+          } catch {}
+        };
+        // Attach to possible incoming event names. Dedupe is handled in handler.
+        s.on("receiveMessage", wrappedIncoming);
+        s.on("message", wrappedIncoming);
+        s.on("newMessage", wrappedIncoming);
+
+        s.on("userStatus", (statusData: any) => {
+          try {
+            if (String(statusData.userId) === String(them.id)) {
+              setPeerOnlineStatus(statusData.online ? "online" : "offline");
+            }
+          } catch {}
+        });
+
+        // Ask for user status; server may ignore if not supported
+        try {
+          s.emit("getUserStatus", { userId: them.id });
+        } catch {}
+      } catch (e) {
+        console.warn("socket init error", e);
+      }
+    })();
 
     return () => {
       try {
-        s.off("receiveMessage", handleIncoming);
-        s.off("message", handleIncoming);
-        s.off("newMessage", handleIncoming);
-        s.disconnect();
-      } catch {}
-      socketRef.current = null;
-
-      if (sendTimeoutRef.current) {
-        clearTimeout(sendTimeoutRef.current);
-        sendTimeoutRef.current = null;
+        if (s) {
+          if (wrappedIncoming) {
+            s.off("receiveMessage", wrappedIncoming);
+            s.off("message", wrappedIncoming);
+            s.off("newMessage", wrappedIncoming);
+          }
+          s.off("userStatus");
+          s.disconnect();
+        }
+      } catch (e) {
+        console.warn("socket cleanup error", e);
       }
+      socketRef.current = null;
     };
-  }, [ENDPOINT, me.id, them.id, handleIncoming]);
+  }, [socketEndpoint, me.id, them.id]);
 
   useEffect(() => {
     if (skipHistory === "1") return;
@@ -1257,7 +1396,7 @@ export default function UserChatScreen() {
     return () => {
       cancelled = true;
     };
-  }, [skipHistory, me.id, them.id, persistBatched, scrollToNewest]);
+  }, [skipHistory, me.id, them.id, persistBatched, scrollToNewest, me, them]);
 
   const safeSendToApi = useCallback(async (payload: ServerMessage) => {
     try {
@@ -1287,6 +1426,7 @@ export default function UserChatScreen() {
     }
 
     sendingRef.current = true;
+    forceTick((x) => x + 1);
     const now = Date.now();
     const cid = makeClientId();
     const m: Message = {
@@ -1324,40 +1464,43 @@ export default function UserChatScreen() {
     const payload = toServerMessage(m, me.id, them.id);
 
     if (!socketRef.current?.connected) {
+      // Branch 1: Socket is NOT connected. Use REST fallback.
       (async () => {
         const ok = await safeSendToApi(payload);
         if (!ok) console.warn("REST send failed");
-        sendingRef.current = false;
+        // Add 500ms cooldown
+        setTimeout(() => {
+          sendingRef.current = false;
+          forceTick((x) => x + 1);
+        }, 500);
       })();
     } else {
-      socketRef.current.emit(
-        "sendMessage",
-        payload,
-        (ack?: { ok?: boolean; error?: string }) => {
-          if (ack && ack.error) {
-            (async () => {
-              const ok = await safeSendToApi(payload);
-              if (!ok) console.warn("REST fallback failed (ack error)");
-              sendingRef.current = false;
-            })();
+      // Branch 2: Socket IS connected. Use .timeout().emit().
+      // DO NOT run REST fallback here — the socket may still succeed and produce
+      // a server-side row; running REST as a second path can create duplicates.
+      socketRef.current
+        .timeout(5000)
+        .emit("sendMessage", payload, (err: any, ack: any) => {
+          // This callback now runs reliably, either on success or on timeout/error
+          if (err || (ack && ack.error)) {
+            // Emit timed out or returned an error. Server may still broadcast the
+            // message; we avoid a REST fallback to prevent duplicates.
+            console.log(
+              "socket emit timeout/error (no REST fallback)",
+              err || ack?.error
+            );
+            // Mark as not sending so UI becomes enabled again.
+            sendingRef.current = false;
+            forceTick((x) => x + 1);
           } else {
-            sendingRef.current = false;
+            // Success! The server acknowledged the message.
+            // Add 500ms cooldown
+            setTimeout(() => {
+              sendingRef.current = false; // Unlock on success
+              forceTick((x) => x + 1);
+            }, 500);
           }
-        }
-      );
-
-      if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
-      sendTimeoutRef.current = setTimeout(() => {
-        if (sendingRef.current && !socketRef.current?.connected) {
-          (async () => {
-            const ok = await safeSendToApi(payload);
-            if (!ok) console.warn("Late REST fallback failed");
-            sendingRef.current = false;
-          })();
-        } else {
-          sendingRef.current = false;
-        }
-      }, 8000);
+        });
     }
 
     scrollToNewest(true);
@@ -1965,8 +2108,8 @@ export default function UserChatScreen() {
               paddingBottom: isKeyboardOpen
                 ? 4
                 : Platform.OS === "ios"
-                  ? Math.max(4, (insets.bottom || 0) - 8)
-                  : 4,
+                  ? insets.bottom - 10
+                  : insets.bottom,
             }}
             onLayout={(e) => {
               const h = Math.round(e.nativeEvent.layout.height);
@@ -2004,10 +2147,8 @@ export default function UserChatScreen() {
                     multiline
                     accessibilityLabel="Message input"
                     returnKeyType="default"
-                    blurOnSubmit={false}
-                    onKeyPress={(
-                      _e: NativeSyntheticEvent<TextInputKeyPressEventData>
-                    ) => {}}
+                    submitBehavior="newline"
+                    onKeyPress={(e: TextInputKeyPressEvent) => {}}
                     onFocus={() => {
                       setTimeout(() => scrollToNewest(true), 60);
                     }}
@@ -2040,10 +2181,13 @@ export default function UserChatScreen() {
                   onPress={() => {
                     if (!sendingRef.current) handleSend();
                   }}
+                  disabled={sendingRef.current}
                   accessibilityLabel="Send message"
                   className="w-12 h-12 rounded-full bg-black items-center justify-center shadow-lg"
                   hitSlop={8}
-                  style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+                  style={({ pressed }) => ({
+                    opacity: sendingRef.current ? 0.5 : pressed ? 0.8 : 1,
+                  })}
                 >
                   <Ionicons name="paper-plane" size={18} color="#fff" />
                 </Pressable>
@@ -2088,4 +2232,6 @@ export default function UserChatScreen() {
       />
     </SafeAreaView>
   );
-}
+};
+
+export default React.memo(UserChatScreen);
