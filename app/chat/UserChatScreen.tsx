@@ -1275,12 +1275,12 @@ const UserChatScreen = () => {
         };
         if (token) opts.auth = { token };
 
-        console.log("connecting socket to", endpoint, opts);
+        // console.log("connecting socket to", endpoint, opts);
         s = io(endpoint, opts);
         socketRef.current = s;
 
         s.on("connect", () => {
-          console.log("socket connected", s?.id);
+          // console.log("socket connected", s?.id);
         });
 
         // Emit join right away (server will accept/queue if not yet connected)
@@ -1731,7 +1731,7 @@ const UserChatScreen = () => {
             onPress={() => {
               setProfileModalVisible(false);
               router.push({
-                pathname: "/profile",
+                pathname: "/(profiles)",
                 params: {
                   userId: chattingUser.userId,
                   username: chattingUser.username,
