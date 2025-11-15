@@ -151,7 +151,7 @@ const VideoFeed: React.FC = () => {
           m.set(uri, local);
           return m;
         });
-        console.log("✅ Prefetched video:", uri, "->", local);
+        // console.log("✅ Prefetched video:", uri, "->", local);
       } catch (e) {
         console.log("⚠️ Prefetch failed for", uri, e);
       }
@@ -248,11 +248,11 @@ const VideoFeed: React.FC = () => {
 
   // ✅ CRITICAL: Focus-aware video state management - handles tab switches and navigation
   useEffect(() => {
-    console.log("🎯 Screen focus changed:", isFocused);
+    // console.log("🎯 Screen focus changed:", isFocused);
 
     if (!isFocused) {
       // Screen lost focus - pause all videos immediately
-      console.log("⏸️ Screen unfocused - pausing all videos");
+      // console.log("⏸️ Screen unfocused - pausing all videos");
       setVideoPlayStates((prev) => {
         const newMap = new Map(prev);
         // Mark all videos as paused but preserve user's manual pause preferences
@@ -263,9 +263,9 @@ const VideoFeed: React.FC = () => {
       });
     } else {
       // Screen regained focus - restore playing state for current video
-      console.log(
-        "▶️ Screen focused - resuming current video if it was playing"
-      );
+      // console.log(
+      //   "▶️ Screen focused - resuming current video if it was playing"
+      // );
       setVideoPlayStates((prev) => {
         const newMap = new Map(prev);
         // Resume the current video (defaulting to playing if no previous state)
@@ -279,9 +279,9 @@ const VideoFeed: React.FC = () => {
   // ✅ CRITICAL: Enhanced current video management - auto-play when switching videos
   useEffect(() => {
     if (isFocused && reels.length > 0) {
-      console.log(
-        `🎬 Current video changed to index ${currentIndex}, auto-playing`
-      );
+      // console.log(
+      //   `🎬 Current video changed to index ${currentIndex}, auto-playing`
+      // );
       // Auto-play the current video when index changes (only if screen is focused)
       setVideoPlayState(currentIndex, true);
     }
@@ -325,10 +325,10 @@ const VideoFeed: React.FC = () => {
         "GET"
       );
       setFollowedUsers(response.following || []);
-      console.log(
-        "✅ Fetched user followings:",
-        response.following?.length || 0
-      );
+      // console.log(
+      //   "✅ Fetched user followings:",
+      //   response.following?.length || 0
+      // );
     } catch (error) {
       console.error("❌ Error fetching user followings:", error);
     }
@@ -343,14 +343,14 @@ const VideoFeed: React.FC = () => {
         newPlayStates.set(index, true); // Default all videos to playing
       });
       setVideoPlayStates(newPlayStates);
-      console.log(`🔄 Reset video play states for ${reels.length} videos`);
+      // console.log(`🔄 Reset video play states for ${reels.length} videos`);
     }
   }, [reels.length]); // Remove currentIndex to prevent excessive re-renders
 
   const onRefresh = useCallback(async () => {
     if (!user?.id) return;
 
-    console.log("🔄 Refreshing reels...");
+    // console.log("🔄 Refreshing reels...");
     setRefreshing(true);
 
     // Pause all videos
@@ -409,7 +409,7 @@ const VideoFeed: React.FC = () => {
   useEffect(() => {
     if (!user?.id) return;
     if (isPrefetching) {
-      console.log("already prefetched❌");
+      // console.log("already prefetched❌");
       return;
     } // avoid racing the splash prefetch
     if (reels.length === 0 && !isInitialLoading) {
@@ -424,16 +424,16 @@ const VideoFeed: React.FC = () => {
     // Reset trigger index when videos are loaded (length increased significantly)
     if (reels.length > lastBatchTriggerIndex + BATCH_LOAD_SIZE) {
       setLastBatchTriggerIndex(-1);
-      console.log(
-        `🔄 Reset batch trigger - new videos loaded (${reels.length} total)`
-      );
+      // console.log(
+      //   `🔄 Reset batch trigger - new videos loaded (${reels.length} total)`
+      // );
     }
   }, [reels.length, lastBatchTriggerIndex]);
 
   // ✅ Pause all videos when screen loses focus (tab switch/navigation)
   useEffect(() => {
     if (!isFocused) {
-      console.log("📱 Screen lost focus - pausing all videos");
+      // console.log("📱 Screen lost focus - pausing all videos");
       setVideoPlayStates((prevStates) => {
         const newStates = new Map(prevStates);
         reels.forEach((_, index) => {
@@ -464,18 +464,18 @@ const VideoFeed: React.FC = () => {
         const currentState = prevStates.get(currentIndex) ?? true;
         if (currentState !== false) {
           newStates.set(currentIndex, true);
-          console.log(
-            `🎬 Video ${currentIndex} set to playing, all others paused (total: ${reels.length})`
-          );
+          // console.log(
+          //   `🎬 Video ${currentIndex} set to playing, all others paused (total: ${reels.length})`
+          // );
         } else {
-          console.log(`⏸️ Video ${currentIndex} remains paused by user choice`);
+          // console.log(`⏸️ Video ${currentIndex} remains paused by user choice`);
         }
       } else {
         // Screen is not focused, pause current video too
         newStates.set(currentIndex, false);
-        console.log(
-          `📱 Screen unfocused - pausing all videos including current ${currentIndex}`
-        );
+        // console.log(
+        //   `📱 Screen unfocused - pausing all videos including current ${currentIndex}`
+        // );
       }
 
       return newStates;
@@ -483,28 +483,28 @@ const VideoFeed: React.FC = () => {
   }, [currentIndex, reels.length, isFocused]); // Also depend on isFocused
 
   // Debug info
-  useEffect(() => {
-    console.log("🎬 VideoFeed State:", {
-      reelsCount: reels.length,
-      hasMore,
-      isLoadingMore,
-      isInitialLoading,
-      error,
-      currentIndex,
-      videosFromEnd: reels.length - currentIndex,
-      batchLoadWillTrigger: reels.length - currentIndex <= BATCH_LOAD_TRIGGER,
-      lastBatchTriggerIndex,
-      currentVideoPlaying: getVideoPlayState(currentIndex),
-    });
-  }, [
-    reels.length,
-    hasMore,
-    isLoadingMore,
-    isInitialLoading,
-    error,
-    currentIndex,
-    lastBatchTriggerIndex,
-  ]);
+  // useEffect(() => {
+  //   console.log("🎬 VideoFeed State:", {
+  //     reelsCount: reels.length,
+  //     hasMore,
+  //     isLoadingMore,
+  //     isInitialLoading,
+  //     error,
+  //     currentIndex,
+  //     videosFromEnd: reels.length - currentIndex,
+  //     batchLoadWillTrigger: reels.length - currentIndex <= BATCH_LOAD_TRIGGER,
+  //     lastBatchTriggerIndex,
+  //     currentVideoPlaying: getVideoPlayState(currentIndex),
+  //   });
+  // }, [
+  //   reels.length,
+  //   hasMore,
+  //   isLoadingMore,
+  //   isInitialLoading,
+  //   error,
+  //   currentIndex,
+  //   lastBatchTriggerIndex,
+  // ]);
 
   // Show initial loading when no posts yet
   if (reels.length === 0 && isInitialLoading && !refreshing) {
@@ -568,7 +568,7 @@ const VideoFeed: React.FC = () => {
         <TouchableOpacity
           onPress={() => {
             if (user?.id) {
-              console.log("🔄 Retrying fetch...");
+              // console.log("🔄 Retrying fetch...");
               setLastBatchTriggerIndex(-1); // Reset batch trigger tracking
               fetchReels(String(user.id), 0);
             }
@@ -722,15 +722,15 @@ const VideoFeed: React.FC = () => {
             i >= 0 &&
             i < reels.length
           ) {
-            console.log(
-              `👀 Viewable item changed from ${currentIndex} to ${i}`
-            );
+            // console.log(
+            //   `👀 Viewable item changed from ${currentIndex} to ${i}`
+            // );
             setCurrentIndex(i);
           }
         }}
         onMomentumScrollBegin={() => {
           // Pause all videos when scrolling starts to prevent audio bleeding
-          console.log(`📱 Scroll began - pausing all videos`);
+          // console.log(`📱 Scroll began - pausing all videos`);
           setVideoPlayStates((prevStates) => {
             const newStates = new Map(prevStates);
             reels.forEach((_, index) => {
@@ -743,7 +743,7 @@ const VideoFeed: React.FC = () => {
           const y = event.nativeEvent.contentOffset.y ?? 0;
           const i = Math.round(y / height);
 
-          console.log(`📱 Scroll ended at index ${i} (was ${currentIndex})`);
+          // console.log(`📱 Scroll ended at index ${i} (was ${currentIndex})`);
 
           if (i !== currentIndex && i >= 0 && i < reels.length) {
             setCurrentIndex(i);
@@ -758,7 +758,7 @@ const VideoFeed: React.FC = () => {
                 reels.forEach((_, index) => {
                   if (index === i) {
                     newStates.set(index, true);
-                    console.log(`▶️ Resuming video ${index} after scroll`);
+                    // console.log(`▶️ Resuming video ${index} after scroll`);
                   } else {
                     newStates.set(index, false);
                   }
@@ -766,9 +766,9 @@ const VideoFeed: React.FC = () => {
                 return newStates;
               });
             } else {
-              console.log(
-                `📱 Screen unfocused - not resuming videos after scroll`
-              );
+              // console.log(
+              //   `📱 Screen unfocused - not resuming videos after scroll`
+              // );
             }
           }, 100); // Small delay to ensure scroll has completely finished
 
@@ -782,14 +782,14 @@ const VideoFeed: React.FC = () => {
             user?.id &&
             i !== lastBatchTriggerIndex;
 
-          console.log(
-            `📱 Batch loading check at video ${i}: videosFromEnd=${videosFromEnd}, trigger=${BATCH_LOAD_TRIGGER}, shouldTrigger=${shouldTriggerBatch}`
-          );
+          // console.log(
+          //   `📱 Batch loading check at video ${i}: videosFromEnd=${videosFromEnd}, trigger=${BATCH_LOAD_TRIGGER}, shouldTrigger=${shouldTriggerBatch}`
+          // );
 
           if (shouldTriggerBatch) {
-            console.log(
-              `🚀 BATCH LOAD TRIGGERED at video ${i}! (${videosFromEnd} videos remaining)`
-            );
+            // console.log(
+            //   `🚀 BATCH LOAD TRIGGERED at video ${i}! (${videosFromEnd} videos remaining)`
+            // );
             setLastBatchTriggerIndex(i);
             setShowBatchLoadNotification(true);
             setTimeout(() => setShowBatchLoadNotification(false), 1000);
@@ -939,7 +939,7 @@ const VideoFeed: React.FC = () => {
           if (commentsPost && user?.id && text.trim()) {
             try {
               await addComment(commentsPost.id, user.id, text);
-              console.log("✅ Comment added successfully");
+              // console.log("✅ Comment added successfully");
             } catch (error) {
               console.error("❌ Error adding comment:", error);
             }
@@ -976,10 +976,10 @@ const VideoFeed: React.FC = () => {
                 : [...prev, Number(showPostOptionsFor.user_id)]
             );
 
-            console.log(
-              `✅ ${isFollowing ? "Unfollowed" : "Followed"} user:`,
-              showPostOptionsFor.user_id
-            );
+            // console.log(
+            //   `✅ ${isFollowing ? "Unfollowed" : "Followed"} user:`,
+            //   showPostOptionsFor.user_id
+            // );
           } catch (error) {
             console.error("❌ Error toggling follow:", error);
           }
@@ -994,7 +994,7 @@ const VideoFeed: React.FC = () => {
         deleteAction={async (postId: string) => {
           try {
             if (!user?.id) return;
-            console.log(`🗑️ Deleting reel ${postId}...`);
+            // console.log(`🗑️ Deleting reel ${postId}...`);
 
             const idNum = Number(postId);
 
@@ -1004,7 +1004,7 @@ const VideoFeed: React.FC = () => {
             }));
 
             setShowPostOptionsFor(null);
-            console.log(`✅ Reel ${postId} deleted successfully`);
+            // console.log(`✅ Reel ${postId} deleted successfully`);
           } catch (error) {
             console.error("❌ Error deleting reel:", error);
           }
@@ -1084,16 +1084,16 @@ const PostItem: React.FC<{
         try {
           if (!active || !isFocused || !isPlaying) {
             // Pause and mute when inactive, unfocused, or user paused
-            console.log(
-              `⏸️ Pausing video ${index} - active: ${active}, focused: ${isFocused}, playing: ${isPlaying}`
-            );
+            // console.log(
+            //   `⏸️ Pausing video ${index} - active: ${active}, focused: ${isFocused}, playing: ${isPlaying}`
+            // );
             await videoRef.current.pauseAsync?.();
             await videoRef.current.setIsMutedAsync?.(true);
           } else if (active && isFocused && isPlaying) {
             // Resume and unmute when active, focused, and should be playing
-            console.log(
-              `▶️ Resuming video ${index} - active: ${active}, focused: ${isFocused}, playing: ${isPlaying}`
-            );
+            // console.log(
+            //   `▶️ Resuming video ${index} - active: ${active}, focused: ${isFocused}, playing: ${isPlaying}`
+            // );
             await videoRef.current.setIsMutedAsync?.(false);
             await videoRef.current.playAsync?.();
           }

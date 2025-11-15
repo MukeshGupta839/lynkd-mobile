@@ -9,6 +9,7 @@ type Props = {
   className?: string;
   innerClassName?: string;
   readOnly?: boolean;
+  borderRadius?: number;
 };
 
 export default function SearchBar({
@@ -19,6 +20,7 @@ export default function SearchBar({
   className = "",
   innerClassName = "",
   readOnly = false,
+  borderRadius = 2,
 }: Props) {
   const { height } = useWindowDimensions();
 
@@ -29,12 +31,14 @@ export default function SearchBar({
   return (
     <View
       className={[
-        "w-full bg-white border border-gray-200 rounded-3xl overflow-hidden",
+        "w-full bg-white border border-gray-200 overflow-hidden",
         className,
       ].join(" ")}
       style={{
         height: baseHeight,
-      }}>
+        borderRadius: borderRadius,
+      }}
+    >
       <View
         className={[
           "flex-1 flex-row items-center justify-between",
@@ -43,7 +47,8 @@ export default function SearchBar({
         style={{
           paddingHorizontal: 12,
           paddingVertical: verticalPadding,
-        }}>
+        }}
+      >
         {readOnly ? (
           <Text
             className="flex-1 text-base text-gray-400"
@@ -51,7 +56,8 @@ export default function SearchBar({
               paddingVertical: 0,
               includeFontPadding: false,
               textAlignVertical: "center",
-            }}>
+            }}
+          >
             {placeholder}
           </Text>
         ) : (
@@ -79,7 +85,8 @@ export default function SearchBar({
             justifyContent: "center",
             alignItems: "center",
             height: "100%",
-          }}>
+          }}
+        >
           <Search size={20} strokeWidth={2} color="black" />
         </View>
       </View>

@@ -41,6 +41,7 @@ module.exports = {
         "opensans-italic": ["OpenSans-Italic"],
         "opensans-semibolditalic": ["OpenSans-SemiBoldItalic"],
         "opensans-bolditalic": ["OpenSans-BoldItalic"],
+        "opensans-extrabolditalic": ["OpenSans-ExtraBoldItalic"],
       },
       letterSpacing: {
         "ultra-wide": "30px",

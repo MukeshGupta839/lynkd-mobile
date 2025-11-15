@@ -2,7 +2,7 @@
   "expo": {
     "name": "LYNKD",
     "slug": "lynkd-social-commerce",
-    "version": "1.2",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "lynkdmobile",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "icon": "./assets/images/adaptive-icon2.png",
-      "buildNumber": "15",
+      "buildNumber": "1",
       "bundleIdentifier": "com.lynkd.socialcommerce",
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,

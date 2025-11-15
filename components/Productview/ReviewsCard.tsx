@@ -225,7 +225,8 @@ export default function ReviewsCard({
           horizontal
           showsHorizontalScrollIndicator={false}
           className="mt-3"
-          contentContainerStyle={{ paddingRight: 4 }}>
+          contentContainerStyle={{ paddingRight: 4 }}
+        >
           {(
             [
               { id: "all", label: "All" },
@@ -243,11 +244,13 @@ export default function ReviewsCard({
                   active
                     ? "bg-emerald-50 border-emerald-500"
                     : "bg-white border-gray-300"
-                }`}>
+                }`}
+              >
                 <Text
                   className={`text-xs ${
                     active ? "text-emerald-700 font-semibold" : "text-gray-700"
-                  }`}>
+                  }`}
+                >
                   {f.label}
                 </Text>
               </TouchableOpacity>
@@ -265,7 +268,8 @@ export default function ReviewsCard({
           return (
             <View
               key={r.id}
-              className={`py-4 ${idx !== visible.length - 1 ? "border-b border-gray-100" : ""}`}>
+              className={`py-4 ${idx !== visible.length - 1 ? "border-b border-gray-100" : ""}`}
+            >
               {/* Header row */}
               <View className="flex-row">
                 {showAvatar && (
@@ -316,13 +320,15 @@ export default function ReviewsCard({
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   className="mt-3"
-                  contentContainerStyle={{ paddingRight: 6 }}>
+                  contentContainerStyle={{ paddingRight: 6 }}
+                >
                   {r.photos.slice(0, 6).map((img, i) => {
                     const transparent = isTransparentAsset(img);
                     return (
                       <View
                         key={`${r.id}-p-${i}`}
-                        className="mr-3 h-24 w-24 rounded-xl overflow-hidden bg-white ring-1 ring-gray-200">
+                        className="mr-3 h-24 w-24 rounded-xl overflow-hidden bg-white ring-1 ring-gray-200"
+                      >
                         <ExpoImage
                           source={img}
                           style={{ width: "100%", height: "100%" }}
@@ -353,13 +359,15 @@ export default function ReviewsCard({
                     flexWrap: "wrap",
                     alignItems: "center",
                   }}
-                  className="mt-3">
+                  className="mt-3"
+                >
                   {helpful === "idle" ? (
                     <>
                       <TouchableOpacity
                         onPress={() => startHelpful(r.id)}
                         activeOpacity={0.9}
-                        className="px-3 py-1.5 mr-2 rounded-full border border-gray-300 bg-white">
+                        className="px-3 py-1.5 mr-2 rounded-full border border-gray-300 bg-white"
+                      >
                         <Text className="text-sm text-gray-800">Helpful</Text>
                       </TouchableOpacity>
 
@@ -367,7 +375,8 @@ export default function ReviewsCard({
                         <TouchableOpacity
                           onPress={() => openReport(r.id)}
                           activeOpacity={0.9}
-                          className="px-3 py-1.5 rounded-full border border-gray-300 bg-white">
+                          className="px-3 py-1.5 rounded-full border border-gray-300 bg-white"
+                        >
                           <Text className="text-sm text-gray-800">Report</Text>
                         </TouchableOpacity>
                       )}
@@ -375,7 +384,8 @@ export default function ReviewsCard({
                   ) : (
                     <>
                       <View
-                        style={{ flexDirection: "row", alignItems: "center" }}>
+                        style={{ flexDirection: "row", alignItems: "center" }}
+                      >
                         <Ionicons
                           name={
                             helpful === "sending"
@@ -392,7 +402,8 @@ export default function ReviewsCard({
                               ? "text-[13px] text-black"
                               : "text-[13px] text-emerald-700"
                           }
-                          style={{ marginRight: 8 }}>
+                          style={{ marginRight: 8 }}
+                        >
                           {helpful === "sending"
                             ? "Sending feedback…"
                             : "Thank you for your feedback."}
@@ -404,7 +415,8 @@ export default function ReviewsCard({
                           onPress={() => openReport(r.id)}
                           activeOpacity={0.9}
                           className="px-3 py-1.5 rounded-full border border-gray-300 bg-white"
-                          style={{ marginTop: 4 }}>
+                          style={{ marginTop: 4 }}
+                        >
                           <Text className="text-sm text-gray-800">Report</Text>
                         </TouchableOpacity>
                       )}
@@ -421,7 +433,8 @@ export default function ReviewsCard({
         <TouchableOpacity
           onPress={onViewMore}
           activeOpacity={0.9}
-          className="mt-4 w-full rounded-xl bg-gray-50 border border-gray-200 py-3 items-center">
+          className="mt-4 w-full rounded-xl bg-gray-50 border border-gray-200 py-3 items-center"
+        >
           <Text className="text-sm font-medium text-gray-800">
             View more reviews
           </Text>
@@ -433,7 +446,8 @@ export default function ReviewsCard({
         visible={!!reportOpenFor}
         transparent
         animationType="fade"
-        onRequestClose={closeReport}>
+        onRequestClose={closeReport}
+      >
         <View className="flex-1 justify-end">
           <TouchableWithoutFeedback onPress={closeReport}>
             <View className="flex-1 bg-black/40" />
@@ -444,7 +458,8 @@ export default function ReviewsCard({
               <Text className="text-lg font-semibold">Report this review</Text>
               <TouchableOpacity
                 onPress={closeReport}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <Ionicons name="close" size={22} color="#111827" />
               </TouchableOpacity>
             </View>
@@ -477,13 +492,15 @@ export default function ReviewsCard({
                     setReportReasons((prev) => ({ ...prev, [k]: !prev[k] }));
                   }}
                   activeOpacity={0.8}
-                  className="flex-row items-start py-3">
+                  className="flex-row items-start py-3"
+                >
                   <View
                     className={`h-5 w-5 rounded-md border ${
                       selected
                         ? "bg-black border-black"
                         : "bg-white border-gray-400"
-                    } mr-3`}>
+                    } mr-3`}
+                  >
                     {selected ? (
                       <Ionicons name="checkmark" size={16} color="#fff" />
                     ) : null}
@@ -512,7 +529,8 @@ export default function ReviewsCard({
                   Object.values(reportReasons).some(Boolean)
                     ? "bg-black"
                     : "bg-gray-300"
-                } py-4`}>
+                } py-4`}
+              >
                 <Text className="text-white text-base font-semibold">
                   Submit
                 </Text>

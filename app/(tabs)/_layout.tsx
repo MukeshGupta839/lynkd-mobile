@@ -18,7 +18,7 @@ export default function TabLayout() {
             {...props}
             avatarUri={user?.profile_picture}
             onDisabledTabPress={() => setStatusOpen(true)}
-            // disabledTabs={["product", "chat"]}
+            disabledTabs={["product"]}
           />
         )}
         screenOptions={{

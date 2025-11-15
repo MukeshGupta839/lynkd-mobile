@@ -93,7 +93,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.2"
+        versionName "1.2.1"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -103,6 +103,12 @@ android {
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'
+        }
+        release {
+                storeFile file('lynkd.keystore')  // Add your keystore path here
+                storePassword 'Lynkdapp'
+                keyAlias 'your-key-alias'
+                keyPassword 'Lynkdapp'
         }
     }
     buildTypes {

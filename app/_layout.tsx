@@ -46,6 +46,7 @@ export default function RootLayout() {
     "OpenSans-Italic": require("../assets/fonts/OpenSans/OpenSans-Italic.ttf"),
     "OpenSans-SemiBoldItalic": require("../assets/fonts/OpenSans/OpenSans-SemiBoldItalic.ttf"),
     "OpenSans-BoldItalic": require("../assets/fonts/OpenSans/OpenSans-BoldItalic.ttf"),
+    "OpenSans-ExtraBoldItalic": require("../assets/fonts/OpenSans/OpenSans-ExtraBoldItalic.ttf"),
   });
 
   useEffect(() => {
@@ -85,7 +86,8 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <PaperProvider theme={MD3LightTheme}>
           <ThemeProvider
-            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+          >
             <BottomSheetModalProvider>
               <KeyboardProvider>
                 <AuthProvider>
@@ -94,7 +96,8 @@ export default function RootLayout() {
                       screenOptions={{
                         animation: "slide_from_right",
                         contentStyle: { backgroundColor: "#fff" },
-                      }}>
+                      }}
+                    >
                       <Stack.Screen
                         name="index"
                         options={{ headerShown: false }}

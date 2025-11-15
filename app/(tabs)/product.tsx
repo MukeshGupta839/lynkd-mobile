@@ -5,14 +5,24 @@ import {
 } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  type ListRenderItemInfo,
 } from "react-native";
+// ⬇️ 1. IMPORT REANIMATED
+import Animated, {
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Banner from "@/components/Product/BannerCarousel";
 import BestDealsGrid from "@/components/Product/BestDealsGrid";
@@ -33,40 +43,41 @@ import { useCategoryTheme } from "@/stores/useThemeStore";
 
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
+// ⬇️ 2. CREATE ANIMATED FLATLIST
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+
 type TabParamList = { Home: undefined; Services: undefined };
 type ProductNavProp = BottomTabNavigationProp<TabParamList, "Home">;
 
-function GradientWrapper({
-  children,
-  colors = ["#C5F8CE", "#ffffff"] as const,
-  start = { x: 0, y: 0 },
-  end = { x: 0, y: 1 },
-  className = "rounded-b-3xl overflow-hidden",
-}: {
-  children?: React.ReactNode;
-  colors?: readonly [string, string];
-  start?: { x: number; y: number };
-  end?: { x: number; y: number };
-  className?: string;
-}) {
-  return (
-    <LinearGradient
-      colors={colors}
-      start={start}
-      end={end}
-      className={`w-full ${className}`}>
-      {children}
-    </LinearGradient>
-  );
-}
+// ⬇️ 3. DEFINE ANIMATION CONSTANTS
+// These are approximate heights. You can fine-tune them.
+const FADING_PART_HEIGHT = 80; // Was 90
+const SEARCHBAR_HEIGHT = 60; // Approx height of SearchBar + its padding
+const CATEGORY_LIST_HEIGHT = 60; // Approx height of CategoryList
+// The total distance we'll animate over
+const HEADER_SCROLL_DISTANCE = FADING_PART_HEIGHT;
+// The total height of the header when fully expanded
+const TOTAL_HEADER_HEIGHT =
+  FADING_PART_HEIGHT + SEARCHBAR_HEIGHT + CATEGORY_LIST_HEIGHT;
+
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
 export default function ProductHome() {
   const router = useRouter();
   const navigation = useNavigation<ProductNavProp>();
   const isFocused = useIsFocused();
   const setPreset = useCategoryTheme((s) => s.setThemePreset);
+  const { top: topInset } = useSafeAreaInsets();
 
   const [notificationCount, setNotificationCount] = useState(0);
+
+  // ⬇️ 4. SETUP REANIMATED VALUES
+  const scrollOffset = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollOffset.value = event.contentOffset.y;
+    },
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -76,12 +87,11 @@ export default function ProductHome() {
     }, [setPreset])
   );
 
-  // Single product API (your hook)
   const productId = 1;
   const { data, loading, error, refresh } = useProductDetail(productId);
   const bestProductsData = data ? [data] : fallbackProducts;
 
-  const listRef = useRef<FlatList<any> | null>(null);
+  const listRef = useRef<FlatList<ContentSectionItem> | null>(null);
   const [refreshKey, setRefreshKey] = useState(() => Date.now());
 
   useEffect(() => {
@@ -95,30 +105,27 @@ export default function ProductHome() {
     return unsub;
   }, [navigation, isFocused, refresh]);
 
+  // ⬇️ 5. REMOVE 'categories' FROM THE LIST DATA
   const contentSections = [
-    { id: "categories", type: "categories" as const },
+    // { id: "categories", type: "categories" as const }, // <-- REMOVED
     { id: "banner", type: "banner" as const },
     { id: "bestProducts", type: "bestProducts" as const },
     { id: "bestDeals", type: "bestDeals" as const },
     { id: "topDeals", type: "topDeals" as const },
   ];
 
-  // 👉 BestDeals onPress: open clothing page if first card, else do a sensible default
+  type ContentSectionItem = (typeof contentSections)[number];
+
   const handleBestDealPress = (item: any, index: number) => {
     if (index === 0) {
-      // router.push("/Product/Productview?type=clothing")
       router.push({
         pathname: "/Product/Productview",
         params: { type: "clothing" },
       });
       return;
     }
-
-    // Optional: for other cards, you can route based on item fields if available
-    // (fallback to phone)
     const typeFromItem =
       (item?.type as "phone" | "facewash" | "clothing" | undefined) ?? "phone";
-
     router.push({
       pathname: "/Product/Productview",
       params: { type: typeFromItem },
@@ -127,12 +134,10 @@ export default function ProductHome() {
 
   const renderContentSection = ({
     item,
-  }: {
-    item: (typeof contentSections)[number];
-  }) => {
+  }: ListRenderItemInfo<ContentSectionItem>) => {
     switch (item.type) {
-      case "categories":
-        return <CategoryList orientation="horizontal" />;
+      // case "categories": // <-- REMOVED
+      //   return <CategoryList orientation="horizontal" />;
 
       case "banner":
         return (
@@ -150,6 +155,7 @@ export default function ProductHome() {
         );
 
       case "bestProducts":
+        // ... (rest of your cases)
         if (loading) {
           return (
             <View className="px-3 py-4">
@@ -176,8 +182,6 @@ export default function ProductHome() {
           <BestDealsGrid
             title="Best Deals for you"
             data={fallbackBestDeals as any}
-            // 👇 Add this prop in your BestDealsGrid (if not present yet):
-            // onItemPress?: (item: any, index: number) => void
             onItemPress={handleBestDealPress}
           />
         );
@@ -190,44 +194,212 @@ export default function ProductHome() {
     }
   };
 
+  // ⬇️ 6. DEFINE ANIMATED STYLES
+  const animatedFadingPart = useAnimatedStyle(() => {
+    return {
+      opacity: interpolate(
+        scrollOffset.value,
+        [0, HEADER_SCROLL_DISTANCE / 2],
+        [1, 0],
+        "clamp"
+      ),
+      transform: [
+        {
+          translateY: interpolate(
+            scrollOffset.value,
+            [0, HEADER_SCROLL_DISTANCE],
+            [0, -FADING_PART_HEIGHT],
+            "clamp"
+          ),
+        },
+      ],
+    };
+  });
+
+  const animatedSearchBar = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateY: interpolate(
+            scrollOffset.value,
+            [0, HEADER_SCROLL_DISTANCE],
+            [0, -FADING_PART_HEIGHT], // Moves up by the height of the content above it
+            "clamp"
+          ),
+        },
+      ],
+    };
+  });
+
+  const animatedGradientWrapper = useAnimatedStyle(() => ({
+    height: interpolate(
+      scrollOffset.value,
+      [0, HEADER_SCROLL_DISTANCE],
+      [
+        topInset + FADING_PART_HEIGHT + SEARCHBAR_HEIGHT,
+        topInset + SEARCHBAR_HEIGHT + 12,
+      ],
+      "clamp"
+    ),
+  }));
+
+  const animatedCategoryList = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateY: interpolate(
+            scrollOffset.value,
+            [0, HEADER_SCROLL_DISTANCE],
+            [0, -HEADER_SCROLL_DISTANCE], // Moves up by the same amount
+            "clamp"
+          ),
+        },
+      ],
+    };
+  });
+
+  // ⬇️ 7. RE-STRUCTURE JSX WITH ANIMATED COMPONENTS
   return (
     <View className="flex-1 bg-gray-50">
-      <View className="w-full rounded-b-2xl overflow-hidden">
-        <GradientWrapper
-          colors={["#C5F8CE", "#f9fafb"] as const}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}>
-          <View className="px-3 py-1">
-            <HomeHeader count={notificationCount} />
-            <QuickActions />
-            <TouchableOpacity
-              onPress={() => router.push("/Searchscreen?tab=product")}
-              activeOpacity={0.8}
-              className="mt-3">
-              <SearchBar placeholder="Search" readOnly />
-            </TouchableOpacity>
-          </View>
-        </GradientWrapper>
-      </View>
+      {/* 1. FLATLIST (in the back, with top padding) */}
+      <AnimatedFlatList
+        key={String(refreshKey)}
+        ref={listRef as any}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        data={contentSections}
+        renderItem={renderContentSection as any}
+        keyExtractor={(item: any) => item.id}
+        className="flex-1"
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingBottom: 70,
+          paddingTop: TOTAL_HEADER_HEIGHT + topInset,
+        }}
+        removeClippedSubviews
+        maxToRenderPerBatch={3}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={3}
+        windowSize={5}
+      />
 
-      <View className="flex-1 bg-gray-50">
-        <FlatList
-          key={String(refreshKey)}
-          ref={listRef}
-          data={contentSections}
-          renderItem={renderContentSection}
-          keyExtractor={(item) => item.id}
-          className="flex-1"
-          contentInsetAdjustmentBehavior="never"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 70 }}
-          removeClippedSubviews
-          maxToRenderPerBatch={3}
-          updateCellsBatchingPeriod={50}
-          initialNumToRender={3}
-          windowSize={5}
+      {/* 2. ANIMATED HEADER (floats on top) */}
+      <Animated.View
+        className="w-full overflow-hidden"
+        style={[
+          {
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 10,
+          },
+          animatedGradientWrapper, // <-- Height animation is applied to this parent
+        ]}
+      >
+        {/* ⬇️ FIX: The GradientWrapper is now a sibling, not a parent. */}
+        {/* It's the background layer. */}
+        <Animated.View
+          style={[
+            styles.headerBg, // absolute, clip, zIndex 0
+            animatedGradientWrapper, // only height is animated
+          ]}
+          pointerEvents="none"
+        >
+          <AnimatedLinearGradient
+            colors={["#C5F8CE", "#f9fafb"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            // absolute fill avoids percent-height quirks on iOS
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                // borderBottomLeftRadius: RADIUS,
+                // borderBottomRightRadius: RADIUS,
+              },
+            ]}
+          />
+        </Animated.View>
+
+        {/* ⬇️ Fading Part and Search Bar are ALSO siblings,
+            layered ON TOP of the gradient. */}
+
+        {/* Fading Part (absolute) */}
+        <Animated.View
+          style={[
+            {
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              paddingTop: topInset,
+            },
+            animatedFadingPart,
+          ]}
+        >
+          <View className="flex px-3 gap-2">
+            <QuickActions />
+            <HomeHeader />
+          </View>
+        </Animated.View>
+
+        {/* Search Bar (absolute, animates up) */}
+        <Animated.View
+          style={[
+            {
+              position: "absolute",
+              top: FADING_PART_HEIGHT + topInset, // Positioned below the fading part
+              left: 0,
+              right: 0,
+            },
+            animatedSearchBar,
+          ]}
+        >
+          <TouchableOpacity
+            onPress={() => router.push("/Searchscreen?tab=product")}
+            activeOpacity={0.8}
+            className="mt-3 px-3" // Padding is here
+          >
+            <SearchBar placeholder="Search..." readOnly borderRadius={10} />
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
+
+      {/* 3. ANIMATED CATEGORY LIST (floats on top, below header) */}
+      <Animated.View
+        style={[
+          {
+            position: "absolute",
+            top: FADING_PART_HEIGHT + SEARCHBAR_HEIGHT + topInset, // Starts below searchbar
+            left: 0,
+            right: 0,
+            zIndex: 9,
+            backgroundColor: "#f9fafb", // Needs a BG color
+          },
+          animatedCategoryList,
+        ]}
+      >
+        <CategoryList
+          orientation="horizontal"
+          scrollOffset={scrollOffset} // <-- Pass scrollOffset
+          scrollDistance={HEADER_SCROLL_DISTANCE} // <-- Pass distance
         />
-      </View>
+      </Animated.View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  headerBg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 0, // background layer
+    overflow: "hidden",
+    // borderBottomLeftRadius: RADIUS,
+    // borderBottomRightRadius: RADIUS,
+    backgroundColor: "#C5F8CE", // nice fallback while animating
+  },
+});

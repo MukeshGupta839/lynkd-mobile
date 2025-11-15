@@ -79,7 +79,8 @@ export default function ServiceDetails() {
         shadowRadius: 14,
         shadowOffset: { width: 0, height: 8 },
         elevation: 6,
-      }}>
+      }}
+    >
       <View className="flex-row items-start justify-between">
         <View className="flex-1 pr-2">
           <Text className="text-lg font-bold text-gray-900">{title}</Text>
@@ -126,7 +127,8 @@ export default function ServiceDetails() {
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: 30 }}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+      >
         <SafeAreaView edges={["left", "right", "bottom"]} className="px-3 ">
           {/* Summary card placed normally BELOW the hero image */}
           <View className="mt-3 z-10">{summaryCard}</View>
@@ -140,7 +142,8 @@ export default function ServiceDetails() {
               shadowRadius: 14,
               shadowOffset: { width: 0, height: 8 },
               elevation: 6,
-            }}>
+            }}
+          >
             <Text className="text-lg font-bold text-gray-700 mt-3 leading-6">
               Description
             </Text>
@@ -182,7 +185,8 @@ export default function ServiceDetails() {
                 });
               }
             }}
-            className="flex-1 rounded-xl items-center justify-center h-14 bg-[#1B19A8] mb-1">
+            className="flex-1 rounded-xl items-center justify-center h-14 bg-[#1B19A8] mb-1"
+          >
             <Text className="text-white font-semibold text-lg">Book Table</Text>
           </TouchableOpacity>
         </View>

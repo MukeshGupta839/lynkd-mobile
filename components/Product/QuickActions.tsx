@@ -1,6 +1,7 @@
 import { usePathname, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Image, Pressable, Text, View } from "react-native";
+// import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type TabKey = "products" | "services" | "bookings" | "pay";
 
@@ -34,7 +35,7 @@ const TAB_IMAGES: Record<TabKey, { active: any; inactive: any }> = {
 function LabelForTab({ tab, active }: { tab: TabKey; active: boolean }) {
   if (tab === "products") {
     return (
-      <Text className="mt-2 text-center font-extrabold text-xs text-black">
+      <Text className="text-center text-xs text-black font-opensans-extrabolditalic">
         PRODUCTS
       </Text>
     );
@@ -42,9 +43,10 @@ function LabelForTab({ tab, active }: { tab: TabKey; active: boolean }) {
   if (tab === "services") {
     return (
       <Text
-        className={`mt-2 text-center font-extrabold text-xs ${
+        className={`text-center text-xs font-opensans-extrabolditalic ${
           active ? "text-white" : "text-black"
-        }`}>
+        }`}
+      >
         SERVICES
       </Text>
     );
@@ -52,22 +54,21 @@ function LabelForTab({ tab, active }: { tab: TabKey; active: boolean }) {
   if (tab === "bookings") {
     if (active) {
       return (
-        <Text className="mt-2 text-center font-extrabold text-xs text-white">
+        <Text className="text-center text-xs text-white font-opensans-extrabolditalic">
           BOOKINGS
         </Text>
       );
     }
     return (
-      <Text className="mt-2 text-center font-extrabold text-xs text-black">
+      <Text className="text-center text-xs text-black font-opensans-extrabolditalic">
         B<Text className="text-[#6C63FF]">OO</Text>KINGS
       </Text>
     );
   }
   return (
     <Text
-      className={`mt-2 text-center font-extrabold text-xs ${
-        active ? "text-white" : "text-black"
-      }`}>
+      className={`text-center text-xs font-opensans-extrabolditalic ${active ? "text-white" : "text-black"}`}
+    >
       PAY
     </Text>
   );
@@ -95,9 +96,10 @@ function ActionCard({
       accessibilityRole="button"
       accessibilityLabel={`Open ${tab}`}
       accessibilityState={{ selected: active }}
-      className="flex-1 min-w-0 aspect-square rounded-xl items-center justify-center p-2"
-      style={{ backgroundColor: bgColor }}>
-      <Image source={imageSource} className="w-9 h-9" resizeMode="contain" />
+      className="flex-1 min-w-0 rounded-xl items-center justify-center py-1 gap-1"
+      style={{ backgroundColor: bgColor }}
+    >
+      <Image source={imageSource} className="w-7 h-7" resizeMode="contain" />
       <LabelForTab tab={tab} active={active} />
     </Pressable>
   );
@@ -107,6 +109,7 @@ function ActionCard({
 export default function QuickActions() {
   const router = useRouter();
   const pathname = usePathname();
+  // const insets = useSafeAreaInsets();
 
   // 👇 null initially (no wrong default)
   const [active, setActive] = useState<TabKey | null>(null);
@@ -124,7 +127,7 @@ export default function QuickActions() {
 
   return (
     <View>
-      <View className="py-2 flex-row gap-x-3">
+      <View className="py-1 flex-row gap-x-3">
         <ActionCard
           tab="products"
           active={active === "products"}
