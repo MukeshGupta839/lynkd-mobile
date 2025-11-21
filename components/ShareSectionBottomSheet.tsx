@@ -152,7 +152,8 @@ function GridUserComponent({
       className="items-center mb-6"
       style={{ paddingHorizontal: 10, flex: 1 }}
       activeOpacity={0.9}
-      onPress={() => onPress(user)}>
+      onPress={() => onPress(user)}
+    >
       <View className="relative">
         <Image
           source={{ uri: user.profile_picture }}
@@ -171,7 +172,8 @@ function GridUserComponent({
         <Text
           numberOfLines={1}
           className="text-sm text-gray-900 text-center"
-          style={{ maxWidth: 92 }}>
+          style={{ maxWidth: 92 }}
+        >
           {user.username}
         </Text>
         {user?.is_creator && (
@@ -226,11 +228,13 @@ const ShareFooter = memo(function ShareFooter({
           paddingBottom: NAV_SAFE,
           paddingTop: 8,
           minHeight: FOOTER_MIN_HEIGHT + NAV_SAFE,
-        }}>
+        }}
+      >
         {showSendBar ? (
           <View
             className="flex-row items-center justify-between px-3"
-            style={{ height: SEND_BAR_HEIGHT }}>
+            style={{ height: SEND_BAR_HEIGHT }}
+          >
             <Text className="text-gray-700">
               Send to {selectedCount}/{maxSelect}
             </Text>
@@ -238,7 +242,8 @@ const ShareFooter = memo(function ShareFooter({
               onPress={onSend}
               disabled={!selectedCount}
               className={`px-3 py-2 rounded-full ${selectedCount ? "bg-black" : "bg-gray-300"}`}
-              activeOpacity={0.8}>
+              activeOpacity={0.8}
+            >
               <Text className="text-white font-semibold">Send</Text>
             </TouchableOpacity>
           </View>
@@ -250,11 +255,13 @@ const ShareFooter = memo(function ShareFooter({
               paddingHorizontal: 12,
               alignItems: "center",
               height: ACTIONS_BAR_HEIGHT,
-            }}>
+            }}
+          >
             {actions.map((a) => (
               <View
                 key={a.key}
-                style={{ alignItems: "center", marginHorizontal: 12 }}>
+                style={{ alignItems: "center", marginHorizontal: 12 }}
+              >
                 <TouchableOpacity
                   activeOpacity={0.9}
                   onPress={a.onPress}
@@ -263,12 +270,14 @@ const ShareFooter = memo(function ShareFooter({
                     width: ACTION_ICON_SIZE,
                     height: ACTION_ICON_SIZE,
                     backgroundColor: a.bg ?? "#F7F7F9",
-                  }}>
+                  }}
+                >
                   {a.icon}
                 </TouchableOpacity>
                 <Text
                   style={{ marginTop: 6, fontSize: 12 }}
-                  className="text-black text-center">
+                  className="text-black text-center"
+                >
                   {a.label}
                 </Text>
               </View>
@@ -300,7 +309,8 @@ const HeaderHandle = memo(function HeaderHandle({
           paddingBottom: 10,
           alignItems: "center",
           justifyContent: "center",
-        }}>
+        }}
+      >
         <View
           style={{
             width: 42,
@@ -333,12 +343,14 @@ const HeaderHandle = memo(function HeaderHandle({
             paddingHorizontal: 10,
             gap: 8,
           }}
-          style={{ marginBottom: 4 }}>
+          style={{ marginBottom: 4 }}
+        >
           {selectedUsers.map((u) => (
             <View
               key={`chip-${u.id}`}
               className="flex-row items-center bg-[#F1F2F6]"
-              style={{ height: 28, borderRadius: 14, paddingHorizontal: 10 }}>
+              style={{ height: 28, borderRadius: 14, paddingHorizontal: 10 }}
+            >
               <Image
                 source={{ uri: u.profile_picture }}
                 className="w-5 h-5 rounded-full mr-2"
@@ -353,7 +365,8 @@ const HeaderHandle = memo(function HeaderHandle({
                     next.delete(u.id);
                     return next;
                   })
-                }>
+                }
+              >
                 <Ionicons
                   name="close"
                   size={14}
@@ -494,7 +507,7 @@ function ShareSectionBottomSheetComponent({
       const first = selectedUsers[0];
       // ✅ use the router instance created at the top
       router.push({
-        pathname: "/chat/UserChatScreen",
+        pathname: "/(chat)",
         params: {
           userId: String(first.id),
           username: first.username,
@@ -588,7 +601,8 @@ function ShareSectionBottomSheetComponent({
       onDismiss={() => setShow(false)}
       backgroundStyle={{ backgroundColor: "#fff" }}
       handleIndicatorStyle={{ backgroundColor: "#cfd2d7" }}
-      footerComponent={renderFooter}>
+      footerComponent={renderFooter}
+    >
       {/* BODY */}
       <BottomSheetFlatList
         style={{ flex: 1 }}

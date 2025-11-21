@@ -5,10 +5,11 @@ import Stories from "@/components/Stories/Stories";
 import StoriesCamera from "@/components/StoriesCamera";
 import { DEFAULT_AVATAR, type ChatItem, type User } from "@/constants/chat"; // Removed USERS and LOGGED_USER
 import { AuthContext } from "@/context/AuthContext";
+import { useSocket } from "@/context/SocketProvider";
 import { apiCall } from "@/lib/api/apiService";
+import { useChatListStore } from "@/stores/chatListStore";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-// ⛔ REMOVED: useEventListener from expo
 import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -38,7 +39,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { io } from "socket.io-client";
 
 /* ---- Endpoints on your backend ---- */
 const CHATS_OF_USER = (id: string | number) => `/api/messages/user-chats/${id}`;
@@ -61,7 +61,6 @@ function resolveApiUrl(): string | null {
   }
   return pick;
 }
-const SOCKET_PATH = "/socket.io/";
 const ENDPOINT = resolveApiUrl() || "";
 
 /* ---------- Small date helpers ---------- */
@@ -188,6 +187,7 @@ type YouBubbleProps = {
   onOpenStories: () => void;
   onAdd: () => void;
 };
+
 const YouBubble = memo<YouBubbleProps>(
   ({ you, uploading, onOpenStories, onAdd }) => {
     const hasStory = (you.stories ?? []).length > 0;
@@ -284,7 +284,8 @@ const groupMessagesByUser = (messages: any[]) => {
 type ChatRowProps = {
   item: ChatItem;
   meId: string | number;
-  onOpenChat: (u: User) => void;
+  // Update this signature to accept content and time
+  onOpenChat: (u: User, lastContent?: string, lastTime?: string) => void;
   onOpenProfile: (img?: string) => void;
 };
 
@@ -320,7 +321,7 @@ const ChatRow = memo<ChatRowProps>(
 
     return (
       <Pressable
-        onPress={() => onOpenChat(otherUser)}
+        onPress={() => onOpenChat(otherUser, item.content, item.created_at)}
         className="flex-row items-center px-3 py-3 border-b border-gray-100"
         accessibilityRole="button"
         accessibilityLabel={`Open chat with ${displayName}`}
@@ -399,6 +400,7 @@ const isValidId = (v?: any) => {
 /* ---------- Screen ---------- */
 export default function Chats() {
   const router = useRouter();
+  const { socket } = useSocket();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
@@ -441,7 +443,8 @@ export default function Chats() {
   // const [hudVisible, setHudVisible] = useState(false);
 
   // message conversations only
-  const [chatList, setChatList] = useState<ChatItem[]>([]);
+  const chatList = useChatListStore((s) => s.chatList);
+  const setChatList = useChatListStore((s) => s.setChatList);
 
   // —— focus flag
   const focusedRef = useRef<boolean>(true);
@@ -458,10 +461,10 @@ export default function Chats() {
   const activeChatPartnerIdRef = useRef<string | number | null>(null);
 
   // —— socket & de-dupe helpers
-  const socketRef = useRef<ReturnType<typeof io> | null>(null);
+  const socketRef = useRef<any | null>(null);
   const seenKeySetRef = useRef<Set<string>>(new Set());
   const byClientIdRef = useRef<Set<string>>(new Set());
-  const connectedRef = useRef(false);
+  // retired: connectedRef was only written but not read; remove to silence unused var
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const makeSeenKey = (sm: any) =>
@@ -680,7 +683,7 @@ export default function Chats() {
     } catch (e) {
       console.error("fetchChatsOnly failed:", e);
     }
-  }, [ME_ID]);
+  }, [ME_ID, setChatList]);
 
   // warm cache on mount then fetch fresh
   useEffect(() => {
@@ -695,7 +698,7 @@ export default function Chats() {
       fetchChatsOnly();
       fetchStories(); // ✅ Fetch stories on mount
     })();
-  }, [ME_ID, fetchChatsOnly, fetchStories]);
+  }, [ME_ID, fetchChatsOnly, fetchStories, setChatList]);
 
   // refetch on focus
   useFocusEffect(
@@ -786,7 +789,7 @@ export default function Chats() {
     return () => {
       sub.remove();
     };
-  }, [ME_ID, ME_USERNAME, ME_AVATAR]);
+  }, [ME_ID, ME_USERNAME, ME_AVATAR, setChatList]);
 
   // Listen for thread open/close signals from UserChatScreen
 
@@ -824,27 +827,7 @@ export default function Chats() {
   // SOCKET: real-time updates make inbox show latest message (both directions)
   useEffect(() => {
     // don't try to connect until we have a valid id and endpoint
-    if (!ENDPOINT || !isValidId(ME_ID)) return;
-
-    const s = io(ENDPOINT, {
-      path: SOCKET_PATH,
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      auth: {
-        token: TOKEN || "",
-        userId: String(ME_ID),
-      },
-    });
-    socketRef.current = s;
-
-    if (__DEV__) {
-      s.on("connect", () => {
-        console.log("[inbox] socket connected", { id: s.id, url: ENDPOINT });
-      });
-      s.on("connect_error", (e: any) => {
-        console.warn("[inbox] connect_error:", e?.message);
-      });
-    }
+    if (!socket || !ENDPOINT || !isValidId(ME_ID)) return;
 
     const normalizeKnown = (raw: any) => ({
       id: raw?.id,
@@ -947,45 +930,9 @@ export default function Chats() {
       bumpInboxWith(msg);
     };
 
-    const doJoin = () => {
-      const uid = String(ME_ID);
-      s.emit("join", {
-        userId: uid,
-        user_id: uid,
-        id: uid,
-        token: TOKEN || "",
-      });
-    };
-
-    s.on("connect", () => {
-      connectedRef.current = true;
-      doJoin();
-      fetchChatsOnly(); // sync missed while disconnected
-      // gentle safety poll while connected
-      if (!pollTimerRef.current) {
-        pollTimerRef.current = setInterval(() => {
-          fetchChatsOnly();
-        }, 25000);
-      }
-    });
-
-    s.on("reconnect", () => {
-      connectedRef.current = true;
-      doJoin();
-      fetchChatsOnly();
-    });
-
-    s.on("disconnect", () => {
-      connectedRef.current = false;
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    });
-
-    s.on("receiveMessage", onIncoming);
-    s.on("message", onIncoming);
-    s.on("newMessage", onIncoming);
+    socket.on("receiveMessage", onIncoming);
+    socket.on("message", onIncoming);
+    socket.on("newMessage", onIncoming);
 
     // Catch-all for unknown event names (private_message, chat, dm, etc.)
     const onAny = (event: string, payload: any) => {
@@ -993,19 +940,15 @@ export default function Chats() {
       if (!n) return;
       bumpInboxWith(n);
     };
-    if (typeof (s as any).onAny === "function") {
-      (s as any).onAny(onAny);
+    if (typeof (socket as any).onAny === "function") {
+      (socket as any).onAny(onAny);
     }
 
     return () => {
       try {
-        s.off("receiveMessage", onIncoming);
-        s.off("message", onIncoming);
-        s.off("newMessage", onIncoming);
-        if (typeof (s as any).offAny === "function") {
-          (s as any).offAny(onAny);
-        }
-        s.disconnect();
+        socket.off("receiveMessage", onIncoming);
+        socket.off("message", onIncoming);
+        socket.off("newMessage", onIncoming);
       } catch {}
       socketRef.current = null;
       if (pollTimerRef.current) {
@@ -1013,16 +956,16 @@ export default function Chats() {
         pollTimerRef.current = null;
       }
     };
-  }, [ME_ID, TOKEN, fetchChatsOnly]);
+  }, [ME_ID, TOKEN, socket, setChatList]);
 
   const openChatAndMarkRead = useCallback(
-    (u: User) => {
-      // set current open thread
+    (u: User, lastContent?: string, lastTime?: string) => {
       activeChatPartnerIdRef.current = u.id;
+      markConversationRead(u.id);
       // (no unread count to clear)
       markConversationRead(u.id);
       router.push({
-        pathname: "/chat/UserChatScreen",
+        pathname: "/(chat)",
         params: {
           userId: u.id,
           username: u.username,
@@ -1030,6 +973,8 @@ export default function Chats() {
           loggedUserId: ME_ID,
           loggedUsername: ME_USERNAME,
           loggedAvatar: ME_AVATAR,
+          initialMessageText: lastContent,
+          initialMessageTime: lastTime,
         },
       });
       // also broadcast for any other listeners
@@ -1093,7 +1038,9 @@ export default function Chats() {
 
   /* ---- UI ---- */
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff", paddingTop: insets.top }}>
+    <View
+      style={{ flex: 1, backgroundColor: "#fff", paddingTop: insets.top - 10 }}
+    >
       <StatusBar barStyle="dark-content" />
 
       {/* Stories */}
@@ -1163,7 +1110,7 @@ export default function Chats() {
       {/* Search -> goes to Search page */}
       <View className="px-3 mt-2">
         <Pressable
-          onPress={() => router.push("/chat/Search")}
+          onPress={() => router.push("/(chat)/Search")}
           accessibilityLabel="Open people search"
         >
           <SearchBar

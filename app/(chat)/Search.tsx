@@ -60,7 +60,8 @@ const PersonRow = memo(function PersonRow({
         onPress={() => onMessage(person)}
         className="px-3 py-1.5 rounded-full"
         style={{ backgroundColor: "#000" }}
-        accessibilityLabel={`Message ${displayName}`}>
+        accessibilityLabel={`Message ${displayName}`}
+      >
         <Text className="text-white text-sm font-semibold">Message</Text>
       </Pressable>
     </View>
@@ -123,7 +124,7 @@ export default function SearchPeople() {
   const startMessage = useCallback(
     (u: Person) => {
       router.push({
-        pathname: "/chat/UserChatScreen",
+        pathname: "/(chat)",
         params: {
           userId: u.id,
           username: u.username,
@@ -146,7 +147,8 @@ export default function SearchPeople() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
           hitSlop={12}
-          className="">
+          className=""
+        >
           <Ionicons name="chevron-back" size={24} color="#000" />
         </Pressable>
         <Text className="text-lg font-semibold  ml-44">Search</Text>

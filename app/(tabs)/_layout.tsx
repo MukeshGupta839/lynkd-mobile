@@ -1,13 +1,47 @@
 import CustomTabBar from "@/components/CustomTabBar";
 import StatusModal from "@/components/StatusModal";
+import { useSocket } from "@/context/SocketProvider";
 import { useAuth } from "@/hooks/useAuth";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function TabLayout() {
   const { user } = useAuth();
   const [statusOpen, setStatusOpen] = useState(false);
+
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+
+    // 1) A generic notification arrives (could be "postNotification", "friendRequest", etc).
+    const handleChat = (message: any) => {
+      console.log("Received chat message:", message);
+      // if you want specific fields:
+      // const { id, sender_id, receiver_id, content } = message;
+    };
+
+    const wrappedIncoming = (payload: any) => {
+      console.log("wrappedIncoming payload:", payload);
+    };
+
+    const handleStatus = (statusUpdate: any) => {
+      console.log("👀 userStatus event:", statusUpdate);
+    };
+
+    // 4) Wire up your socket events:
+    socket.on("receiveMessage", handleChat);
+    socket.on("message", wrappedIncoming);
+    socket.on("newMessage", wrappedIncoming);
+    socket.on("userStatus", handleStatus);
+
+    return () => {
+      socket.off("receiveMessage", handleChat);
+      socket.off("message", wrappedIncoming);
+      socket.off("newMessage", wrappedIncoming);
+      socket.off("userStatus", handleStatus);
+    };
+  }, [socket, user?.id]);
 
   console.log("user:", user, user?.profile_picture);
   return (
@@ -18,7 +52,7 @@ export default function TabLayout() {
             {...props}
             avatarUri={user?.profile_picture}
             onDisabledTabPress={() => setStatusOpen(true)}
-            disabledTabs={["product"]}
+            // disabledTabs={["product"]}
           />
         )}
         screenOptions={{

@@ -40,14 +40,16 @@ const StoryBubble = memo<StoryBubbleProps>(
             user.hasStory ? onOpen(user) : onOpenProfile(user.profile_picture)
           }
           accessibilityLabel={`${user.username} story or profile`}
-          className="items-center">
+          className="items-center"
+        >
           {user.hasStory ? (
             <LinearGradient
               colors={["#f58529", "#dd2a7b", "#8134af", "#515bd4"]}
               start={[0, 0]}
               end={[1, 1]}
               className="rounded-full"
-              style={{ padding: 2, borderRadius: 999 }}>
+              style={{ padding: 2, borderRadius: 999 }}
+            >
               <View className="w-16 h-16 rounded-full items-center justify-center bg-white">
                 <Image
                   source={{ uri: user.profile_picture ?? DEFAULT_AVATAR }}
@@ -92,11 +94,13 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
       onPress={() => onOpenChat(otherUser)}
       className="flex-row items-center px-3 py-3 border-b border-gray-100"
       accessibilityRole="button"
-      accessibilityLabel={`Open chat with ${displayName}`}>
+      accessibilityLabel={`Open chat with ${displayName}`}
+    >
       <View className="relative">
         <Pressable
           onPress={() => onOpenProfile(otherUser.profile_picture)}
-          accessibilityLabel={`${displayName} profile`}>
+          accessibilityLabel={`${displayName} profile`}
+        >
           <Image
             source={{ uri: otherUser.profile_picture ?? DEFAULT_AVATAR }}
             className="w-12 h-12 rounded-full"
@@ -108,11 +112,13 @@ const ChatRow = memo<ChatRowProps>(({ item, onOpenChat, onOpenProfile }) => {
         <Text
           className={`text-base ${
             item.unread ? "font-bold text-black" : "font-medium text-black"
-          }`}>
+          }`}
+        >
           {displayName}
         </Text>
         <Text
-          className={`text-sm ${item.unread ? "text-black" : "text-gray-500"}`}>
+          className={`text-sm ${item.unread ? "text-black" : "text-gray-500"}`}
+        >
           {item.content
             ? item.content.length > 30
               ? item.content.slice(0, 30) + "..."
@@ -195,7 +201,7 @@ export default function Chats() {
   const openChatWithUser = useCallback(
     (user: User) => {
       router.push({
-        pathname: "/chat/UserChatScreen",
+        pathname: "/(chat)",
         params: {
           userId: user.id,
           username: user.username,
@@ -237,8 +243,9 @@ export default function Chats() {
         </Text>
         <Pressable
           className="bg-black px-3 py-2 rounded-full"
-          onPress={() => router.push("/chat/UserChatScreen")}
-          accessibilityLabel="Start new chat">
+          onPress={() => router.push("/(chat)")}
+          accessibilityLabel="Start new chat"
+        >
           <Text className="text-white font-medium">Start New Chat</Text>
         </Pressable>
       </View>
@@ -290,7 +297,8 @@ export default function Chats() {
                       )
                     }
                     accessibilityLabel="Your profile story"
-                    className="items-center">
+                    className="items-center"
+                  >
                     <View className="w-16 h-16 rounded-full items-center justify-center">
                       <View className="w-16 h-16 rounded-full bg-gray-200 items-center justify-center">
                         <Text className="text-xl text-gray-500">＋</Text>
@@ -315,26 +323,32 @@ export default function Chats() {
       <View className="px-16 mt-3">
         <View className="bg-gray-100 rounded-2xl flex-row items-center justify-center p-1 mx-2">
           <Pressable
-            className={`px-5 py-2 rounded-full ${activeTab === "AI" ? "bg-white shadow" : ""}`}>
+            className={`px-5 py-2 rounded-full ${activeTab === "AI" ? "bg-white shadow" : ""}`}
+          >
             <Text
-              className={`text-sm ${activeTab === "AI" ? "font-semibold" : "text-gray-600"}`}>
+              className={`text-sm ${activeTab === "AI" ? "font-semibold" : "text-gray-600"}`}
+            >
               AI LYNKD
             </Text>
           </Pressable>
 
           <Pressable
             onPress={() => setActiveTab("Chats")}
-            className={`px-5 py-2 rounded-full mx-2 ${activeTab === "Chats" ? "bg-white shadow" : ""}`}>
+            className={`px-5 py-2 rounded-full mx-2 ${activeTab === "Chats" ? "bg-white shadow" : ""}`}
+          >
             <Text
-              className={`text-sm ${activeTab === "Chats" ? "font-semibold" : "text-gray-600"}`}>
+              className={`text-sm ${activeTab === "Chats" ? "font-semibold" : "text-gray-600"}`}
+            >
               Chats
             </Text>
           </Pressable>
 
           <Pressable
-            className={`px-5 py-2 rounded-full ${activeTab === "Groups" ? "bg-white shadow" : ""}`}>
+            className={`px-5 py-2 rounded-full ${activeTab === "Groups" ? "bg-white shadow" : ""}`}
+          >
             <Text
-              className={`text-sm ${activeTab === "Groups" ? "font-semibold" : "text-gray-600"}`}>
+              className={`text-sm ${activeTab === "Groups" ? "font-semibold" : "text-gray-600"}`}
+            >
               Groups
             </Text>
           </Pressable>
@@ -381,12 +395,14 @@ export default function Chats() {
           visible={profileModalVisible}
           transparent={false}
           animationType="slide"
-          onRequestClose={() => setProfileModalVisible(false)}>
+          onRequestClose={() => setProfileModalVisible(false)}
+        >
           <SafeAreaView className="flex-1 bg-black">
             <Pressable
               className="absolute top-10 left-4 z-50 p-2"
               onPress={() => setProfileModalVisible(false)}
-              accessibilityLabel="Close profile preview">
+              accessibilityLabel="Close profile preview"
+            >
               <Text className="text-white text-2xl">✕</Text>
             </Pressable>
 
@@ -413,12 +429,14 @@ export default function Chats() {
           visible={storyModalVisible}
           transparent={false}
           animationType="fade"
-          onRequestClose={() => setStoryModalVisible(false)}>
+          onRequestClose={() => setStoryModalVisible(false)}
+        >
           <SafeAreaView className="flex-1 bg-black">
             <Pressable
               className="absolute top-8 right-4 z-50 p-2"
               onPress={() => setStoryModalVisible(false)}
-              accessibilityLabel="Close story">
+              accessibilityLabel="Close story"
+            >
               <Text className="text-white text-2xl">✕</Text>
             </Pressable>
 

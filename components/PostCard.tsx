@@ -884,8 +884,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                 {/* Share */}
                 <TouchableOpacity
                   disabled={isGestureActive}
-                  // onPress={() => setShareOpen(true)}
-                  onPress={() => setStatusOpen(true)}
+                  onPress={() => setShareOpen(true)}
+                  // onPress={() => setStatusOpen(true)}
                   activeOpacity={0.8}
                   className="flex-row items-center"
                 >

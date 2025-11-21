@@ -54,11 +54,12 @@ type ProductNavProp = BottomTabNavigationProp<TabParamList, "Home">;
 const FADING_PART_HEIGHT = 80; // Was 90
 const SEARCHBAR_HEIGHT = 60; // Approx height of SearchBar + its padding
 const CATEGORY_LIST_HEIGHT = 60; // Approx height of CategoryList
+const EXTRA_PIN_OFFSET = 10;
 // The total distance we'll animate over
-const HEADER_SCROLL_DISTANCE = FADING_PART_HEIGHT;
+const HEADER_SCROLL_DISTANCE = FADING_PART_HEIGHT + EXTRA_PIN_OFFSET; // 👈 AFTER (80 + 10 = 90)
 // The total height of the header when fully expanded
 const TOTAL_HEADER_HEIGHT =
-  FADING_PART_HEIGHT + SEARCHBAR_HEIGHT + CATEGORY_LIST_HEIGHT;
+  FADING_PART_HEIGHT + SEARCHBAR_HEIGHT + CATEGORY_LIST_HEIGHT + 5;
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
@@ -223,7 +224,8 @@ export default function ProductHome() {
           translateY: interpolate(
             scrollOffset.value,
             [0, HEADER_SCROLL_DISTANCE],
-            [0, -FADING_PART_HEIGHT], // Moves up by the height of the content above it
+            // [0, -FADING_PART_HEIGHT - EXTRA_PIN_OFFSET], // 👈 BEFORE
+            [0, -HEADER_SCROLL_DISTANCE], // 👈 AFTER (Moves from 0 to -90)
             "clamp"
           ),
         },
@@ -234,10 +236,10 @@ export default function ProductHome() {
   const animatedGradientWrapper = useAnimatedStyle(() => ({
     height: interpolate(
       scrollOffset.value,
-      [0, HEADER_SCROLL_DISTANCE],
+      [0, HEADER_SCROLL_DISTANCE], // 👈 AFTER (uses 90)
       [
         topInset + FADING_PART_HEIGHT + SEARCHBAR_HEIGHT,
-        topInset + SEARCHBAR_HEIGHT + 12,
+        topInset + SEARCHBAR_HEIGHT - EXTRA_PIN_OFFSET, // 👈 (This was already correct)
       ],
       "clamp"
     ),
@@ -250,7 +252,8 @@ export default function ProductHome() {
           translateY: interpolate(
             scrollOffset.value,
             [0, HEADER_SCROLL_DISTANCE],
-            [0, -HEADER_SCROLL_DISTANCE], // Moves up by the same amount
+            // [0, -HEADER_SCROLL_DISTANCE - EXTRA_PIN_OFFSET - 10], // 👈 BEFORE
+            [0, -HEADER_SCROLL_DISTANCE], // 👈 AFTER (Moves from 0 to -90)
             "clamp"
           ),
         },
@@ -352,6 +355,7 @@ export default function ProductHome() {
               top: FADING_PART_HEIGHT + topInset, // Positioned below the fading part
               left: 0,
               right: 0,
+              // backgroundColor: "#000", // Needs a BG color
             },
             animatedSearchBar,
           ]}
@@ -375,7 +379,9 @@ export default function ProductHome() {
             left: 0,
             right: 0,
             zIndex: 9,
-            backgroundColor: "#f9fafb", // Needs a BG color
+            // backgroundColor: "#000", // 👈 BEFORE
+            backgroundColor: "#f9fafb", // 👈 AFTER (Matches gradient end)
+            paddingTop: 5,
           },
           animatedCategoryList,
         ]}

@@ -1,44 +1,56 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
-import { Image, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Banner from "@/components/Product/BannerCarousel";
 import CategoryList from "@/components/Product/CategoryList";
-import QuickActions from "@/components/Product/QuickActions";
 import DealsStrip from "@/components/Product/TopDealsSection";
-import SearchBar from "@/components/Searchbar";
 
 // 🔹 brand data moved to constants
 import { CategoriesBannerData } from "@/constants/Banner";
 import { popularPhones } from "@/constants/Deal";
 import { popularBrands } from "@/constants/popularBrand";
 import { useRouter } from "expo-router";
+import { Search, ShoppingCart } from "lucide-react-native";
 
 const CategoriesScreen = () => {
   const router = useRouter();
+  const { top: topInset } = useSafeAreaInsets();
   const [contentW, setContentW] = useState(0);
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50" style={{ paddingTop: topInset - 10 }}>
       {/* Top gradient (no header) */}
-      <LinearGradient
+      {/* <LinearGradient
         colors={["#C5F8CE", "#ffffff"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         className="w-full rounded-b-2xl"
       >
-        <SafeAreaView edges={["top"]}>
+        <View style={{ paddingTop: topInset - 10 }}>
           <View className="px-3 py-3">
             <QuickActions />
             <SearchBar className="mt-3" />
           </View>
-        </SafeAreaView>
-      </LinearGradient>
+        </View>
+      </LinearGradient> */}
 
-      <Text className="px-3 py-3 text-base font-bold">All Categories</Text>
+      <View className="flex-row items-center justify-between px-3 py-3">
+        <Text className="text-base font-bold">All Categories</Text>
+        <View className="flex-row gap-4">
+          <TouchableOpacity
+            onPress={() => router.push("/Searchscreen?tab=product")}
+          >
+            <Search size={20} strokeWidth={2} color="black" />
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <ShoppingCart size={20} strokeWidth={2} color="black" />
+          </TouchableOpacity>
+        </View>
+      </View>
       <View className="flex-row flex-1">
-        <View className="px-3 rounded-tr-lg rounded-br-lg border-r border-gray-200 py-1 bg-white">
+        <View className="border-r border-gray-200 bg-white">
           <CategoryList orientation="vertical" activeDefault="Mobiles" />
         </View>
 

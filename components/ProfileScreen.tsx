@@ -469,7 +469,7 @@ const ProfileScreen = ({
   const handleMessage = useCallback(
     (u: FollowUser) => {
       router.push({
-        pathname: "/chat/UserChatScreen",
+        pathname: "/(chat)",
         params: {
           userId: String(u.user_id),
           username: u.username ?? "User",
@@ -770,7 +770,8 @@ const ProfileScreen = ({
                         focusedIndexPost: dateImages[0].id,
                       },
                     })
-                  }>
+                  }
+                >
                   <Image
                     source={{ uri: dateImages[0].media_url }}
                     className="w-full h-full"
@@ -806,7 +807,8 @@ const ProfileScreen = ({
                             focusedIndexPost: image.id,
                           },
                         })
-                      }>
+                      }
+                    >
                       <Image
                         source={{ uri: image.media_url }}
                         className="w-full h-full"
@@ -844,7 +846,8 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       })
-                    }>
+                    }
+                  >
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -871,7 +874,8 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           })
-                        }>
+                        }
+                      >
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -899,7 +903,8 @@ const ProfileScreen = ({
                           focusedIndexPost: dateImages[0].id,
                         },
                       })
-                    }>
+                    }
+                  >
                     <Image
                       source={{ uri: dateImages[0].media_url }}
                       style={{
@@ -927,7 +932,8 @@ const ProfileScreen = ({
                               focusedIndexPost: image.id,
                             },
                           })
-                        }>
+                        }
+                      >
                         <Image
                           source={{ uri: image.media_url }}
                           style={{
@@ -1000,7 +1006,8 @@ const ProfileScreen = ({
                       focusedIndexPost: image.id,
                     },
                   })
-                }>
+                }
+              >
                 <Image
                   source={{ uri: image.media_url }}
                   className="w-full h-full"
@@ -1072,7 +1079,8 @@ const ProfileScreen = ({
                       username: userDetails?.username || "",
                     },
                   });
-                }}>
+                }}
+              >
                 <Image
                   source={{ uri: video.thumbnail_url }}
                   className="w-full h-full"
@@ -1119,7 +1127,8 @@ const ProfileScreen = ({
           <TouchableOpacity
             key={product.id}
             className="mb-4 rounded-xl overflow-hidden bg-gray-50 border border-gray-200"
-            style={{ width: (width - 40) / 2 }}>
+            style={{ width: (width - 40) / 2 }}
+          >
             <Image
               source={{ uri: product.main_image }}
               className="w-full h-40"
@@ -1213,7 +1222,8 @@ const ProfileScreen = ({
           paddingBottom:
             Platform.OS === "ios" ? insets.bottom + 45 : insets.bottom + 55,
         }}
-        nestedScrollEnabled={true}>
+        nestedScrollEnabled={true}
+      >
         <View className="relative h-52">
           <Image
             source={{
@@ -1233,17 +1243,20 @@ const ProfileScreen = ({
 
           <View
             className="absolute inset-0 flex-row justify-between px-4"
-            style={{ paddingTop: insets.top - 10 }}>
+            style={{ paddingTop: insets.top - 10 }}
+          >
             <TouchableOpacity
               className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-              onPress={() => router.back()}>
+              onPress={() => router.back()}
+            >
               <MaterialIcons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
 
             {userID === currentUserId && (
               <TouchableOpacity
                 className="w-9 h-9 rounded-full bg-black/30 bg-opacity-30 justify-center items-center"
-                onPress={() => safePush("/(settings)")}>
+                onPress={() => safePush("/(settings)")}
+              >
                 <Ionicons name="settings-outline" size={24} color="#fff" />
               </TouchableOpacity>
             )}
@@ -1262,7 +1275,8 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://instagram.com/${userDetails.social_media_accounts![0].instagram_username}`
                           )
-                        }>
+                        }
+                      >
                         <FontAwesome5 name="instagram" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1275,7 +1289,8 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://twitter.com/${userDetails.social_media_accounts![0].twitter_username}`
                           )
-                        }>
+                        }
+                      >
                         <FontAwesome5 name="twitter" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1288,7 +1303,8 @@ const ProfileScreen = ({
                           Linking.openURL(
                             `https://youtube.com/${userDetails.social_media_accounts![0].youtube_username}`
                           )
-                        }>
+                        }
+                      >
                         <FontAwesome5 name="youtube" size={18} color="#fff" />
                       </TouchableOpacity>
                     )}
@@ -1303,7 +1319,8 @@ const ProfileScreen = ({
               activeOpacity={0.8}
               onPress={async () => {
                 console.log("Profile link copied");
-              }}>
+              }}
+            >
               <Image
                 source={{
                   uri:
@@ -1344,7 +1361,8 @@ const ProfileScreen = ({
 
           <TouchableOpacity
             onPress={() => setBioExpanded(!bioExpanded)}
-            className="py-2">
+            className="py-2"
+          >
             {userDetails?.bio && (
               <Text className="text-base text-gray-700 leading-5">
                 {bioExpanded
@@ -1362,7 +1380,8 @@ const ProfileScreen = ({
                 key={index}
                 className="items-center"
                 onPress={() => handleOpenSheet(stat.label)}
-                disabled={userID !== currentUserId || stat.label === "Posts"}>
+                disabled={userID !== currentUserId || stat.label === "Posts"}
+              >
                 <Text className="text-sm font-bold text-gray-900">
                   {kFormatter(stat.value)}
                 </Text>
@@ -1376,14 +1395,16 @@ const ProfileScreen = ({
               <>
                 <TouchableOpacity
                   className="flex-1 h-10 rounded-full justify-center items-center bg-white mr-2"
-                  onPress={() => safePush("/(profiles)/editProfile")}>
+                  onPress={() => safePush("/(profiles)/editProfile")}
+                >
                   <Text className="text-sm font-semibold text-gray-900">
                     Edit Profile
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 h-10 rounded-full justify-center items-center bg-gray-900 ml-2"
-                  onPress={() => safePush("/(profiles)/InviteHome")}>
+                  onPress={() => safePush("/(profiles)/InviteHome")}
+                >
                   <Text className="text-sm font-semibold text-white">
                     Invite
                   </Text>
@@ -1396,11 +1417,13 @@ const ProfileScreen = ({
                     following === "followed" ? "bg-white" : "bg-gray-900"
                   }`}
                   onPress={toggleFollow}
-                  disabled={followLoading}>
+                  disabled={followLoading}
+                >
                   <Text
                     className={`text-sm font-semibold ${
                       following === "followed" ? "text-gray-900" : "text-white"
-                    }`}>
+                    }`}
+                  >
                     {followLoading
                       ? "Requesting..."
                       : following === "followed"
@@ -1433,7 +1456,8 @@ const ProfileScreen = ({
                     className={`w-12 h-12 rounded-full justify-center items-center ${
                       activeTab === tab ? "bg-gray-900" : "bg-white"
                     }`}
-                    onPress={() => setActiveTab(tab)}>
+                    onPress={() => setActiveTab(tab)}
+                  >
                     {tab === "All" && (
                       <FontAwesome
                         name="snowflake-o"

@@ -65,10 +65,80 @@ export const allProducts: SearchItem[] = [
     gradient: ["#000000", "#E6E3DD"] as const,
     category: "phones",
   },
+  {
+    id: "9",
+    name: "Iphone 15 Pro",
+    image: require("../assets/images/Product/iphone.png"),
+    gradient: ["#000000", "#E6E3DD"] as const,
+    category: "phones",
+  },
+  {
+    id: "10",
+    name: "Iphone 15 Pro",
+    image: require("../assets/images/Product/iphone.png"),
+    gradient: ["#000000", "#E6E3DD"] as const,
+    category: "phones",
+  },
+  {
+    id: "11",
+    name: "Iphone 15 Pro",
+    image: require("../assets/images/Product/iphone.png"),
+    gradient: ["#000000", "#E6E3DD"] as const,
+    category: "phones",
+  },
+  {
+    id: "12",
+    name: "Iphone 15 Pro",
+    image: require("../assets/images/Product/iphone.png"),
+    gradient: ["#000000", "#E6E3DD"] as const,
+    category: "phones",
+  },
+  {
+    id: "13",
+    name: "Iphone 15 Pro",
+    image: require("../assets/images/Product/iphone.png"),
+    gradient: ["#000000", "#E6E3DD"] as const,
+    category: "phones",
+  },
+  {
+    id: "14",
+    name: "Iphone 15 Pro",
+    image: require("../assets/images/Product/iphone.png"),
+    gradient: ["#000000", "#E6E3DD"] as const,
+    category: "phones",
+  },
+  {
+    id: "15",
+    name: "Iphone 15 Pro",
+    image: require("../assets/images/Product/iphone.png"),
+    gradient: ["#000000", "#E6E3DD"] as const,
+    category: "phones",
+  },
 ];
 
 // Recent searches (product IDs) — keeps your original export name
-export const recentSearchIds: string[] = ["1", "2", "3", "4", "5"];
+export const recentSearchIds: string[] = [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+];
 
 /* ---------------------------
    Services dataset & types

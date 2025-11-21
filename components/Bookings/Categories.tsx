@@ -9,6 +9,7 @@ import { useMemo } from "react";
 import {
   FlatList,
   ListRenderItemInfo,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -26,6 +27,8 @@ export default function Categories({
   setActiveCategory,
 }: Props) {
   const categories = useMemo(() => CATEGORIES, []);
+
+  // Use inline style on LinearGradient for reliable cross-platform layout
 
   const renderCategory = ({ item }: ListRenderItemInfo<CategoryT>) => {
     const isActive = item.key === activeCategory;
@@ -57,27 +60,30 @@ export default function Categories({
         onPress={() => setActiveCategory(item.key)}
         className="mx-1"
         accessibilityRole="button"
-        accessibilityState={{ selected: isActive }}>
+        accessibilityState={{ selected: isActive }}
+      >
         {/* OUTER wrapper: same for both states to guarantee identical shape */}
         <View className="rounded-full overflow-hidden border border-gray-300">
           {isActive ? (
             // active: gradient fill inside same rounded, border-visible container
-            <LinearGradient
-              colors={["#7952FC", "#B15CDE"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="px-3 py-2 flex-row items-center">
-              <View className="mr-2">
+            <View className="relative px-3 py-2 flex-row items-center gap-2">
+              <LinearGradient
+                colors={["#7952FC", "#B15CDE"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <View>
                 <Icon />
               </View>
               <Text className="text-white font-semibold text-base">
                 {item.label}
               </Text>
-            </LinearGradient>
+            </View>
           ) : (
             // inactive: white fill inside same rounded, bordered container
-            <View className="px-3 py-2 flex-row items-center bg-white">
-              <View className="mr-2">
+            <View className="px-3 py-2 flex-row items-center bg-white gap-2">
+              <View>
                 <Icon />
               </View>
               <Text className="text-gray-800 font-medium text-base">

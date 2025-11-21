@@ -20,7 +20,7 @@ export default function SearchBar({
   className = "",
   innerClassName = "",
   readOnly = false,
-  borderRadius = 2,
+  borderRadius = 10,
 }: Props) {
   const { height } = useWindowDimensions();
 

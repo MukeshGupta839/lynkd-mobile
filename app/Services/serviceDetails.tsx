@@ -13,14 +13,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import FeaturesCard from "@/components/Productview/FeaturesCard";
 import ReviewsCard from "@/components/Productview/ReviewsCard";
 import HeroHeader from "@/components/Services/HeroHeader";
-import {
-  reviewsData as SERVICE_REVIEWS_DATA,
-  reviewsSummary as SERVICE_REVIEWS_SUMMARY,
-} from "@/constants/review";
+import { reviewsByKind } from "@/constants/review";
 import { NEARBY_DATA, RECOMMENDED_DATA } from "@/constants/services";
 import { AirVent, Car, DoorClosed, Utensils } from "lucide-react-native";
 
-const FALLBACK_IMAGE = require("@/assets/images/kfc.png");
+import FALLBACK_IMAGE from "@/assets/images/kfc.png";
+
+// Default reviews for the service screen — use the "phone" kind as fallback.
+const SERVICE_REVIEWS_SUMMARY = reviewsByKind?.phone?.summary;
+const SERVICE_REVIEWS_DATA = reviewsByKind?.phone?.reviews;
 
 export default function ServiceDetails() {
   const router = useRouter();
@@ -166,7 +167,6 @@ export default function ServiceDetails() {
               onViewMore={() => router.push("/")}
               showAvatar={true}
               showPhotos={false}
-              containerPaddingPercent={5}
             />
           </View>
         </SafeAreaView>

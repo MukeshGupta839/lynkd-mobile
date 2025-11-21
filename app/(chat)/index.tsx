@@ -1,10 +1,9 @@
-// app/chat/UserChatScreen.tsx
+// app/(chat)/index.tsx
 import ProductModal from "@/components/PostCreation/ProductModal";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 import React, {
   useCallback,
   useEffect,
@@ -34,7 +33,6 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import ChatOptionsBottomSheet from "../chat/ChatOptionsBottomSheet";
 
 import ShareIcon from "@/assets/svg/Share.svg";
 import StatusModal from "@/components/StatusModal";
@@ -56,15 +54,16 @@ import {
 import Octicons from "@expo/vector-icons/Octicons";
 
 import { apiCall } from "@/lib/api/apiService";
-import Constants from "expo-constants";
-import { io } from "socket.io-client";
 
 // 🔹 Reanimated (V1 feature)
+import { useSocket } from "@/context/SocketProvider";
+import { useChatStore } from "@/stores/chatStore";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import ChatOptionsBottomSheet from "./ChatOptionsBottomSheet";
 
 /* ----------------------------- */
 type PostPreview = RegistryPostPreview & {
@@ -102,22 +101,6 @@ type ServerMessage = {
 };
 
 const DEFAULT_AVATAR = "https://www.gravatar.com/avatar/?d=mp";
-const SOCKET_PATH = "/socket.io/";
-
-// Resolve socket endpoint: prefer `process.env.API_URL`, then app config, then emulator fallbacks
-const getSocketEndpoint = () => {
-  // Prefer explicit env var set at build time (your previous working code used this)
-  if (typeof process !== "undefined" && process.env && process.env.API_URL) {
-    return process.env.API_URL;
-  }
-
-  const configUrl = Constants.expoConfig?.extra?.API_URL;
-  if (configUrl) return configUrl;
-
-  // emulator / simulator fallbacks (only used when nothing else provided)
-  if (Platform.OS === "android") return "http://10.0.2.2:5000";
-  return "http://localhost:5000";
-};
 
 /* ----------------------------- */
 const toMs = (iso?: string): number => {
@@ -154,7 +137,7 @@ const mergeById = (items: Message[]): Message[] => {
 
 /* ------------------------------------------------------------- */
 
-// app/chat/UserChatScreen.tsx
+// app/(chat)/index.tsx
 
 function normalizePreview(raw?: any): PostPreview | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -680,6 +663,7 @@ MessageBubble.displayName = "MessageBubble";
 /* --------------------------- */
 const UserChatScreen = () => {
   const router = useRouter();
+  const { socket } = useSocket();
 
   const {
     userId,
@@ -691,6 +675,8 @@ const UserChatScreen = () => {
     preview,
     subtitle,
     skipHistory,
+    initialMessageText,
+    initialMessageTime,
   } = useLocalSearchParams<{
     userId?: string;
     username?: string;
@@ -702,14 +688,13 @@ const UserChatScreen = () => {
     preview?: string;
     subtitle?: string;
     skipHistory?: string;
+    initialMessageText?: string;
+    initialMessageTime?: string;
   }>();
 
   const currentUserId = String(loggedUserId ?? "me");
   const currentUsername = loggedUsername ?? "You";
   const [statusOpen, setStatusOpen] = useState(false);
-  const [peerOnlineStatus, setPeerOnlineStatus] = useState<
-    "online" | "offline"
-  >("offline");
 
   const chattingUser = useMemo(
     () => ({
@@ -728,7 +713,9 @@ const UserChatScreen = () => {
 
   const cacheKey = `chatHistory-${currentUserId}-${chattingUser.userId}`;
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Migrate messages state to a global zustand store to persist across chat screens
+  const messages = useChatStore((s) => s.messages) as Message[];
+  const setMessages = useChatStore((s) => s.setMessages);
   const [text, setText] = useState("");
   const [showPreviewImage, setShowPreviewImage] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -880,6 +867,39 @@ const UserChatScreen = () => {
     [routePreview]
   );
 
+  // 2. Create a "Seed" effect
+  // This runs ONCE when the component mounts to show data instantly
+  useEffect(() => {
+    // Only run if we have text and the list is currently empty
+    if (initialMessageText && messages.length === 0) {
+      const seedId = `temp-${Date.now()}`;
+      const seedTime = initialMessageTime
+        ? toMs(initialMessageTime)
+        : Date.now();
+
+      const seedMessage: Message = {
+        id: seedId,
+        text: initialMessageText,
+        // Ensure the ID matches the partner so it shows on the left
+        userId: chattingUser.userId,
+        username: chattingUser.username,
+        createdAt: new Date(seedTime).toISOString(),
+        createdAtMs: seedTime,
+        messageType: "text",
+      };
+
+      // Update the store immediately
+      setMessages([seedMessage]);
+    }
+  }, [
+    initialMessageText,
+    initialMessageTime,
+    chattingUser.userId,
+    chattingUser.username,
+    messages.length,
+    setMessages,
+  ]);
+
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -961,6 +981,7 @@ const UserChatScreen = () => {
     persistBatched,
     findChatListRow,
     pickPreviewText,
+    setMessages,
   ]);
 
   const scrollToNewest = useCallback(
@@ -1006,7 +1027,7 @@ const UserChatScreen = () => {
         return next;
       });
     },
-    [currentUserId, currentUsername, persistBatched]
+    [currentUserId, currentUsername, persistBatched, setMessages]
   );
 
   const pickImage = useCallback(async () => {
@@ -1067,10 +1088,9 @@ const UserChatScreen = () => {
       setShowProductModal(false);
       setShowAttachmentStrip(false);
     },
-    [currentUserId, currentUsername, persistBatched]
+    [currentUserId, currentUsername, persistBatched, setMessages]
   );
 
-  const socketRef = useRef<ReturnType<typeof io> | null>(null);
   const me = useMemo(
     () => ({
       id: currentUserId,
@@ -1096,9 +1116,6 @@ const UserChatScreen = () => {
 
   // Keep a ref to the latest handleIncoming so socket listeners remain stable
   const handleIncomingRef = useRef<any>(null);
-
-  // Memoize endpoint so it's stable across renders
-  const socketEndpoint = useMemo(() => getSocketEndpoint(), []);
 
   // Dedupe any server echoes across event names / retries
   const seenIncomingKeysRef = useRef<Set<string>>(new Set());
@@ -1242,6 +1259,7 @@ const UserChatScreen = () => {
       chattingUser.username,
       chattingUser.profilePicture,
       scrollToNewest,
+      setMessages,
     ]
   );
 
@@ -1251,96 +1269,45 @@ const UserChatScreen = () => {
   }, [handleIncoming]);
 
   useEffect(() => {
-    const endpoint = getSocketEndpoint();
-    if (!endpoint || !me.id || !them.id) {
-      console.warn("Socket not started: missing endpoint or ids", {
-        endpoint,
-        me: me.id,
-        them: them.id,
-      });
-      return;
-    }
+    // Safety checks
+    if (!socket || !socket.connected || !me.id || !them.id) return;
 
-    let s: ReturnType<typeof io> | null = null;
-    let wrappedIncoming: ((payload: any) => void) | null = null;
-
-    (async () => {
+    // 2. Create the wrapped handler for THIS screen
+    const handleIncomingWrapper = (payload: any) => {
       try {
-        const token = await SecureStore.getItemAsync("authToken");
-
-        const opts: any = {
-          path: SOCKET_PATH,
-          transports: ["websocket", "polling"],
-          reconnection: true,
-        };
-        if (token) opts.auth = { token };
-
-        // console.log("connecting socket to", endpoint, opts);
-        s = io(endpoint, opts);
-        socketRef.current = s;
-
-        s.on("connect", () => {
-          // console.log("socket connected", s?.id);
-        });
-
-        // Emit join right away (server will accept/queue if not yet connected)
-        try {
-          s.emit("join", { userId: String(me.id) }, (ack?: any) =>
-            console.log("join ack:", ack)
-          );
-        } catch (e) {
-          console.warn("join emit failed", e);
-        }
-
-        s.on("connect_error", (e) =>
-          console.log("connect_error", e?.message || e)
-        );
-        s.on("disconnect", (r) => console.log("socket disconnected", r));
-
-        wrappedIncoming = (payload: any) => {
-          try {
-            if (handleIncomingRef.current) handleIncomingRef.current(payload);
-          } catch {}
-        };
-        // Attach to possible incoming event names. Dedupe is handled in handler.
-        s.on("receiveMessage", wrappedIncoming);
-        s.on("message", wrappedIncoming);
-        s.on("newMessage", wrappedIncoming);
-
-        s.on("userStatus", (statusData: any) => {
-          try {
-            if (String(statusData.userId) === String(them.id)) {
-              setPeerOnlineStatus(statusData.online ? "online" : "offline");
-            }
-          } catch {}
-        });
-
-        // Ask for user status; server may ignore if not supported
-        try {
-          s.emit("getUserStatus", { userId: them.id });
-        } catch {}
+        if (handleIncomingRef.current) handleIncomingRef.current(payload);
       } catch (e) {
-        console.warn("socket init error", e);
+        console.warn("Handler error", e);
       }
-    })();
-
-    return () => {
-      try {
-        if (s) {
-          if (wrappedIncoming) {
-            s.off("receiveMessage", wrappedIncoming);
-            s.off("message", wrappedIncoming);
-            s.off("newMessage", wrappedIncoming);
-          }
-          s.off("userStatus");
-          s.disconnect();
-        }
-      } catch (e) {
-        console.warn("socket cleanup error", e);
-      }
-      socketRef.current = null;
     };
-  }, [socketEndpoint, me.id, them.id]);
+
+    // 3. Listen to events on the GLOBAL socket
+    console.log("Listening for messages on existing socket");
+    socket.on("receiveMessage", handleIncomingWrapper);
+    socket.on("message", handleIncomingWrapper);
+    socket.on("newMessage", handleIncomingWrapper);
+
+    // 4. Handle User Status specifically for this chat
+    const handleStatus = (statusData: any) => {
+      if (String(statusData.userId) === String(them.id)) {
+        // Update your UI for online/offline here
+      }
+    };
+    socket.on("userStatus", handleStatus);
+
+    // 5. Request status (Emit)
+    socket.emit("getUserStatus", { userId: them.id });
+
+    // 6. Cleanup: ONLY remove the listeners, DO NOT disconnect the socket
+    return () => {
+      socket.off("receiveMessage", handleIncomingWrapper);
+      socket.off("message", handleIncomingWrapper);
+      socket.off("newMessage", handleIncomingWrapper);
+      socket.off("userStatus", handleStatus);
+      // DO NOT CALL socket.disconnect() HERE!
+      // Let the Provider handle disconnection when the app closes.
+    };
+  }, [socket, me.id, them.id]); // Re-run if socket or users change
 
   useEffect(() => {
     if (skipHistory === "1") return;
@@ -1396,7 +1363,16 @@ const UserChatScreen = () => {
     return () => {
       cancelled = true;
     };
-  }, [skipHistory, me.id, them.id, persistBatched, scrollToNewest, me, them]);
+  }, [
+    skipHistory,
+    me.id,
+    them.id,
+    persistBatched,
+    scrollToNewest,
+    me,
+    them,
+    setMessages,
+  ]);
 
   const safeSendToApi = useCallback(async (payload: ServerMessage) => {
     try {
@@ -1463,40 +1439,34 @@ const UserChatScreen = () => {
 
     const payload = toServerMessage(m, me.id, them.id);
 
-    if (!socketRef.current?.connected) {
+    // ---------------------------------------------------------
+    // FIX: Use 'socket' directly instead of socketRef.current
+    // ---------------------------------------------------------
+    if (!socket?.connected) {
       // Branch 1: Socket is NOT connected. Use REST fallback.
       (async () => {
         const ok = await safeSendToApi(payload);
         if (!ok) console.warn("REST send failed");
-        // Add 500ms cooldown
         setTimeout(() => {
           sendingRef.current = false;
           forceTick((x) => x + 1);
         }, 500);
       })();
     } else {
-      // Branch 2: Socket IS connected. Use .timeout().emit().
-      // DO NOT run REST fallback here — the socket may still succeed and produce
-      // a server-side row; running REST as a second path can create duplicates.
-      socketRef.current
+      // Branch 2: Socket IS connected.
+      socket
         .timeout(5000)
         .emit("sendMessage", payload, (err: any, ack: any) => {
-          // This callback now runs reliably, either on success or on timeout/error
           if (err || (ack && ack.error)) {
-            // Emit timed out or returned an error. Server may still broadcast the
-            // message; we avoid a REST fallback to prevent duplicates.
             console.log(
               "socket emit timeout/error (no REST fallback)",
               err || ack?.error
             );
-            // Mark as not sending so UI becomes enabled again.
             sendingRef.current = false;
             forceTick((x) => x + 1);
           } else {
-            // Success! The server acknowledged the message.
-            // Add 500ms cooldown
             setTimeout(() => {
-              sendingRef.current = false; // Unlock on success
+              sendingRef.current = false;
               forceTick((x) => x + 1);
             }, 500);
           }
@@ -1516,12 +1486,14 @@ const UserChatScreen = () => {
     chattingUser.username,
     chattingUser.profilePicture,
     safeSendToApi,
+    setMessages,
+    socket, // <--- Add socket to dependency array
   ]);
 
   const handleClearChat = useCallback(() => {
     setMessages([]);
     persistBatched([]);
-  }, [persistBatched]);
+  }, [persistBatched, setMessages]);
 
   const smallSpacer = 1;
 
@@ -1702,7 +1674,7 @@ const UserChatScreen = () => {
   return (
     <SafeAreaView edges={["left", "right"]} className="flex-1 bg-[#ECE5DD]">
       <StatusBar style="dark" translucent backgroundColor="transparent" />
-      <View className="bg-white" style={{ height: insets.top }} />
+      <View className="bg-white" style={{ height: insets.top - 10 }} />
 
       {/* Header */}
       <View className="flex-row items-center px-1 py-2 border-b border-gray-300 bg-white">

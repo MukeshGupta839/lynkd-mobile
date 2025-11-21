@@ -32,8 +32,8 @@ type ThemeState = {
 export const useCategoryTheme = create<ThemeState>((set) => ({
   // Default (green/mint)
   activeColor: "#26FF91",
-  gradientActive: ["#BEFBE0", "#FFFFFF"] as const,
-  gradientInactive: ["#FFFFFF", "#F6F8FB"] as const,
+  gradientActive: ["#BEFBE0", "#f9fafb"] as const,
+  gradientInactive: ["#f9fafb", "#f9fafb"] as const,
   underlineColor: "#26FF91",
   categories: [
     { name: "All", icon: LayoutGrid },
@@ -42,7 +42,11 @@ export const useCategoryTheme = create<ThemeState>((set) => ({
     { name: "Appliances", icon: CookingPot },
     { name: "Beauty", icon: Brush },
     { name: "Home", icon: Lamp },
-    { name: "Books", icon: BookOpen },
+    { name: "Smart Gadgets", icon: BookOpen },
+    { name: "Grocery", icon: BookOpen },
+    { name: "Sport Hub", icon: BookOpen },
+    { name: "Furniture", icon: BookOpen },
+    { name: "Travel", icon: BookOpen },
   ],
 
   setThemePayload: (payload) => set((s) => ({ ...s, ...payload })),
@@ -56,7 +60,7 @@ export const useCategoryTheme = create<ThemeState>((set) => ({
             "rgba(27,25,168,0.2)",
             "rgba(255,255,255,0)",
           ] as const,
-          gradientInactive: ["#FFFFFF", "#F6F8FB"] as const,
+          gradientInactive: ["#f9fafb", "#f9fafb"] as const,
           underlineColor: "#1B19A8",
           categories: [
             { name: "All", icon: LayoutGrid },
@@ -74,8 +78,8 @@ export const useCategoryTheme = create<ThemeState>((set) => ({
       // fallback = green
       return {
         activeColor: "#26FF91",
-        gradientActive: ["#BEFBE0", "#FFFFFF"] as const,
-        gradientInactive: ["#FFFFFF", "#F6F8FB"] as const,
+        gradientActive: ["#BEFBE0", "#f9fafb"] as const,
+        gradientInactive: ["#f9fafb", "#f9fafb"] as const,
         underlineColor: "#26FF91",
         categories: [
           { name: "All", icon: LayoutGrid },
@@ -85,6 +89,11 @@ export const useCategoryTheme = create<ThemeState>((set) => ({
           { name: "Beauty", icon: Brush },
           { name: "Home", icon: Lamp },
           { name: "Books", icon: BookOpen },
+          { name: "Smart Gadgets", icon: BookOpen },
+          { name: "Grocery", icon: BookOpen },
+          { name: "Sport Hub", icon: BookOpen },
+          { name: "Furniture", icon: BookOpen },
+          { name: "Travel", icon: BookOpen },
         ],
       };
     }),

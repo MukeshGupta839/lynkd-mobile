@@ -11,17 +11,17 @@ import {
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
-// ⬇️ 1. IMPORT REANIMATED
 import type { SharedValue } from "react-native-reanimated";
 import Animated, {
   interpolate,
   useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
 
 type Orientation = "horizontal" | "vertical";
 
 const CATS = [
-  // ... (your CATS array, no changes)
   { name: "All", icon: LayoutGrid },
   { name: "Mobiles", icon: Smartphone },
   { name: "Electronics", icon: MonitorSmartphone },
@@ -29,11 +29,16 @@ const CATS = [
   { name: "Beauty", icon: Brush },
   { name: "Home", icon: Lamp },
   { name: "Books", icon: BookOpen },
+  { name: "Smart Gadgets", icon: BookOpen },
+  { name: "Grocery", icon: BookOpen },
+  { name: "Sport Hub", icon: BookOpen },
+  { name: "Furniture", icon: BookOpen },
+  { name: "Travel", icon: BookOpen },
 ];
 
-// ⬇️ 1. DEFINE HEIGHT CONSTANTS
-const ORIGINAL_HEIGHT = 54; // This matches your 'h-16' class
-const FINAL_HEIGHT = 28; // The final height for just text + underline
+const ORIGINAL_HEIGHT = 60;
+const FINAL_HEIGHT = 28;
+const ICON_CONTAINER_SIZE = 40;
 
 const Tile = React.memo(
   ({
@@ -45,6 +50,7 @@ const Tile = React.memo(
     isFirst = false,
     scrollOffset,
     scrollDistance,
+    shrinkOnScroll = false,
   }: {
     name: string;
     Icon: any;
@@ -55,46 +61,60 @@ const Tile = React.memo(
     isLast?: boolean;
     scrollOffset?: SharedValue<number>;
     scrollDistance?: number;
+    shrinkOnScroll?: boolean;
   }) => {
     const { activeColor, gradientActive, gradientInactive, underlineColor } =
       useCategoryTheme();
 
-    const activeStroke = active ? (activeColor ?? "#26FF91") : "#7C8797";
-    const underlineCol = active ? (underlineColor ?? "#26FF91") : "transparent";
+    const activeStroke = active ? (activeColor ?? "#2874F0") : "#7C8797";
+    const underlineCol = active ? (underlineColor ?? "#2874F0") : "transparent";
 
-    // This style fades the icon and backgrounds
+    // progress just for icon pop-out
+    const activeProgress = useSharedValue(active ? 1 : 0);
+
+    useEffect(() => {
+      activeProgress.value = withTiming(active ? 1 : 0, {
+        duration: 180,
+      });
+    }, [active, activeProgress]);
+
     const animatedFadingStyle = useAnimatedStyle(() => {
-      if (!scrollOffset || !scrollDistance) return {}; // Don't animate if not provided
+      if (!scrollOffset || !scrollDistance) return {};
       return {
         opacity: interpolate(
           scrollOffset.value,
-          [0, scrollDistance / 2], // Fade out halfway through the scroll
+          [0, scrollDistance / 2],
           [1, 0],
           "clamp"
         ),
       };
     });
 
-    // ⬇️ 2. CREATE NEW ANIMATED STYLE FOR HEIGHT
+    // Only animate height for vertical list (avoid clipping on horizontal)
     const animatedHeightStyle = useAnimatedStyle(() => {
-      if (!scrollOffset || !scrollDistance) {
+      if (!shrinkOnScroll || !scrollOffset || !scrollDistance) {
         return { height: ORIGINAL_HEIGHT };
       }
       return {
         height: interpolate(
           scrollOffset.value,
-          [0, scrollDistance], // Animate over the full scroll distance
-          [ORIGINAL_HEIGHT, FINAL_HEIGHT], // From 64px down to 28px
+          [0, scrollDistance],
+          [ORIGINAL_HEIGHT, FINAL_HEIGHT],
           "clamp"
         ),
       };
     });
 
-    const tileMargin = [
-      !isVertical && "mr-3",
-      !isVertical && isFirst && "ml-3",
-      isVertical && "mb-3",
-    ]
+    // 👇 This is applied ONLY to the Icon, not the gradient container
+    const iconPopStyle = useAnimatedStyle(() => {
+      const scale = interpolate(activeProgress.value, [0, 1], [1, 1.08]);
+      const translateY = interpolate(activeProgress.value, [0, 1], [0, -3]);
+      return {
+        transform: [{ scale }, { translateY }],
+      };
+    });
+
+    const tileMargin = [!isVertical && "mr-3", !isVertical && isFirst && "ml-3"]
       .filter(Boolean)
       .join(" ");
 
@@ -102,60 +122,96 @@ const Tile = React.memo(
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={onPress}
-        className={tileMargin}
+        className={`${tileMargin} ${isVertical ? "py-2" : ""} ${
+          isVertical ? (active ? "bg-white" : "bg-gray-50") : ""
+        }`}
       >
         <View className="items-center">
-          {/* ⬇️ 3. REMOVE 'h-16' AND APPLY THE ANIMATED STYLE */}
           <Animated.View
-            className={`relative w-16 rounded-10 overflow-hidden`}
-            style={animatedHeightStyle} // Apply height animation here
+            className={`relative ${
+              isVertical ? "w-24" : "w-16 rounded-t-10"
+            } overflow-hidden`}
+            style={animatedHeightStyle}
           >
-            {/* FADING GRADIENTS */}
-            <Animated.View
-              style={[
-                { position: "absolute", inset: 0 },
-                animatedFadingStyle, // Apply fading style here
-              ]}
+            <View
+              className={`flex-1 items-center px-1 ${
+                isVertical ? "justify-center py-2" : "justify-end pb-2"
+              }`}
             >
-              <LinearGradient
-                colors={active ? gradientActive : gradientInactive}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={{ position: "absolute", inset: 0 }}
-              />
-              {/* ... (all your other gradients) ... */}
-            </Animated.View>
-            {/* END of Animated Gradients Wrapper */}
-
-            {/* ⬇️ 4. CHANGE 'justify-center' TO 'justify-end' */}
-            <View className="flex-1 items-center justify-end px-1 pb-1.5">
-              {/* FADING ICON */}
+              {/* Gradient box stays static; icon inside pops */}
               <Animated.View style={animatedFadingStyle}>
-                <Icon
-                  size={22}
-                  color={activeStroke}
-                  strokeWidth={active ? 2.5 : 2}
-                />
+                {!isVertical ? (
+                  <LinearGradient
+                    colors={active ? gradientActive : gradientInactive}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={{
+                      width: ICON_CONTAINER_SIZE,
+                      height: ICON_CONTAINER_SIZE,
+                      borderRadius: 8,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Animated.View style={iconPopStyle}>
+                      <Icon
+                        size={20}
+                        color={activeStroke}
+                        strokeWidth={active ? 2.4 : 2}
+                      />
+                    </Animated.View>
+                  </LinearGradient>
+                ) : (
+                  <Animated.View style={iconPopStyle}>
+                    <Icon
+                      size={20}
+                      color={activeStroke}
+                      strokeWidth={active ? 2.4 : 2}
+                    />
+                  </Animated.View>
+                )}
               </Animated.View>
 
-              {/* THIS TEXT REMAINS VISIBLE */}
               <Text
                 numberOfLines={1}
-                className={`mt-1 font-worksans-400`}
+                className={`${
+                  active ? "font-opensans-semibold" : "font-opensans-regular"
+                }`}
                 style={{
-                  fontSize: 8,
-                  color: active ? activeColor : "#6B7280",
+                  fontSize: 9,
+                  color: active ? "#111827" : "#6B7280",
                 }}
               >
                 {name}
               </Text>
             </View>
 
-            {/* THIS UNDERLINE REMAINS VISIBLE */}
+            {/* underline */}
             <View
               pointerEvents="none"
-              className={`absolute left-3 right-3 bottom-0 h-1.5 rounded-t-full`}
-              style={{ backgroundColor: underlineCol }}
+              style={[
+                {
+                  position: "absolute",
+                  backgroundColor: underlineCol,
+                },
+                isVertical
+                  ? {
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 3,
+                      borderTopRightRadius: 999,
+                      borderBottomRightRadius: 999,
+                    }
+                  : {
+                      left: 8,
+                      right: 8,
+                      bottom: 0,
+                      height: 3,
+                      borderTopLeftRadius: 999,
+                      borderTopRightRadius: 999,
+                    },
+              ]}
             />
           </Animated.View>
         </View>
@@ -166,7 +222,6 @@ const Tile = React.memo(
 
 Tile.displayName = "Tile";
 
-// ... (The rest of your file, CategoryList, remains exactly the same)
 export default function CategoryList({
   orientation = "horizontal",
   className = "",
@@ -202,8 +257,9 @@ export default function CategoryList({
         onPress={() => handlePress(item.name)}
         isVertical={isVertical}
         isFirst={index === 0}
-        scrollOffset={scrollOffset} // <-- pass down
-        scrollDistance={scrollDistance} // <-- pass down
+        scrollOffset={scrollOffset}
+        scrollDistance={scrollDistance}
+        shrinkOnScroll={true}
       />
     ),
     [active, handlePress, isVertical, scrollOffset, scrollDistance]
@@ -218,7 +274,11 @@ export default function CategoryList({
           data={categories}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          // ... (props)
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 70 }}
+          ItemSeparatorComponent={() => (
+            <View style={{ height: 1, backgroundColor: "#e5e7eb" }} />
+          )}
         />
       ) : (
         <FlatList
@@ -229,13 +289,10 @@ export default function CategoryList({
           showsHorizontalScrollIndicator={false}
           contentInsetAdjustmentBehavior="automatic"
           decelerationRate="fast"
-          contentContainerStyle={{
-            paddingTop: 8,
-            paddingBottom: 8,
-          }}
-          removeClippedSubviews={true}
+          removeClippedSubviews
           maxToRenderPerBatch={7}
           initialNumToRender={7}
+          contentContainerClassName="border-b border-gray-200"
         />
       )}
     </View>
