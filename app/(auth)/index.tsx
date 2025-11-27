@@ -27,7 +27,6 @@ import {
   TextInput,
 } from "react-native-paper";
 import GoogleLogo from "../../assets/svg/google-icon-logo.svg";
-const BackHandler = require("react-native").BackHandler;
 
 // Helper to extract message and code safely from unknown error
 const extractErrorInfo = (err: unknown) => {
@@ -613,43 +612,6 @@ export default function LoginScreen() {
     }
   };
 
-  useEffect(() => {
-    let backPressCount = 0;
-    let backPressTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const onBackPress = () => {
-      backPressCount += 1;
-      if (backPressCount === 1) {
-        // Prevent single back gesture (do nothing)
-        if (backPressTimer) clearTimeout(backPressTimer);
-        backPressTimer = setTimeout(() => {
-          backPressCount = 0;
-        }, 1500); // Reset after 1.5s
-        return true; // Block default behavior
-      } else if (backPressCount === 2) {
-        // Double back gesture: exit app
-        backPressCount = 0;
-        if (backPressTimer) clearTimeout(backPressTimer);
-        // Use BackHandler.exitApp() to close the app
-
-        if (typeof BackHandler !== "undefined" && BackHandler.exitApp) {
-          BackHandler.exitApp();
-        }
-        return true;
-      }
-      return true;
-    };
-    // Enable back handler for both Android and iOS
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      onBackPress
-    );
-    return () => {
-      subscription?.remove();
-      if (backPressTimer) clearTimeout(backPressTimer);
-    };
-  }, []);
-
   // Effect for referral code validation with debounce
   useEffect(() => {
     if (referralCode.length > 0) {
@@ -812,7 +774,7 @@ export default function LoginScreen() {
           email: userData.email,
           username: userData.username,
           bio: userData.bio,
-          profilePicture: userData.profile_picture,
+          profile_picture: userData.profile_picture,
           isVerified: userData.is_verified,
           isPrivate: userData.is_private,
           createdAt: userData.created_at,
@@ -828,7 +790,7 @@ export default function LoginScreen() {
         await SecureStore.setItemAsync("user", JSON.stringify(userData));
 
         // Navigate to main app
-        router.push("/(tabs)");
+        router.replace("/(tabs)");
 
         console.log("Login successful!");
       } else {
@@ -958,7 +920,7 @@ export default function LoginScreen() {
         email: userData.email,
         username: userData.username,
         bio: userData.bio,
-        profilePicture: userData.profile_picture,
+        profile_picture: userData.profile_picture,
         isVerified: userData.is_verified,
         isPrivate: userData.is_private,
         createdAt: userData.created_at,
@@ -976,7 +938,7 @@ export default function LoginScreen() {
       } else {
         setIsCreator(userData.is_creator);
         setCompletedRegistration(true);
-        router.push("/(tabs)");
+        router.replace("/(tabs)");
       }
     } catch (err) {
       const { message } = extractErrorInfo(err);
@@ -1138,7 +1100,7 @@ export default function LoginScreen() {
         email: userData.email,
         username: userData.username,
         bio: userData.bio,
-        profilePicture: userData.profile_picture,
+        profile_picture: userData.profile_picture,
         isVerified: userData.is_verified,
         isPrivate: userData.is_private,
         createdAt: userData.created_at,
@@ -1154,7 +1116,7 @@ export default function LoginScreen() {
       } else {
         setIsCreator(userData.is_creator);
         setCompletedRegistration(true);
-        router.push("/(tabs)");
+        router.replace("/(tabs)");
       }
     } catch (err) {
       const { message, code } = extractErrorInfo(err);
@@ -1250,7 +1212,7 @@ export default function LoginScreen() {
         email: userData.email,
         username: userData.username,
         bio: userData.bio,
-        profilePicture: userData.profile_picture,
+        profile_picture: userData.profile_picture,
         isVerified: userData.is_verified,
         isPrivate: userData.is_private,
         createdAt: userData.created_at,
@@ -1265,7 +1227,7 @@ export default function LoginScreen() {
       // Navigate to main app. Delay the navigation slightly to avoid attempting
       // to navigate before the Root Layout has mounted (prevents a runtime
       // error in some environments).
-      setTimeout(() => router.push("/(tabs)"), 50);
+      setTimeout(() => router.replace("/(tabs)"), 50);
 
       console.log("Username saved successfully!");
     } catch (error: any) {

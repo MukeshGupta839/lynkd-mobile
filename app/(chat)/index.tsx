@@ -26,6 +26,7 @@ import {
   TextInput,
   TextInputKeyPressEvent,
   View,
+  ViewStyle,
   useWindowDimensions,
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
@@ -45,12 +46,6 @@ import Document from "../../assets/posts/document.svg";
 import Gallery from "../../assets/posts/gallery.svg";
 import Location from "../../assets/posts/location.svg";
 
-import {
-  CHAT_LIST_DUMMY,
-  PostPreview as RegistryPostPreview,
-  getMessagesWith,
-  getPostPreview as getRegistryPostPreview,
-} from "@/constants/chat";
 import Octicons from "@expo/vector-icons/Octicons";
 
 import { apiCall } from "@/lib/api/apiService";
@@ -65,14 +60,6 @@ import Animated, {
 } from "react-native-reanimated";
 import ChatOptionsBottomSheet from "./ChatOptionsBottomSheet";
 
-/* ----------------------------- */
-type PostPreview = RegistryPostPreview & {
-  author_avatar?: string;
-  likes?: number;
-  comments?: number;
-  verified?: boolean;
-};
-
 type Message = {
   id: string; // server id OR temporary local id
   clientId?: string; // optimistic idempotency key
@@ -85,7 +72,7 @@ type Message = {
   product?: { id: string; name: string } | null;
   messageType?: "text" | "post";
   postId?: string;
-  postPreview?: PostPreview;
+  postPreview?: any;
 };
 
 type ServerMessage = {
@@ -139,7 +126,7 @@ const mergeById = (items: Message[]): Message[] => {
 
 // app/(chat)/index.tsx
 
-function normalizePreview(raw?: any): PostPreview | undefined {
+function normalizePreview(raw?: any): any | undefined {
   if (!raw || typeof raw !== "object") return undefined;
 
   // --- START: FIX ---
@@ -318,9 +305,9 @@ const MessageBubble = React.memo(function MessageBubble({
   message: Message;
   mine: boolean;
   maxBubbleWidth: number;
-  onPressImage: (uri?: string) => void;
-  onLongPress?: (id: string) => void;
-  onPress?: (id: string) => void;
+  onPressImage: (id: string) => void;
+  onLongPress: (id: string) => void;
+  onPress: (id: string) => void;
   selected?: boolean;
   onMeasure?: (id: string, height: number) => void;
   onOpenReel?: (postId?: string) => void;
@@ -380,39 +367,37 @@ const MessageBubble = React.memo(function MessageBubble({
   const sourceUri = previewThumb || generatedThumb || previewImage || undefined;
 
   const baseRadius = 18;
-  const rightTop = mine ? (isFirstInGroup ? baseRadius : 6) : baseRadius;
-  const rightBottom = mine ? (isLastInGroup ? 6 : baseRadius) : baseRadius;
-  const leftTop = mine ? baseRadius : isFirstInGroup ? baseRadius : 6;
-  const leftBottom = mine ? baseRadius : isLastInGroup ? 6 : baseRadius;
 
-  const bubbleCommonStyle = {
-    borderTopLeftRadius: leftTop,
-    borderTopRightRadius: rightTop,
-    borderBottomLeftRadius: leftBottom,
-    borderBottomRightRadius: rightBottom,
+  const bubbleCommonStyle: ViewStyle = {
+    borderTopLeftRadius: baseRadius,
+    borderTopRightRadius: baseRadius,
+    borderBottomLeftRadius: mine ? baseRadius : 2,
+    borderBottomRightRadius: mine ? 2 : baseRadius,
     position: "relative",
     minHeight: 36,
-  } as const;
+  };
 
   const containerSpacing = isFirstInGroup ? 8 : 2;
 
   // Absolute time badge (for non-text)
-  const Time = ({ bottom = 6 }: { bottom?: number }) => (
+  const Time = ({ className }: { className?: string }) => (
     <Text
       numberOfLines={1}
       ellipsizeMode="clip"
       allowFontScaling={false}
       style={{
-        position: "absolute",
-        right: 8,
-        bottom,
+        // position: "absolute",
+        // right: 8,
+        // bottom,
         fontSize: 10,
         lineHeight: 12,
         includeFontPadding: false,
         color: timeInsideColor,
         minWidth: 56,
         textAlign: "right",
+        // marginRight: 12,
       }}
+      className={`${className ?? ""}`}
     >
       {timeText}
     </Text>
@@ -421,8 +406,8 @@ const MessageBubble = React.memo(function MessageBubble({
   return (
     <View style={{ marginTop: containerSpacing }}>
       <Pressable
-        onLongPress={() => onLongPress?.(message.id)}
-        onPress={() => onPress?.(message.id)}
+        onLongPress={() => onLongPress(message.id)}
+        onPress={() => onPress(message.id)}
         accessibilityLabel="Message"
         onLayout={(e) =>
           onMeasure?.(message.id, Math.round(e.nativeEvent.layout.height))
@@ -460,7 +445,7 @@ const MessageBubble = React.memo(function MessageBubble({
                 <Text className="text-xs text-gray-500 mt-1">
                   Product attached
                 </Text>
-                <Time bottom={6} />
+                <Time />
               </View>
             ) : null}
 
@@ -482,8 +467,9 @@ const MessageBubble = React.memo(function MessageBubble({
                       elevation: mine ? 1 : 0,
                     },
                   ]}
+                  className="py-2 gap-2"
                 >
-                  <View className="flex-row items-center px-3 pt-3">
+                  <View className="flex-row items-center px-3">
                     <Image
                       source={{ uri: previewAvatar }}
                       className="w-7 h-7 rounded-full mr-2"
@@ -503,42 +489,36 @@ const MessageBubble = React.memo(function MessageBubble({
                     </View>
                   </View>
 
-                  <Pressable
-                    onPress={() => {
-                      if (!message.postId) return;
-                      if (previewVideo) onOpenReel?.(message.postId);
-                      else onOpenFeedPost?.(message.postId);
-                    }}
-                    style={{
-                      width: postCardWidth,
-                      height: postMediaHeight,
-                      marginTop: 8,
-                      overflow: "hidden",
-                      backgroundColor: "#000",
-                    }}
-                  >
-                    {sourceUri ? (
+                  {sourceUri && (
+                    <Pressable
+                      onPress={() => {
+                        if (!message.postId) return;
+                        onPress(message.postId);
+                      }}
+                      style={{
+                        width: postCardWidth,
+                        height: postMediaHeight,
+                        overflow: "hidden",
+                        backgroundColor: "#000",
+                      }}
+                    >
                       <Image
                         source={{ uri: sourceUri }}
                         style={{ width: "100%", height: "100%" }}
                         resizeMode="cover"
                       />
-                    ) : (
-                      <View style={{ flex: 1, backgroundColor: "#000" }} />
-                    )}
-                  </Pressable>
+                    </Pressable>
+                  )}
 
-                  {previewCaption ? (
-                    <View className="px-3 pt-3 pb-6">
+                  {previewCaption && (
+                    <View className="px-3">
                       <Text numberOfLines={2} className="text-xs text-gray-800">
                         {previewCaption}
                       </Text>
                     </View>
-                  ) : (
-                    <View style={{ height: 18 }} />
                   )}
 
-                  <Time bottom={6} />
+                  <Time className="pr-3" />
                 </View>
               ) : (
                 <View
@@ -563,7 +543,7 @@ const MessageBubble = React.memo(function MessageBubble({
                       Tap to view
                     </Text>
                   </View>
-                  <Time bottom={6} />
+                  <Time />
                 </View>
               )
             ) : null}
@@ -575,9 +555,6 @@ const MessageBubble = React.memo(function MessageBubble({
                   bubbleCommonStyle,
                   {
                     backgroundColor: mine ? "#DCF8C6" : "#FFFFFF",
-                    paddingTop: 8,
-                    paddingBottom: 8,
-                    paddingHorizontal: 12,
                     borderWidth: mine ? 0 : 1,
                     borderColor: "#E5E7EB",
                     shadowColor: mine ? "#000" : undefined,
@@ -587,6 +564,7 @@ const MessageBubble = React.memo(function MessageBubble({
                     elevation: mine ? 1 : 0,
                   },
                 ]}
+                className="px-3 py-2 gap-1"
               >
                 <Text
                   style={{
@@ -598,23 +576,15 @@ const MessageBubble = React.memo(function MessageBubble({
                 >
                   {message.text}
                   {"  "}
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      lineHeight: 12,
-                      color: timeInsideColor,
-                    }}
-                  >
-                    {` ${timeText}`}
-                  </Text>
                 </Text>
+                <Time />
               </View>
             ) : null}
 
             {/* Image bubble — tap to full-screen preview */}
             {message.image ? (
               <Pressable
-                onPress={() => onPressImage?.(message.image)}
+                onPress={() => onPressImage(message.id)}
                 style={{ borderRadius: 12, overflow: "hidden", marginTop: 2 }}
               >
                 <View style={{ position: "relative" }}>
@@ -675,8 +645,6 @@ const UserChatScreen = () => {
     preview,
     subtitle,
     skipHistory,
-    initialMessageText,
-    initialMessageTime,
   } = useLocalSearchParams<{
     userId?: string;
     username?: string;
@@ -688,8 +656,6 @@ const UserChatScreen = () => {
     preview?: string;
     subtitle?: string;
     skipHistory?: string;
-    initialMessageText?: string;
-    initialMessageTime?: string;
   }>();
 
   const currentUserId = String(loggedUserId ?? "me");
@@ -810,7 +776,7 @@ const UserChatScreen = () => {
               createdAt: new Date(m.createdAtMs).toISOString(),
             };
             if (!base.postPreview) return base;
-            const p = normalizePreview(base.postPreview) as PostPreview;
+            const p = normalizePreview(base.postPreview) as any;
             const caption =
               typeof p.caption === "string" ? p.caption.slice(0, 200) : "";
             return { ...base, postPreview: { ...p, caption } } as Message;
@@ -822,37 +788,6 @@ const UserChatScreen = () => {
     },
     [cacheKey]
   );
-
-  const findChatListRow = useCallback(() => {
-    const otherId = chattingUser.userId;
-    const otherName = String(chattingUser.username ?? "")
-      .trim()
-      .toLowerCase();
-    const meId = currentUserId;
-
-    let row =
-      CHAT_LIST_DUMMY.find((c: any) => {
-        const a = String(c.sender?.id ?? "");
-        const b = String(c.receiver?.id ?? "");
-        return (a === otherId && b === meId) || (a === meId && b === otherId);
-      }) ||
-      CHAT_LIST_DUMMY.find((c: any) => {
-        const a = String(c.sender?.id ?? "");
-        const b = String(c.receiver?.id ?? "");
-        return a === otherId || b === otherId;
-      }) ||
-      CHAT_LIST_DUMMY.find((c: any) => {
-        const sa = String(
-          c.sender?.username ?? c.sender?.name ?? ""
-        ).toLowerCase();
-        const sb = String(
-          c.receiver?.username ?? c.receiver?.name ?? ""
-        ).toLowerCase();
-        return !!otherName && (sa === otherName || sb === otherName);
-      });
-
-    return row as any | undefined;
-  }, [chattingUser.userId, chattingUser.username, currentUserId]);
 
   const pickPreviewText = useCallback(
     (row?: any): string | undefined =>
@@ -869,36 +804,36 @@ const UserChatScreen = () => {
 
   // 2. Create a "Seed" effect
   // This runs ONCE when the component mounts to show data instantly
-  useEffect(() => {
-    // Only run if we have text and the list is currently empty
-    if (initialMessageText && messages.length === 0) {
-      const seedId = `temp-${Date.now()}`;
-      const seedTime = initialMessageTime
-        ? toMs(initialMessageTime)
-        : Date.now();
+  // useEffect(() => {
+  //   // Only run if we have text and the list is currently empty
+  //   if (initialMessageText && messages.length === 0) {
+  //     const seedId = `temp-${Date.now()}`;
+  //     const seedTime = initialMessageTime
+  //       ? toMs(initialMessageTime)
+  //       : Date.now();
 
-      const seedMessage: Message = {
-        id: seedId,
-        text: initialMessageText,
-        // Ensure the ID matches the partner so it shows on the left
-        userId: chattingUser.userId,
-        username: chattingUser.username,
-        createdAt: new Date(seedTime).toISOString(),
-        createdAtMs: seedTime,
-        messageType: "text",
-      };
+  //     const seedMessage: Message = {
+  //       id: seedId,
+  //       text: initialMessageText,
+  //       // Ensure the ID matches the partner so it shows on the left
+  //       userId: chattingUser.userId,
+  //       username: chattingUser.username,
+  //       createdAt: new Date(seedTime).toISOString(),
+  //       createdAtMs: seedTime,
+  //       messageType: "text",
+  //     };
 
-      // Update the store immediately
-      setMessages([seedMessage]);
-    }
-  }, [
-    initialMessageText,
-    initialMessageTime,
-    chattingUser.userId,
-    chattingUser.username,
-    messages.length,
-    setMessages,
-  ]);
+  //     // Update the store immediately
+  //     setMessages([seedMessage]);
+  //   }
+  // }, [
+  //   initialMessageText,
+  //   initialMessageTime,
+  //   chattingUser.userId,
+  //   chattingUser.username,
+  //   messages.length,
+  //   setMessages,
+  // ]);
 
   useEffect(() => {
     let mounted = true;
@@ -915,48 +850,25 @@ const UserChatScreen = () => {
           };
         });
 
-        const external = getMessagesWith(String(chattingUser.userId)) || [];
-        const mappedExternal: Message[] = external.map((ci: any) => {
-          const fromStore = ci.postPreview;
-          const fromRegistry = ci.postId
-            ? (getRegistryPostPreview(String(ci.postId)) as any)
-            : undefined;
-          const normalizedPreview = normalizePreview(fromStore ?? fromRegistry);
-          const ms = toMs(ci.created_at);
-          return {
-            id: String(ci.id),
-            text: ci.messageType === "text" ? (ci.content ?? "") : undefined,
-            messageType: ci.messageType,
-            postId: ci.messageType === "post" ? String(ci.postId) : undefined,
-            postPreview: normalizedPreview,
-            createdAt: new Date(ms).toISOString(),
-            createdAtMs: ms,
-            userId: String(ci.sender?.id ?? "unknown"),
-            username: ci.sender?.username ?? "User",
-          } as Message;
-        });
-
         const map = new Map<string, Message>();
-        [...cached, ...mappedExternal].forEach(
-          (m) => m?.id && map.set(m.id, m)
-        );
+        cached.forEach((m) => m?.id && map.set(m.id, m));
         let merged = Array.from(map.values());
 
-        const inboxRow = findChatListRow();
-        const previewText = pickPreviewText(inboxRow);
+        // const inboxRow = findChatListRow();
+        // const previewText = pickPreviewText(inboxRow);
 
-        if (merged.length === 0 && previewText) {
-          const ms = Date.now();
-          merged.push({
-            id: `seed_${ms}`,
-            text: String(previewText),
-            createdAt: new Date(ms).toISOString(),
-            createdAtMs: ms,
-            userId: chattingUser.userId,
-            username: chattingUser.username,
-            messageType: "text",
-          });
-        }
+        // if (merged.length === 0 && previewText) {
+        //   const ms = Date.now();
+        //   merged.push({
+        //     id: `seed_${ms}`,
+        //     text: String(previewText),
+        //     createdAt: new Date(ms).toISOString(),
+        //     createdAtMs: ms,
+        //     userId: chattingUser.userId,
+        //     username: chattingUser.username,
+        //     messageType: "text",
+        //   });
+        // }
 
         merged.sort((a, b) => b.createdAtMs - a.createdAtMs);
         merged = mergeById(merged);
@@ -979,7 +891,6 @@ const UserChatScreen = () => {
     chattingUser.username,
     currentUserId,
     persistBatched,
-    findChatListRow,
     pickPreviewText,
     setMessages,
   ]);
@@ -1321,6 +1232,8 @@ const UserChatScreen = () => {
           "GET"
         );
 
+        console.log("res:", res);
+
         const list: ServerMessage[] = Array.isArray(res?.data)
           ? res.data
           : Array.isArray(res)
@@ -1563,6 +1476,8 @@ const UserChatScreen = () => {
     [estimateItemHeight]
   );
 
+  console.log("userChat messages:", messages);
+
   const renderItem = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
       const mine = String(item.userId) === String(currentUserId);
@@ -1577,18 +1492,28 @@ const UserChatScreen = () => {
       const firstInGroup = nextOlder ? !withinGroup(nextOlder, item) : true;
       const lastInGroup = prevNewer ? !withinGroup(item, prevNewer) : true;
 
+      const singlePost = async (postId: string) => {
+        try {
+          router.push({
+            pathname: "/(profiles)/profilePosts" as any,
+            params: { showOnlyPost: postId },
+          });
+          // const res = await fetchSinglePost(postId);
+          // console.log("singlePost: ", res);
+        } catch {
+          return null;
+        }
+      };
+
       return (
         <>
           <MessageBubble
             message={item}
             mine={mine}
             maxBubbleWidth={maxBubbleWidth}
-            onPressImage={(uri) => {
-              setSelectedImage(uri ?? null);
-              setShowPreviewImage(true);
-            }}
+            onPressImage={(id) => singlePost(id)}
             onLongPress={() => {}}
-            onPress={() => {}}
+            onPress={(id) => singlePost(id)}
             selected={false}
             onMeasure={onMeasureItem}
             onOpenReel={openReelFromChat}
@@ -1602,12 +1527,13 @@ const UserChatScreen = () => {
       );
     },
     [
-      messages,
       currentUserId,
+      messages,
       maxBubbleWidth,
       onMeasureItem,
       openReelFromChat,
       openFeedPostFromChat,
+      router,
     ]
   );
 

@@ -3,12 +3,12 @@ import { FacebookStyleImage } from "@/components/FacebookStyleImage";
 import { MultiImageCollage } from "@/components/MultiImageCollage";
 import { MultiImageViewer } from "@/components/MultiImageViewer";
 import { AuthContext } from "@/context/AuthContext";
+import { ShareUser } from "@/lib/api/api";
 import { apiCall } from "@/lib/api/apiService";
 import { MaterialIcons } from "@expo/vector-icons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { useRouter } from "expo-router";
-import { Send } from "lucide-react-native";
 import React, { useCallback, useContext, useRef, useState } from "react";
 import {
   Image,
@@ -26,6 +26,7 @@ import {
   GestureType,
 } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
+import Send from "../assets/posts/send-horizontal.svg";
 import ShareSectionBottomSheet from "./ShareSectionBottomSheet";
 import StatusModal from "./StatusModal";
 
@@ -265,6 +266,7 @@ export interface PostCardProps {
   toggleLike?: (postId: string) => void; // Backward compatibility
   onUpdatePost?: (postId: string, updates: any) => void;
   profilePostsMode?: boolean;
+  shareUsers?: ShareUser[];
 }
 
 /* ===========================
@@ -282,6 +284,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   toggleLike: toggleLikeProp, // Support both prop names
   onUpdatePost,
   profilePostsMode = false,
+  shareUsers = [],
 }) => {
   const router = useRouter();
   const navigating = useRef(false);
@@ -314,16 +317,6 @@ export const PostCard: React.FC<PostCardProps> = ({
       params: { user: item.user_id as number },
     });
   };
-
-  const getHashtagsWithinLimit = (hashtags: string[], limit = 300) => {
-    let totalLength = 0;
-    if (!hashtags) return [];
-    return hashtags.filter((tag) => {
-      totalLength += tag.length + 1;
-      return totalLength <= limit;
-    });
-  };
-  const neededHashtags = getHashtagsWithinLimit(item.post_hashtags || []);
 
   const goToProductSafe = () => {
     if (isGestureActive) return;
@@ -895,18 +888,9 @@ export const PostCard: React.FC<PostCardProps> = ({
                       width: 18,
                       height: 18,
                       justifyContent: "center",
-
-                      // fine-tune here:
-                      transform: [{ rotate: "15deg" }], // tilt to the right
                     }}
                   >
-                    <Send
-                      width={18}
-                      height={18}
-                      stroke="#262626"
-                      strokeWidth={1.6}
-                      fill="none"
-                    />
+                    <Send width={18} height={18} />
                   </View>
                 </TouchableOpacity>
               </View>
@@ -919,12 +903,13 @@ export const PostCard: React.FC<PostCardProps> = ({
       <ShareSectionBottomSheet
         show={shareOpen}
         setShow={setShareOpen}
-        users={item?.shareUsers || []}
+        users={shareUsers}
         postId={item.id}
         postPreview={postPreview}
-        initialHeightPct={0.4}
+        initialHeightPct={0.7}
         maxHeightPct={0.9}
         maxSelect={5}
+        shareUsers={shareUsers}
       />
       <StatusModal
         visible={statusOpen}

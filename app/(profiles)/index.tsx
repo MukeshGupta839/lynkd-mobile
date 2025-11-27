@@ -35,9 +35,13 @@ const ProfileIndex = () => {
       if (username) {
         // Fetch by username if provided
         userResponse = await apiCall(`/api/users/username/${username}`, "GET");
+
+        console.log("fetchUserDetails:", userResponse);
       } else {
         // Fetch by userId
         userResponse = await apiCall(`/api/users/${userId}`, "GET");
+
+        console.log("fetchUserDetails else:", userResponse);
       }
 
       if (userResponse.user) {

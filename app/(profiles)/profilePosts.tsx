@@ -38,22 +38,62 @@ import CommentsSheet, { CommentsSheetHandle } from "../../components/Comment";
 import PostOptionsBottomSheet from "../../components/PostOptionsBottomSheet";
 import ReportPostBottomSheet from "../../components/ReportPostBottomSheet";
 
-interface Post {
+export interface UserProfile {
+  username: string;
+  profile_picture: string;
+}
+
+export interface Product {
+  name: string;
+  main_image: string;
+  description: string;
+  sale_price: number;
+  regular_price: number;
+}
+
+export interface Brand {
+  brand_name: string;
+  brandLogoURL: string;
+}
+
+export interface PostAffiliation {
+  id: number;
+  brandID: number;
+  productID: number;
+  productURL: string;
+  product: Product;
+  brand: Brand;
+}
+
+export interface AggregateCount {
+  aggregate: {
+    count: number;
+  };
+}
+
+export interface Post {
   id: number;
   user_id: number;
-  caption?: string;
+  media_url: string;
+  caption: string;
   created_at: string;
-  username: string;
-  userProfilePic?: string;
-  media_url?: string;
-  postImage?: string;
-  aspect_ratio?: number;
-  affiliated?: boolean;
-  affiliation?: any;
-  likes_count?: number;
-  comments_count?: number;
   text_post: boolean;
-  post_hashtags?: string[];
+  aspect_ratio: string;
+  user: UserProfile;
+  affiliated: boolean;
+  // This might be null if 'affiliated' is false in other scenarios,
+  // but strictly based on your JSON, it is an object.
+  PostToPostAffliation: PostAffiliation;
+  likes_aggregate: AggregateCount;
+  comments_aggregate: AggregateCount;
+  PostToTagsMultiple: any[]; // Array is empty in source, defaulting to any[]
+  // Redundant fields often found in flattened API responses
+  username: string;
+  photoURL: string;
+  likesCount: number;
+  brandID: number;
+  productID: number;
+  productURL: string | null;
 }
 
 interface RegularPostCardProps {
@@ -95,8 +135,8 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
     );
 
     const neededHashtags = useMemo(
-      () => getHashtagsWithinLimit(item.post_hashtags || []),
-      [item.post_hashtags, getHashtagsWithinLimit]
+      () => getHashtagsWithinLimit(item.PostToTagsMultiple || []),
+      [item.PostToTagsMultiple, getHashtagsWithinLimit]
     );
 
     const openPostOptions = useCallback(() => {
@@ -164,12 +204,12 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
     );
 
     const onProfileTap = useCallback(
-      () => handleTap(() => { }, handleDoubleTapLike),
+      () => handleTap(() => {}, handleDoubleTapLike),
       [handleTap, handleDoubleTapLike]
     );
 
     const onMediaTap = useCallback(
-      () => handleTap(() => { }, handleDoubleTapLike),
+      () => handleTap(() => {}, handleDoubleTapLike),
       [handleTap, handleDoubleTapLike]
     );
 
@@ -184,8 +224,8 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
 
     // Get profile picture with fallback logic
     const getProfilePicture = useCallback((post: Post) => {
-      if (post.userProfilePic) {
-        return post.userProfilePic;
+      if (post.user.profile_picture) {
+        return post.user.profile_picture;
       }
       // Fallback based on username or default
       return "https://randomuser.me/api/portraits/men/1.jpg";
@@ -374,7 +414,7 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
                       </View>
                     );
                   })()}
-                  {item?.post_hashtags?.length ? (
+                  {item?.PostToTagsMultiple?.length ? (
                     <Text className="text-blue-600 mt-1 px-3">
                       {neededHashtags.map((tag: string, i: number) => (
                         <Text
@@ -393,7 +433,7 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
               )}
 
               {/* Affiliation */}
-              {item.affiliated && item.affiliation && (
+              {item.affiliated && item.PostToPostAffliation && (
                 <TouchableOpacity
                   className="px-3"
                   onLongPress={openPostOptions}
@@ -410,7 +450,7 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
                     >
                       <Image
                         source={{
-                          uri: item.affiliation.productImage,
+                          uri: item.PostToPostAffliation.product.main_image,
                         }}
                         style={{
                           position: "absolute",
@@ -427,17 +467,17 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
                         <View className="flex-row flex-1 items-center">
                           <Image
                             source={{
-                              uri: item.affiliation.brandLogo,
+                              uri: item.PostToPostAffliation.brand.brandLogoURL,
                             }}
                             className="w-11 h-11 rounded-full mr-2"
                             resizeMode="contain"
                           />
                           <View className="flex-1">
                             <Text className="font-semibold text-sm text-gray-800">
-                              {item.affiliation.brandName}
+                              {item.PostToPostAffliation.brand.brand_name}
                             </Text>
                             <Text className="font-medium text-sm text-black">
-                              {item.affiliation.productName}
+                              {item.PostToPostAffliation.product.name}
                             </Text>
                           </View>
                         </View>
@@ -450,14 +490,14 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
                         </TouchableOpacity>
                       </View>
                       <Text className="text-sm text-gray-600 mb-2 leading-4">
-                        {item.affiliation.productDescription}
+                        {item.PostToPostAffliation.product.description}
                       </Text>
                       <View className="flex-row items-center">
                         <Text className="text-sm text-gray-400 line-through mr-2">
-                          ₹{item.affiliation.productRegularPrice}
+                          ₹{item.PostToPostAffliation.product.regular_price}
                         </Text>
                         <Text className="text-sm font-bold text-green-600">
-                          ₹{item.affiliation.productSalePrice}
+                          ₹{item.PostToPostAffliation.product.sale_price}
                         </Text>
                       </View>
                     </View>
@@ -486,7 +526,7 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
                       }
                     />
                     <Text className="ml-1 text-sm font-medium">
-                      {item.likes_count || 0}
+                      {item.likesCount || 0}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -499,7 +539,7 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
                       color="#000"
                     />
                     <Text className="ml-1 text-sm font-medium">
-                      {item.comments_count || 0}
+                      {item.comments_aggregate.aggregate.count || 0}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={handleShare}>
@@ -521,10 +561,11 @@ const RegularPostCard = React.memo<RegularPostCardProps>(
   (prevProps, nextProps) => {
     return (
       prevProps.item.id === nextProps.item.id &&
-      prevProps.item.likes_count === nextProps.item.likes_count &&
-      prevProps.item.comments_count === nextProps.item.comments_count &&
+      prevProps.item.likesCount === nextProps.item.likesCount &&
+      prevProps.item.comments_aggregate.aggregate.count ===
+        nextProps.item.comments_aggregate.aggregate.count &&
       prevProps.likedPostIDs.includes(String(prevProps.item.id)) ===
-      nextProps.likedPostIDs.includes(String(nextProps.item.id))
+        nextProps.likedPostIDs.includes(String(nextProps.item.id))
     );
   }
 );
@@ -539,7 +580,9 @@ export default function ProfilePosts() {
   const postsParam = typeof params.posts === "string" ? params.posts : "";
   const focusParam =
     params.focusedIndexPost != null ? Number(params.focusedIndexPost) : null;
-  const showOnlyPostParam = params.showOnlyPost ? String(params.showOnlyPost) : null;
+  const showOnlyPostParam = params.showOnlyPost
+    ? String(params.showOnlyPost)
+    : null;
 
   const [reportVisible, setReportVisible] = useState(false);
   const [blockUser, setBlockUser] = useState(false);
@@ -600,52 +643,69 @@ export default function ProfilePosts() {
   }, [fetchUserLikedPostsData, user?.id]);
 
   // Fetch single post for notifications
+  // Fetch single post for notifications
   const fetchSinglePost = useCallback(async (postId: string) => {
     try {
       const response = await apiCall(`/api/posts/${postId}`, "GET");
       console.log("Single Post:", response.data);
 
-      const formattedPost: Post = {
-        id: response.data.id,
-        user_id: response.data.user_id,
-        caption: response.data.caption,
-        created_at: response.data.created_at,
-        username: response.data.user.username,
-        userProfilePic: response.data.user.profile_picture,
-        postImage: response.data.media_url,
-        media_url: response.data.media_url,
-        aspect_ratio: response.data.aspect_ratio,
-        affiliated: response.data?.affiliated,
-        affiliation: {
-          affiliationID: response.data.PostToPostAffliation?.id,
-          brandName: response.data.PostToPostAffliation?.brand?.brand_name,
-          productID: response.data.PostToPostAffliation?.productID,
-          productURL: response.data.PostToPostAffliation?.productURL,
-          productName: response.data.PostToPostAffliation?.product?.name,
-          productImage: response.data.PostToPostAffliation?.product?.main_image,
-          brandLogo: response.data.PostToPostAffliation?.brand?.brandLogoURL,
-          productDescription:
-            response.data.PostToPostAffliation?.product?.description,
-          productRegularPrice:
-            response.data.PostToPostAffliation?.product?.regular_price,
-          productSalePrice:
-            response.data.PostToPostAffliation?.product?.sale_price,
-        },
-        likes_count: response.data.likes_aggregate?.aggregate?.count || 0,
-        comments_count: response.data.comments_aggregate?.aggregate?.count || 0,
-        text_post: response.data.text_post,
-        post_hashtags: response.data.PostToTagsMultiple?.map((tag: any) => {
-          return tag.tag.name;
-        }),
+      const post = response?.data;
+      if (!post) {
+        setPosts([]);
+        setLoading(false);
+        return;
+      }
+
+      const normalized = {
+        id: post.id,
+        user_id: post.user_id,
+        caption: post.caption,
+        createdAt: post.created_at,
+        created_at: post.created_at,
+        username: post.user?.username ?? post.username,
+        userProfilePic: post.user?.profile_picture ?? post.photoURL,
+        postImage: post.media_url,
+        media_url: post.media_url,
+        aspect_ratio: post.aspect_ratio,
+        affiliated: post?.affiliated,
+        affiliation: post.PostToPostAffliation
+          ? {
+              affiliationID: post.PostToPostAffliation.id,
+              brandName: post.PostToPostAffliation.brand?.brand_name,
+              productID: post.PostToPostAffliation.productID,
+              productURL: post.PostToPostAffliation.productURL,
+              productName: post.PostToPostAffliation.product?.name,
+              productImage: post.PostToPostAffliation.product?.main_image,
+              brandLogo: post.PostToPostAffliation.brand?.brandLogoURL,
+              productDescription:
+                post.PostToPostAffliation.product?.description,
+              productRegularPrice:
+                post.PostToPostAffliation.product?.regular_price,
+              productSalePrice: post.PostToPostAffliation.product?.sale_price,
+            }
+          : undefined,
+        likes_count: post.likes_aggregate?.aggregate?.count ?? 0,
+        comments_count: post.comments_aggregate?.aggregate?.count ?? 0,
+        text_post: post.text_post,
+        post_hashtags:
+          post.PostToTagsMultiple?.map((tag: any) => tag.tag.name) ?? [],
+        type: post.text_post ? "text" : "image",
+        imageUrl: post.media_url,
+        text: post.text_post ? post.caption : undefined,
+        timestamp: post.created_at,
+        ...post,
       };
 
-      setPosts([formattedPost]);
+      setPosts([normalized]);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching single post:", error);
+      setPosts([]);
       setLoading(false);
     }
   }, []);
+
+  console.log("profilePosts posts:", posts);
 
   useEffect(() => {
     // If showOnlyPost param exists, fetch only that post
@@ -751,9 +811,9 @@ export default function ProfilePosts() {
           prevPosts.map((post) =>
             post.id === Number(pid)
               ? {
-                ...post,
-                likes_count: (post.likes_count || 0) + (isLiked ? -1 : 1),
-              }
+                  ...post,
+                  likesCount: (post.likesCount || 0) + (isLiked ? -1 : 1),
+                }
               : post
           )
         );
@@ -775,9 +835,9 @@ export default function ProfilePosts() {
           prevPosts.map((post) =>
             post.id === Number(pid)
               ? {
-                ...post,
-                likes_count: (post.likes_count || 0) + (isLiked ? 1 : -1),
-              }
+                  ...post,
+                  likesCount: (post.likesCount || 0) + (isLiked ? 1 : -1),
+                }
               : post
           )
         );
@@ -845,9 +905,15 @@ export default function ProfilePosts() {
           prevPosts.map((post) =>
             post.id === commentsPost.id
               ? {
-                ...post,
-                comments_count: (post.comments_count || 0) + 1,
-              }
+                  ...post,
+                  comments_aggregate: {
+                    ...post.comments_aggregate,
+                    aggregate: {
+                      ...post.comments_aggregate.aggregate,
+                      count: (post.comments_aggregate.aggregate.count || 0) + 1,
+                    },
+                  },
+                }
               : post
           )
         );
@@ -906,6 +972,9 @@ export default function ProfilePosts() {
     );
   }
 
+  const singlePost = posts[0] ?? null;
+  const isSingleMode = Boolean(showOnlyPostParam);
+
   return (
     <View className="flex-1 bg-gray-100">
       {/* Header */}
@@ -920,53 +989,86 @@ export default function ProfilePosts() {
           <MaterialIcons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
 
-        <Text className="text-lg font-semibold text-gray-900">Posts</Text>
+        <Text className="text-lg font-semibold text-gray-900">
+          {isSingleMode ? "Post" : "Posts"}
+        </Text>
 
         <View className="w-9 h-9" />
       </View>
 
       <View className="flex-1">
-        <FlatList
-          ref={flatListRef}
-          data={posts}
-          nestedScrollEnabled={true}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <PostCard
-              item={item}
-              isVisible={visibleItems.includes(String(item.id))}
-              onLongPress={handleLongPress}
-              panGesture={panGesture}
-              onPressComments={openComments}
-              toggleLike={toggleLike}
-              likedPostIDs={likedPostIDs}
-              profilePostsMode={true}
-            />
-          )}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
-          onScrollToIndexFailed={(info) => {
-            const wait = new Promise((resolve) => setTimeout(resolve, 500));
-            wait.then(() => {
-              flatListRef.current?.scrollToIndex({
-                index: info.index,
-                animated: true,
+        {isSingleMode ? (
+          // ---------- SINGLE POST MODE ----------
+          <View
+            style={{
+              flex: 1,
+              paddingBottom:
+                Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
+              backgroundColor: "#F3F4F8",
+            }}
+          >
+            {singlePost ? (
+              <PostCard
+                item={singlePost}
+                isVisible={true} // always visible in single mode
+                onLongPress={handleLongPress}
+                panGesture={panGesture}
+                onPressComments={openComments}
+                toggleLike={toggleLike}
+                likedPostIDs={likedPostIDs}
+                profilePostsMode={true}
+              />
+            ) : (
+              <>
+                <FeedSkeletonPlaceholder />
+                <FeedSkeletonPlaceholder />
+              </>
+            )}
+          </View>
+        ) : (
+          // ---------- LIST MODE (old behaviour) ----------
+          <FlatList
+            ref={flatListRef}
+            data={posts}
+            nestedScrollEnabled={true}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <PostCard
+                item={item}
+                isVisible={visibleItems.includes(String(item.id))}
+                onLongPress={handleLongPress}
+                panGesture={panGesture}
+                onPressComments={openComments}
+                toggleLike={toggleLike}
+                likedPostIDs={likedPostIDs}
+                profilePostsMode={true}
+              />
+            )}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            onScrollToIndexFailed={(info) => {
+              const wait = new Promise((resolve) => setTimeout(resolve, 500));
+              wait.then(() => {
+                flatListRef.current?.scrollToIndex({
+                  index: info.index,
+                  animated: true,
+                });
               });
-            });
-          }}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingBottom:
-              Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
-            backgroundColor: "#F3F4F8",
-          }}
-          ListEmptyComponent={
-            <>
-              <FeedSkeletonPlaceholder />
-              <FeedSkeletonPlaceholder />
-            </>
-          }
-        />
+            }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingBottom:
+                Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
+              backgroundColor: "#F3F4F8",
+            }}
+            ListEmptyComponent={
+              <>
+                <FeedSkeletonPlaceholder />
+                <FeedSkeletonPlaceholder />
+              </>
+            }
+          />
+        )}
       </View>
 
       {/* Modals */}
@@ -996,7 +1098,6 @@ export default function ProfilePosts() {
         user={user}
       />
 
-      {/* CommentsSheet with double tap support */}
       <CommentsSheet
         ref={commentsRef}
         title="Comments"

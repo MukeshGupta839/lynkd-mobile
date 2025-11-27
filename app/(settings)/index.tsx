@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiCall } from "@/lib/api/apiService";
 import useAuthTokenStore from "@/stores/authTokenStore";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
+import { router } from "expo-router";
 import React, { useContext } from "react";
 import {
   Alert,
@@ -85,7 +85,6 @@ const AccountType = () => {
     setUser,
     resetUserState,
   } = useAuth();
-  const router = useRouter();
 
   const handleSaveProfile = async () => {
     try {
@@ -154,7 +153,6 @@ const AccountType = () => {
 
 export default function SettingsMain() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
 
   const { user } = useAuth();
 
@@ -176,6 +174,7 @@ export default function SettingsMain() {
       console.log("Logout completed successfully");
 
       // Use replace to clear the navigation stack and prevent going back
+      router.dismissAll(); // pops to the first screen in the stack (e.g. /(tabs))
       router.replace("/(auth)");
     } catch (error: any) {
       console.error("Logout failed:", error);
@@ -206,16 +205,6 @@ export default function SettingsMain() {
             icon="lock-closed-outline"
             onPress={() => router.push("/(settings)/changePassword")}
           />
-          {/* <SettingItem
-            title="Order History"
-            icon="receipt-outline"
-            // onPress={() => navigator.navigate("MyOrders" as never)}
-          /> */}
-          {/* <SettingItem
-            title="Share Profile"
-            icon="share-outline"
-            // onPress={() => navigator.navigate("InviteUsers" as never)}
-          /> */}
           <SettingItem
             title="Analytics"
             icon="analytics-outline"

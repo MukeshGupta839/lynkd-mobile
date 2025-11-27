@@ -1,5 +1,10 @@
-import { Search } from "lucide-react-native";
-import { Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 type Props = {
   value?: string;
@@ -7,31 +12,28 @@ type Props = {
   onChangeText?: (t: string) => void;
   onSubmitEditing?: () => void;
   className?: string;
-  innerClassName?: string;
   readOnly?: boolean;
   borderRadius?: number;
 };
 
 export default function SearchBar({
-  value,
-  placeholder = "",
+  value = "",
+  placeholder = "Search",
   onChangeText,
   onSubmitEditing,
   className = "",
-  innerClassName = "",
   readOnly = false,
   borderRadius = 10,
 }: Props) {
   const { height } = useWindowDimensions();
 
-  // Dynamically adjust height and padding
-  const baseHeight = height < 700 ? 44 : height < 850 ? 36 : 48;
-  const verticalPadding = baseHeight * 0.18; // consistent vertical spacing (top/bottom)
+  // Dynamically adjust height
+  const baseHeight = 40;
 
   return (
     <View
       className={[
-        "w-full bg-white border border-gray-200 overflow-hidden",
+        "w-full bg-white flex-row items-center rounded-lg px-3",
         className,
       ].join(" ")}
       style={{
@@ -39,57 +41,43 @@ export default function SearchBar({
         borderRadius: borderRadius,
       }}
     >
-      <View
-        className={[
-          "flex-1 flex-row items-center justify-between",
-          innerClassName,
-        ].join(" ")}
-        style={{
-          paddingHorizontal: 12,
-          paddingVertical: verticalPadding,
-        }}
-      >
-        {readOnly ? (
-          <Text
-            className="flex-1 text-base text-gray-400"
-            style={{
-              paddingVertical: 0,
-              includeFontPadding: false,
-              textAlignVertical: "center",
-            }}
-          >
-            {placeholder}
-          </Text>
-        ) : (
-          <TextInput
-            value={value}
-            onChangeText={onChangeText}
-            onSubmitEditing={onSubmitEditing}
-            placeholder={placeholder}
-            placeholderTextColor="#6B7280"
-            className="flex-1 text-base text-gray-700"
-            style={{
-              paddingVertical: 0,
-              includeFontPadding: false,
-              textAlignVertical: "center",
-              fontSize: 15,
-            }}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-          />
-        )}
+      {/* Search Icon (Left) */}
+      <Ionicons
+        name="search"
+        size={20}
+        color="#666"
+        style={{ marginRight: 8 }}
+      />
 
-        <View
-          style={{
-            justifyContent: "center",
-            alignItems: "center",
-            height: "100%",
-          }}
+      {/* Input (Middle) - Using BottomSheetTextInput for Sheet support */}
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        onSubmitEditing={onSubmitEditing}
+        placeholder={placeholder}
+        placeholderTextColor="#999"
+        editable={!readOnly}
+        style={{
+          flex: 1,
+          fontSize: 16,
+          color: "#000",
+          paddingVertical: 0, // Fix alignment on Android
+          height: "100%", // Ensure it takes full height of container
+        }}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
+      />
+
+      {/* Clear Button (Right) */}
+      {value.length > 0 && !readOnly && onChangeText && (
+        <TouchableOpacity
+          onPress={() => onChangeText("")}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Search size={20} strokeWidth={2} color="black" />
-        </View>
-      </View>
+          <Ionicons name="close-circle" size={18} color="#999" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

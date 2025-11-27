@@ -55,6 +55,57 @@ export interface RawPost {
   PostToTagsMultiple: PostTag[];
 }
 
+export interface ShareUser {
+  id: number;
+  username: string;
+  first_name: string;
+  // last_name is null in your data, so we allow string or null
+  last_name: string | null;
+  email: string;
+  profile_picture: string;
+  is_creator: boolean;
+}
+
+export interface ShareUserResponse {
+  message: string;
+  data: ShareUser[];
+}
+
+export interface SharedPostUser {
+  username: string;
+  profile_picture: string;
+}
+
+export interface SharedPost {
+  id: number;
+  user_id: number;
+  caption: string;
+  media_url: string;
+  comments_count: number;
+  created_at: string;
+  affiliated: boolean;
+  aspect_ratio: string;
+  user: SharedPostUser;
+}
+
+export interface ChatMessage {
+  id: number;
+  sender_id: number;
+  receiver_id: number;
+  content: string;
+  created_at: string;
+  is_read: boolean;
+  // Using a Union type is safer than generic string
+  message_type: "text" | "shared_post";
+  // Can be null (as seen in the first item) or the object
+  shared_post: SharedPost | null;
+}
+
+export interface ApiChatHistoryResponseData {
+  status: string;
+  data: ChatMessage[];
+}
+
 /* =======================
    REELS TYPES
 ======================= */
@@ -387,5 +438,48 @@ export const reportPostApi = async (
     console.log("reportPostApi res:", res);
   } catch (error) {
     console.error("Error reporting post:", error);
+  }
+};
+
+export const shareUserApi = async (
+  userId: string
+): Promise<ShareUserResponse> => {
+  try {
+    const res = await apiCall(`/api/search/${userId}/users`, "GET");
+    console.log("shareUserApi res:", res);
+    return res as ShareUserResponse;
+  } catch (error) {
+    console.error("shareUserApi error:", error);
+    return { message: "Error", data: [] };
+  }
+};
+
+export const fetchChatHistoryApi = async (
+  userId: string,
+  otherUserId: string
+): Promise<ApiChatHistoryResponseData> => {
+  try {
+    const res = await apiCall(
+      `/api/messages/history/${userId}/${otherUserId}`,
+      "GET"
+    );
+    console.log("fetchChatHistoryApi res:", res);
+    return res as ApiChatHistoryResponseData;
+  } catch (error) {
+    console.error("Error fetching chat history:", error);
+    return { status: "error", data: [] };
+  }
+};
+
+export const fetchSinglePost = async (
+  postId: string
+): Promise<RawPost | null> => {
+  try {
+    const res = await apiCall(`/api/posts/${postId}`, "GET");
+    console.log("fetchSinglePost res:", res);
+    return res as RawPost;
+  } catch (error) {
+    console.error("Error fetching single post:", error);
+    return null;
   }
 };

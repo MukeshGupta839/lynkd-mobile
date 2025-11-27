@@ -18,6 +18,8 @@ import {
   FetchPostsResponse,
   fetchUserFollowings,
   fetchUserLikedPosts,
+  ShareUser,
+  shareUserApi,
 } from "@/lib/api/api";
 import { apiCall } from "@/lib/api/apiService";
 import {
@@ -35,7 +37,6 @@ import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
-  BackHandler,
   Dimensions,
   FlatList,
   Platform,
@@ -50,6 +51,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Reanimated, {
   Extrapolation,
   interpolate,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -90,6 +92,8 @@ const NotificationBell = ({
   );
 };
 
+const AnimatedFlatList = Reanimated.createAnimatedComponent(FlatList<Post>);
+
 // ----- Screen -----
 export default function ConsumerHomeUI() {
   const insets = useSafeAreaInsets();
@@ -113,6 +117,7 @@ export default function ConsumerHomeUI() {
   // re-rendering with data (prevents the double-render flash)
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [likedPostIDs, setLikedPostIDs] = useState<string[]>([]);
+  const [shareUsers, setShareUsers] = useState<ShareUser[]>([]);
 
   // Mock user data - replace with your actual user context
   // const user = { id: "1", username: "current_user" };
@@ -122,7 +127,8 @@ export default function ConsumerHomeUI() {
   const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
   // Use Reanimated shared value for header translation
   const headerTranslateY = useSharedValue(0);
-  const lastScrollY = useRef(0);
+  const lastScrollY = useSharedValue(0);
+  const accumulatedScroll = useSharedValue(0);
   const scrollY = useRef(new Animated.Value(0)).current;
   const currentHeaderTranslateValue = useRef(0); // Track current header position
   const [refreshing, setRefreshing] = React.useState(false);
@@ -131,18 +137,16 @@ export default function ConsumerHomeUI() {
   const [tabBarHidden, setTabBarHidden] = useState(false);
 
   // Scroll behavior constants
-  const HIDE_THRESHOLD = 10; // pixels to scroll down before hiding header
-  const SHOW_THRESHOLD = 10; // pixels to scroll up before showing header
-  const TAB_BAR_HIDE_THRESHOLD = 50; // pixels to scroll down before hiding tab bar
-  const TAB_BAR_SHOW_THRESHOLD = 30; // pixels to scroll up before showing tab bar
+  const SCROLL_THRESHOLD = 20;
+  const ANIMATION_DURATION = 200;
+
   // Header animation functions
   const hideHeader = useCallback(() => {
     setHeaderHidden(true);
     currentHeaderTranslateValue.current = -TOP_BAR_HEIGHT;
-    // Defer shared value update to avoid render-time warning
     requestAnimationFrame(() => {
       headerTranslateY.value = withTiming(-TOP_BAR_HEIGHT, {
-        duration: 200,
+        duration: ANIMATION_DURATION,
       });
     });
   }, [TOP_BAR_HEIGHT, headerTranslateY]);
@@ -150,18 +154,16 @@ export default function ConsumerHomeUI() {
   const showHeader = useCallback(() => {
     setHeaderHidden(false);
     currentHeaderTranslateValue.current = 0;
-    // Defer shared value update to avoid render-time warning
     requestAnimationFrame(() => {
       headerTranslateY.value = withTiming(0, {
-        duration: 200,
+        duration: ANIMATION_DURATION,
       });
     });
   }, [headerTranslateY]);
 
-  // Tab bar animation functions - use callbacks to avoid setting shared values during render
+  // Tab bar animation functions
   const hideTabBar = useCallback(() => {
     setTabBarHidden(true);
-    // Defer shared value update to avoid render-time warning
     requestAnimationFrame(() => {
       tabBarHiddenSV.value = true;
     });
@@ -169,46 +171,9 @@ export default function ConsumerHomeUI() {
 
   const showTabBar = useCallback(() => {
     setTabBarHidden(false);
-    // Defer shared value update to avoid render-time warning
     requestAnimationFrame(() => {
       tabBarHiddenSV.value = false;
     });
-  }, []);
-
-  useEffect(() => {
-    let backPressCount = 0;
-    let backPressTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const onBackPress = () => {
-      backPressCount += 1;
-      if (backPressCount === 1) {
-        // Prevent single back gesture (do nothing)
-        if (backPressTimer) clearTimeout(backPressTimer);
-        backPressTimer = setTimeout(() => {
-          backPressCount = 0;
-        }, 1500); // Reset after 1.5s
-        return true; // Block default behavior
-      } else if (backPressCount === 2) {
-        // Double back gesture: exit app
-        backPressCount = 0;
-        if (backPressTimer) clearTimeout(backPressTimer);
-        // Use BackHandler.exitApp() to close the app
-        if (typeof BackHandler !== "undefined" && BackHandler.exitApp) {
-          BackHandler.exitApp();
-        }
-        return true;
-      }
-      return true;
-    };
-    // Enable back handler for both Android and iOS
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      onBackPress
-    );
-    return () => {
-      subscription?.remove();
-      if (backPressTimer) clearTimeout(backPressTimer);
-    };
   }, []);
 
   // Ensure tab bar is visible when component mounts/unmounts
@@ -233,55 +198,79 @@ export default function ConsumerHomeUI() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleOnScroll = (event: any) => {
-    const currentRawY = event.nativeEvent.contentOffset.y;
-    const currentY = Math.max(0, currentRawY); // Ensure currentY is not negative
+  const onFeedScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      "worklet";
+      const currentY = Math.max(0, event.contentOffset.y);
+      const diff = currentY - lastScrollY.value; // The change in this specific frame
 
-    const delta = currentY - lastScrollY.current;
+      const isHeaderHidden = headerTranslateY.value <= -TOP_BAR_HEIGHT + 0.5;
+      const isHeaderVisible = headerTranslateY.value >= -0.5;
 
-    // --- Prevent header from showing due to loader appearance ---
-    if (isFetchingNextPage && headerHidden && currentY > TOP_BAR_HEIGHT) {
-      lastScrollY.current = currentY;
-      return;
-    }
+      // 1. Elastic Pull / Top of List Logic (Always Show)
+      if (currentY <= TOP_BAR_HEIGHT) {
+        // If we are at the very top, reset values and show everything
+        accumulatedScroll.value = 0;
 
-    if (currentY <= TOP_BAR_HEIGHT) {
-      if (
-        !headerHidden &&
-        Math.abs(currentHeaderTranslateValue.current) < 0.1 &&
-        currentY > 0 &&
-        delta <= 0
-      ) {
-        if (headerHidden) {
-          setHeaderHidden(false);
+        if (isHeaderHidden) {
+          headerTranslateY.value = -currentY;
+        }
+        if (currentY <= 0) {
+          tabBarHiddenSV.value = false;
         }
       } else {
-        const newTranslateValue = -currentY;
-        // Defer shared value update to avoid render-time warning
-        requestAnimationFrame(() => {
-          headerTranslateY.value = newTranslateValue;
-        });
-        currentHeaderTranslateValue.current = newTranslateValue;
-        const isNowHiddenBySync = newTranslateValue <= -TOP_BAR_HEIGHT + 0.1;
-        if (headerHidden !== isNowHiddenBySync) {
-          setHeaderHidden(isNowHiddenBySync);
+        // 2. Main Scroll Logic (Accumulation)
+
+        if (diff > 0) {
+          // --- SCROLLING DOWN (Finger moving up) ---
+
+          // If we were previously scrolling UP (negative accumulator), reset to 0
+          if (accumulatedScroll.value < 0) {
+            accumulatedScroll.value = 0;
+          }
+
+          // Add this frame's movement to the accumulator
+          accumulatedScroll.value += diff;
+
+          // Only trigger HIDE if we have accumulated enough distance
+          if (accumulatedScroll.value > SCROLL_THRESHOLD) {
+            // Hide Header
+            if (isHeaderVisible || headerTranslateY.value > -TOP_BAR_HEIGHT) {
+              headerTranslateY.value = withTiming(-TOP_BAR_HEIGHT, {
+                duration: ANIMATION_DURATION,
+              });
+            }
+            // Hide Tab Bar
+            tabBarHiddenSV.value = true;
+          }
+        } else if (diff < 0) {
+          // --- SCROLLING UP (Finger moving down) ---
+
+          // If we were previously scrolling DOWN (positive accumulator), reset to 0
+          if (accumulatedScroll.value > 0) {
+            accumulatedScroll.value = 0;
+          }
+
+          // Add this frame's movement to the accumulator
+          accumulatedScroll.value += diff;
+
+          // Only trigger SHOW if we have accumulated enough distance (negative)
+          if (accumulatedScroll.value < -SCROLL_THRESHOLD) {
+            // Show Header
+            if (isHeaderHidden || headerTranslateY.value < 0) {
+              headerTranslateY.value = withTiming(0, {
+                duration: ANIMATION_DURATION,
+              });
+            }
+            // Show Tab Bar
+            tabBarHiddenSV.value = false;
+          }
         }
       }
-    } else {
-      if (delta > HIDE_THRESHOLD && !headerHidden) {
-        hideHeader();
-      } else if (delta < -SHOW_THRESHOLD && headerHidden) {
-        showHeader();
-      }
 
-      if (delta > TAB_BAR_HIDE_THRESHOLD && !tabBarHidden) {
-        hideTabBar();
-      } else if (delta < -TAB_BAR_SHOW_THRESHOLD && tabBarHidden) {
-        showTabBar();
-      }
-    }
-    lastScrollY.current = currentY;
-  };
+      lastScrollY.value = currentY;
+    },
+  });
 
   // Handle viewable items change to track which posts are visible
   const onViewableItemsChanged = useCallback(
@@ -365,6 +354,27 @@ export default function ConsumerHomeUI() {
     },
     [user?.id]
   );
+
+  const sharePost = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await shareUserApi(user.id);
+      console.log("shareUserApi res:", res);
+      setShareUsers(res?.data);
+    } catch (error) {
+      console.error("shareUserApi error:", error);
+    }
+  }, [user]);
+
+  console.log("shareUsers :", shareUsers);
+
+  useEffect(() => {
+    try {
+      sharePost();
+    } catch (error) {
+      console.log("shareUserApi index error:", error);
+    }
+  }, [sharePost]);
 
   const handleLongPress = useCallback((item: any) => {
     Vibration.vibrate(100);
@@ -575,21 +585,12 @@ export default function ConsumerHomeUI() {
 
   // --- STYLES ---
   const feedStyle = useAnimatedStyle(() => {
-    try {
-      const safeTranslateX = Number.isFinite(translateX.value)
-        ? translateX.value
-        : 0;
-      return {
-        transform: [{ translateX: safeTranslateX }],
-        zIndex: 2,
-      };
-    } catch (error) {
-      console.warn("Error in feedStyle:", error);
-      return {
-        transform: [{ translateX: 0 }],
-        zIndex: 2,
-      };
-    }
+    const safeTranslateX = Number.isFinite(translateX.value)
+      ? translateX.value
+      : 0;
+    return {
+      transform: [{ translateX: safeTranslateX }],
+    };
   });
 
   const rightUnderlayStyle = useAnimatedStyle(() => {
@@ -975,9 +976,15 @@ export default function ConsumerHomeUI() {
         {/* FEED ON TOP */}
         <Reanimated.View
           style={[
-            { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+            {
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 2,
+            },
             feedStyle,
-            { zIndex: 1 },
           ]}
           pointerEvents="auto"
         >
@@ -1043,16 +1050,13 @@ export default function ConsumerHomeUI() {
                 <FeedSkeletonPlaceholder />
               </View>
             ) : (
-              <FlatList
+              <AnimatedFlatList
                 ref={flatListRef}
                 data={posts}
                 showsVerticalScrollIndicator={false}
                 keyExtractor={(item) => item.id}
                 scrollEventThrottle={16}
-                onScroll={Animated.event(
-                  [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                  { useNativeDriver: false, listener: handleOnScroll }
-                )}
+                onScroll={onFeedScroll}
                 onEndReached={() => {
                   console.log("📍 onEndReached triggered");
                   fetchMorePostsAPI();
@@ -1079,12 +1083,11 @@ export default function ConsumerHomeUI() {
                 alwaysBounceVertical={true}
                 style={{ backgroundColor: "#F3F4F8" }}
                 ListHeaderComponent={
-                  user &&
-                  (!user.username ||
-                    !user.profile_picture ||
-                    !user.bio ||
-                    !user.first_name ||
-                    !user.last_name) ? (
+                  user && (!user.username || !user.profile_picture) ? (
+                    // ||
+                    // !user.bio ||
+                    // !user.first_name ||
+                    // !user.last_name
                     <CompleteProfilePopup user={user} />
                   ) : null
                 }
@@ -1098,6 +1101,7 @@ export default function ConsumerHomeUI() {
                     onPressComments={openComments}
                     toggleLike={toggleLike}
                     likedPostIDs={likedPostIDs}
+                    shareUsers={shareUsers}
                   />
                 )}
                 refreshControl={

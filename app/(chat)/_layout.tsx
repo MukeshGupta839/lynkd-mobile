@@ -55,6 +55,12 @@ export default function ChatLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="chatPost"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

@@ -27,6 +27,15 @@ const { width: PAGE_WIDTH } = Dimensions.get("window");
 
 type TabKey = "people" | "brands" | "products" | "hashtags";
 
+type SearchUser = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  username: string;
+  profile_picture: string | null;
+  is_creator: boolean;
+};
+
 const TABS: { key: TabKey; label: string }[] = [
   { key: "people", label: "People" },
   { key: "brands", label: "Brands" },
@@ -50,14 +59,14 @@ const SearchScreen = () => {
   const flatListRef = useRef<FlatList<{ key: TabKey }> | null>(null);
 
   // API-fetched results state
-  const [apiUsersResults, setApiUsersResults] = useState<any[]>([]);
+  const [apiUsersResults, setApiUsersResults] = useState<SearchUser[]>([]);
   const [apiBrandsResults, setApiBrandsResults] = useState<any[]>([]);
   const [apiProductsResults, setApiProductsResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [useApiData, setUseApiData] = useState(false);
 
   // API fetch functions
-  const fetchUsersbySearch = useCallback(async (query: string) => {
+  const fetchUsersBySearch = useCallback(async (query: string) => {
     try {
       const response = await apiCall(
         `/api/search/users?search=${query}`,
@@ -65,30 +74,38 @@ const SearchScreen = () => {
       );
       const data = response.data;
 
-      const users = data.map((user: any) => ({
-        id: user.id,
-        first_name: replaceNull(user.first_name),
-        last_name: replaceNull(user.last_name),
-        username: user.username,
-        profile_picture: user.profile_picture,
-        is_creator: user.is_creator,
-      }));
+      const users: SearchUser[] = data.map(
+        (user: any): SearchUser => ({
+          id: user.id,
+          first_name: replaceNull(user.first_name),
+          last_name: replaceNull(user.last_name),
+          username: user.username,
+          profile_picture: user.profile_picture,
+          is_creator: user.is_creator,
+        })
+      );
 
-      // Sort by username priority
-      users.sort((a: any, b: any) => {
-        const q = query.toLowerCase();
-        const aUsername = a.username.toLowerCase();
-        const bUsername = b.username.toLowerCase();
+      const q = query.toLowerCase();
 
-        if (aUsername === q) return -1;
-        if (bUsername === q) return 1;
-        if (aUsername.startsWith(q) && !bUsername.startsWith(q)) return -1;
-        if (bUsername.startsWith(q) && !aUsername.startsWith(q)) return 1;
-        if (aUsername.includes(q) && !bUsername.includes(q)) return -1;
-        if (bUsername.includes(q) && !aUsername.includes(q)) return 1;
-        return 0;
+      const score = (username: string) => {
+        const u = username.toLowerCase();
+        if (u === q) return 0; // exact match
+        if (u.startsWith(q)) return 1; // prefix match
+        if (u.includes(q)) return 2; // substring match
+        return 3; // no match
+      };
+
+      // ✅ TS now knows a and b are SearchUser
+      users.sort((a, b) => {
+        const sa = score(a.username);
+        const sb = score(b.username);
+
+        if (sa !== sb) return sa - sb;
+
+        // tie-breaker: alphabetical
+        return a.username.localeCompare(b.username);
       });
-      users.reverse();
+
       setApiUsersResults(users);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -96,7 +113,7 @@ const SearchScreen = () => {
     }
   }, []);
 
-  const fetchBrandsbySearch = useCallback(async (query: string) => {
+  const fetchBrandsBySearch = useCallback(async (query: string) => {
     try {
       const response = await apiCall(
         `/api/search/brands?search=${query}`,
@@ -117,7 +134,7 @@ const SearchScreen = () => {
     }
   }, []);
 
-  const fetchProductsbySearch = useCallback(async (query: string) => {
+  const fetchProductsBySearch = useCallback(async (query: string) => {
     try {
       const response = await apiCall(
         `/api/search/products?search=${query}`,
@@ -178,9 +195,9 @@ const SearchScreen = () => {
       debouncedSearchRef.current(
         query,
         tab,
-        fetchUsersbySearch,
-        fetchBrandsbySearch,
-        fetchProductsbySearch,
+        fetchUsersBySearch,
+        fetchBrandsBySearch,
+        fetchProductsBySearch,
         setIsLoading,
         setUseApiData,
         () => {
@@ -190,7 +207,7 @@ const SearchScreen = () => {
         }
       );
     },
-    [fetchUsersbySearch, fetchBrandsbySearch, fetchProductsbySearch]
+    [fetchUsersBySearch, fetchBrandsBySearch, fetchProductsBySearch]
   );
 
   // Fetch default results for all tabs on mount
@@ -199,9 +216,9 @@ const SearchScreen = () => {
       setIsLoading(true);
       try {
         await Promise.all([
-          fetchUsersbySearch("a"),
-          fetchBrandsbySearch("a"),
-          fetchProductsbySearch("a"),
+          fetchUsersBySearch("a"),
+          fetchBrandsBySearch("a"),
+          fetchProductsBySearch("a"),
         ]);
         setUseApiData(true);
       } finally {
@@ -209,7 +226,7 @@ const SearchScreen = () => {
       }
     };
     fetchDefaultResults();
-  }, [fetchUsersbySearch, fetchBrandsbySearch, fetchProductsbySearch]);
+  }, [fetchUsersBySearch, fetchBrandsBySearch, fetchProductsBySearch]);
 
   // Trigger search when query or tab changes
   useEffect(() => {
@@ -253,7 +270,8 @@ const SearchScreen = () => {
             pathname: "/(profiles)/" as any,
             params: { user: item.id },
           })
-        }>
+        }
+      >
         <View className="h-12 w-12 rounded-full bg-gray-200 mr-4 items-center justify-center">
           <Image
             source={{
@@ -285,7 +303,8 @@ const SearchScreen = () => {
     <TouchableOpacity
       style={{ width: brandItemWidth, marginBottom: 16 }}
       className="items-center"
-      activeOpacity={0.7}>
+      activeOpacity={0.7}
+    >
       <View className="w-full aspect-square bg-white rounded-xl shadow-sm items-center justify-center mb-2 border border-gray-100">
         {item.brandLogoURL ? (
           <Image
@@ -302,7 +321,8 @@ const SearchScreen = () => {
       <Text
         className="text-xs font-medium text-gray-800 text-center px-1"
         numberOfLines={2}
-        style={{ lineHeight: 16 }}>
+        style={{ lineHeight: 16 }}
+      >
         {item.brand_name}
       </Text>
     </TouchableOpacity>
@@ -323,7 +343,8 @@ const SearchScreen = () => {
       <TouchableOpacity
         style={{ width: productItemWidth, marginBottom: 16 }}
         className="bg-white rounded-xl shadow-sm overflow-hidden"
-        activeOpacity={0.7}>
+        activeOpacity={0.7}
+      >
         <View className="relative bg-gray-50" style={{ aspectRatio: 1 }}>
           {item.main_image ? (
             <Image
@@ -363,7 +384,8 @@ const SearchScreen = () => {
           <Text
             className="text-xs font-semibold text-gray-900 mb-2"
             numberOfLines={2}
-            style={{ lineHeight: 16, minHeight: 32 }}>
+            style={{ lineHeight: 16, minHeight: 32 }}
+          >
             {item.name}
           </Text>
           <View className="flex-row items-center flex-wrap">
@@ -492,7 +514,8 @@ const SearchScreen = () => {
           onPress={() => router.back()}
           className="h-10 w-10 items-center justify-center"
           accessibilityRole="button"
-          accessibilityLabel="Go back">
+          accessibilityLabel="Go back"
+        >
           <MaterialCommunityIcons
             name="chevron-left"
             size={32}
@@ -515,7 +538,8 @@ const SearchScreen = () => {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerClassName="px-3 gap-3 items-center">
+          contentContainerClassName="px-3 gap-3 items-center"
+        >
           {TABS.map((tab) => {
             const active = activeTab === tab.key;
             return (
@@ -529,12 +553,14 @@ const SearchScreen = () => {
                   active
                     ? "bg-gray-200 border-gray-200"
                     : "bg-white border-gray-200",
-                ].join(" ")}>
+                ].join(" ")}
+              >
                 <Text
                   className={[
                     "text-base",
                     active ? "text-[#111827] font-semibold" : "text-gray-700",
-                  ].join(" ")}>
+                  ].join(" ")}
+                >
                   {tab.label}
                 </Text>
               </TouchableOpacity>
