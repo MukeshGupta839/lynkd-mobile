@@ -36,7 +36,6 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Animated,
   Dimensions,
   FlatList,
   Platform,
@@ -129,7 +128,6 @@ export default function ConsumerHomeUI() {
   const headerTranslateY = useSharedValue(0);
   const lastScrollY = useSharedValue(0);
   const accumulatedScroll = useSharedValue(0);
-  const scrollY = useRef(new Animated.Value(0)).current;
   const currentHeaderTranslateValue = useRef(0); // Track current header position
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -140,17 +138,6 @@ export default function ConsumerHomeUI() {
   const SCROLL_THRESHOLD = 20;
   const ANIMATION_DURATION = 200;
 
-  // Header animation functions
-  const hideHeader = useCallback(() => {
-    setHeaderHidden(true);
-    currentHeaderTranslateValue.current = -TOP_BAR_HEIGHT;
-    requestAnimationFrame(() => {
-      headerTranslateY.value = withTiming(-TOP_BAR_HEIGHT, {
-        duration: ANIMATION_DURATION,
-      });
-    });
-  }, [TOP_BAR_HEIGHT, headerTranslateY]);
-
   const showHeader = useCallback(() => {
     setHeaderHidden(false);
     currentHeaderTranslateValue.current = 0;
@@ -160,14 +147,6 @@ export default function ConsumerHomeUI() {
       });
     });
   }, [headerTranslateY]);
-
-  // Tab bar animation functions
-  const hideTabBar = useCallback(() => {
-    setTabBarHidden(true);
-    requestAnimationFrame(() => {
-      tabBarHiddenSV.value = true;
-    });
-  }, []);
 
   const showTabBar = useCallback(() => {
     setTabBarHidden(false);
