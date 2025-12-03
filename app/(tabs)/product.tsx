@@ -120,7 +120,7 @@ export default function ProductHome() {
   const handleBestDealPress = (item: any, index: number) => {
     if (index === 0) {
       router.push({
-        pathname: "/Product/Productview",
+        pathname: "/(productview)",
         params: { type: "clothing" },
       });
       return;
@@ -128,7 +128,7 @@ export default function ProductHome() {
     const typeFromItem =
       (item?.type as "phone" | "facewash" | "clothing" | undefined) ?? "phone";
     router.push({
-      pathname: "/Product/Productview",
+      pathname: "/(productview)",
       params: { type: typeFromItem },
     });
   };
@@ -148,7 +148,7 @@ export default function ProductHome() {
               data={homeBannerData}
               onSlidePress={() =>
                 router.push({
-                  pathname: "/Product/Productview",
+                  pathname: "/(productview)",
                 })
               }
             />
@@ -299,8 +299,7 @@ export default function ProductHome() {
             zIndex: 10,
           },
           animatedGradientWrapper, // <-- Height animation is applied to this parent
-        ]}
-      >
+        ]}>
         {/* ⬇️ FIX: The GradientWrapper is now a sibling, not a parent. */}
         {/* It's the background layer. */}
         <Animated.View
@@ -308,8 +307,7 @@ export default function ProductHome() {
             styles.headerBg, // absolute, clip, zIndex 0
             animatedGradientWrapper, // only height is animated
           ]}
-          pointerEvents="none"
-        >
+          pointerEvents="none">
           <AnimatedLinearGradient
             colors={["#C5F8CE", "#f9fafb"]}
             start={{ x: 0, y: 0 }}
@@ -339,8 +337,7 @@ export default function ProductHome() {
               paddingTop: topInset,
             },
             animatedFadingPart,
-          ]}
-        >
+          ]}>
           <View className="flex px-3 gap-2">
             <QuickActions />
             <HomeHeader />
@@ -358,8 +355,7 @@ export default function ProductHome() {
               // backgroundColor: "#000", // Needs a BG color
             },
             animatedSearchBar,
-          ]}
-        >
+          ]}>
           <TouchableOpacity
             onPress={() => router.push("/Searchscreen?tab=product")}
             activeOpacity={0.8}
@@ -384,8 +380,7 @@ export default function ProductHome() {
             paddingTop: 5,
           },
           animatedCategoryList,
-        ]}
-      >
+        ]}>
         <CategoryList
           orientation="horizontal"
           scrollOffset={scrollOffset} // <-- Pass scrollOffset

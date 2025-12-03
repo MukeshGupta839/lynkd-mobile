@@ -227,7 +227,7 @@ export default function BookTicketScreen() {
 
   const onContinue = useCallback(() => {
     router.push({
-      pathname: "/Bookings/Details",
+      pathname: "/(bookings)/Details",
       params: {
         id,
         qty: String(qty),

@@ -11,9 +11,8 @@ export default function HomeHeader() {
   return (
     <TouchableOpacity
       activeOpacity={0.8}
-      onPress={() => router.push("/Address/selectAddress")}
-      className="flex-row items-center"
-    >
+      onPress={() => router.push("/(address)")}
+      className="flex-row items-center">
       <View className="flex-row items-center gap-2">
         <View className="flex-row items-center gap-2">
           <View className="w-5 h-5 rounded-md bg-black items-center justify-center">

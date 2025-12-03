@@ -87,8 +87,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <PaperProvider theme={MD3LightTheme}>
           <ThemeProvider
-            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-          >
+            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
             <BottomSheetModalProvider>
               <KeyboardProvider>
                 <AuthProvider>
@@ -98,14 +97,17 @@ export default function RootLayout() {
                         screenOptions={{
                           animation: "slide_from_right",
                           contentStyle: { backgroundColor: "#fff" },
-                        }}
-                      >
+                        }}>
                         <Stack.Screen
                           name="index"
                           options={{ headerShown: false }}
                         />
                         <Stack.Screen
                           name="(auth)"
+                          options={{ headerShown: false }}
+                        />
+                        <Stack.Screen
+                          name="(boost)"
                           options={{ headerShown: false }}
                         />
                         <Stack.Screen
@@ -117,13 +119,10 @@ export default function RootLayout() {
                           options={{ headerShown: false }}
                         />
                         <Stack.Screen
-                          name="Store/storeProfile"
+                          name="(shop)"
                           options={{ headerShown: false }}
                         />
-                        <Stack.Screen
-                          name="Store/viewShop"
-                          options={{ headerShown: false }}
-                        />
+
                         <Stack.Screen
                           name="(compose)"
                           options={{
@@ -138,15 +137,7 @@ export default function RootLayout() {
                         />
 
                         <Stack.Screen
-                          name="Address/selectAddress"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Address/AddAddress"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Address/ShippingAddress"
+                          name="(address)"
                           options={{ headerShown: false }}
                         />
                         <Stack.Screen
@@ -154,53 +145,15 @@ export default function RootLayout() {
                           options={{ headerShown: false }}
                         />
                         <Stack.Screen
-                          name="Product/Productview"
+                          name="(productview)"
                           options={{ headerShown: false }}
                         />
+
                         <Stack.Screen
-                          name="Product/media"
+                          name="(bookings)"
                           options={{ headerShown: false }}
                         />
-                        <Stack.Screen
-                          name="Product/ReviewOrder"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Product/payments"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Bookings/UpcomingEvents"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Bookings/PopularEvents"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Bookings/Booking"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Bookings/BookingForm"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Bookings/Details"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Bookings/Payments"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Bookings/sucess"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Bookings/[ticketId]"
-                          options={{ headerShown: false }}
-                        />
+
                         <Stack.Screen
                           name="(notifications)"
                           options={{ headerShown: false }}
@@ -214,29 +167,10 @@ export default function RootLayout() {
                           options={{ headerShown: false }}
                         />
                         <Stack.Screen
-                          name="Services/serviceDetails"
+                          name="(services)"
                           options={{ headerShown: false }}
                         />
-                        <Stack.Screen
-                          name="Services/BookingTable"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Services/PersonalDetails"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Services/Receipt"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Services/NearbyAll"
-                          options={{ headerShown: false }}
-                        />
-                        <Stack.Screen
-                          name="Services/RecommendedAll"
-                          options={{ headerShown: false }}
-                        />
+
                         <Stack.Screen
                           name="(chat)"
                           options={{ headerShown: false }}

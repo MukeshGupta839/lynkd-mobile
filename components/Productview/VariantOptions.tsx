@@ -74,12 +74,13 @@ export default function VariantOptions({
   promoLabel,
   onPressSizeGuide,
 }: Props) {
-  const { width } = Dimensions.get("window");
+  const { width, height } = Dimensions.get("window");
 
-  const COLOR_W = Math.min(Math.max(Math.round(width * 0.36), 132), 210);
-  const COLOR_H = 164;
-  const SIZE_W = Math.min(Math.max(Math.round(width * 0.28), 100), 220);
-  const SIZE_H = 100;
+  const COLOR_W = width * 0.36;
+  const SIZE_W = width * 0.3;
+
+  const COLOR_H = height * 0.2;
+  const SIZE_H = height * 0.12;
 
   const hasVariants = variants?.length > 0;
   const hasStorages = storages?.length > 0;

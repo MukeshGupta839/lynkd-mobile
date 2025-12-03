@@ -51,7 +51,7 @@ export default function ReviewOrder() {
   const onContinue = useCallback(
     () =>
       router.push({
-        pathname: "/Product/payments",
+        pathname: "/(productview)/payments",
         params: { total: String(grandTotal) },
       }),
     [router, grandTotal]

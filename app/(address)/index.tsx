@@ -5,10 +5,7 @@ import { useRouter } from "expo-router";
 import { LocateFixed } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type DummyAddress = {
   id: string;
@@ -45,19 +42,18 @@ const DUMMY_ADDRESSES: DummyAddress[] = [
 
 export default function SelectAddress() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState<string>("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const goBack = useCallback(() => router.back(), [router]);
 
   const onAddNew = useCallback(() => {
-    router.push("/Address/AddAddress");
+    router.push("/(address)/AddAddress");
   }, [router]);
 
   const onUseLocation = useCallback(() => {
     // placeholder for location logic
-    router.push("/Address/ShippingAddress");
+    router.push("/(address)/ShippingAddress");
   }, [router]);
 
   const renderAddress = ({ item }: { item: DummyAddress }) => {

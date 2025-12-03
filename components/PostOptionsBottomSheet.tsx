@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -186,7 +187,7 @@ const PostOptionsBottomSheet = ({
         icon: "trending-up-outline",
         label: "Boost",
         onPress: () => {
-          console.log("Boost post");
+          router.push("/(boost)");
           setShow(false);
         },
       },
@@ -227,27 +228,23 @@ const PostOptionsBottomSheet = ({
       style={{
         paddingBottom:
           Platform.OS === "ios" ? insets.bottom - 10 : insets.bottom,
-      }}
-    >
+      }}>
       <TouchableOpacity
         className="flex-1 bg-black/50 justify-end"
         activeOpacity={1}
-        onPress={toggleSheet}
-      >
+        onPress={toggleSheet}>
         <Animated.View
           className="bg-white rounded-t-3xl mx-1 pt-2 px-3"
           style={{
             transform: [{ translateY: slideAnim }],
             maxHeight: "90%",
-          }}
-        >
+          }}>
           {/* Handle */}
           <View className="w-10 h-1 bg-gray-300 rounded-full self-center mb-2" />
 
           <ScrollView
             className="max-h-full"
-            showsVerticalScrollIndicator={false}
-          >
+            showsVerticalScrollIndicator={false}>
             {focusedPost?.user_id !== user?.id && (
               <View className="flex-row pt-2 gap-2">
                 {menuItems
@@ -259,8 +256,7 @@ const PostOptionsBottomSheet = ({
                       onPress={() => {
                         Vibration.vibrate(50);
                         item.onPress();
-                      }}
-                    >
+                      }}>
                       <Text className="text-sm font-medium">{item.label}</Text>
                     </TouchableOpacity>
                   ))}
@@ -277,8 +273,7 @@ const PostOptionsBottomSheet = ({
                     onPress={() => {
                       Vibration.vibrate(50);
                       item.onPress();
-                    }}
-                  >
+                    }}>
                     <View className="flex-row items-center gap-4">
                       <Ionicons
                         name={item.icon as any}
@@ -290,8 +285,7 @@ const PostOptionsBottomSheet = ({
                           className="text-sm font-medium"
                           style={{
                             color: item.textColor || "#000",
-                          }}
-                        >
+                          }}>
                           {item.label}
                         </Text>
                       </View>

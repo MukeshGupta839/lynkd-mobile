@@ -120,7 +120,7 @@ export default function Bookings() {
           isLive={item.isLive}
           onPress={() =>
             router.push({
-              pathname: "/Bookings/Booking",
+              pathname: "/(bookings)",
               params: { id: item.id },
             })
           }
@@ -146,7 +146,7 @@ export default function Bookings() {
           onToggleFavorite={() => toggleFavorite(item.id)}
           onPress={() =>
             router.push({
-              pathname: "/Bookings/Booking",
+              pathname: "/(bookings)",
               params: { id: item.id },
             })
           }
@@ -205,8 +205,7 @@ export default function Bookings() {
               <TouchableOpacity
                 onPress={() => router.push("/Bookings/UpcomingEvents")}
                 activeOpacity={0.8}
-                accessibilityLabel="See all upcoming events"
-              >
+                accessibilityLabel="See all upcoming events">
                 <Text className="text-base text-[#7952FC]">See all events</Text>
               </TouchableOpacity>
             </View>
@@ -244,8 +243,7 @@ export default function Bookings() {
               <TouchableOpacity
                 onPress={() => router.push("/Bookings/PopularEvents")}
                 activeOpacity={0.8}
-                accessibilityLabel="See all popular events"
-              >
+                accessibilityLabel="See all popular events">
                 <Text className="text-base text-[#7952FC]">See all events</Text>
               </TouchableOpacity>
             </View>
@@ -378,13 +376,11 @@ export default function Bookings() {
             zIndex: 10,
           },
           animatedGradientWrapper,
-        ]}
-      >
+        ]}>
         {/* Gradient background */}
         <Animated.View
           style={[styles.headerBg, animatedGradientWrapper]}
-          pointerEvents="none"
-        >
+          pointerEvents="none">
           <AnimatedLinearGradient
             colors={["#E0DBFF", "#f9fafb"]} // purple-ish for bookings
             start={{ x: 0, y: 0 }}
@@ -404,8 +400,7 @@ export default function Bookings() {
               paddingTop: topInset,
             },
             animatedFadingPart,
-          ]}
-        >
+          ]}>
           <View className="flex px-3 gap-2">
             <QuickActions />
             {/* If HomeHeader supports a count prop you can pass it; else keep as is */}
@@ -423,14 +418,12 @@ export default function Bookings() {
               right: 0,
             },
             animatedSearchBar,
-          ]}
-        >
+          ]}>
           <TouchableOpacity
             onPress={() => router.push("/Searchscreen?tab=booking")}
             activeOpacity={0.8}
             className="mt-3 px-3"
-            accessibilityLabel="Search bookings"
-          >
+            accessibilityLabel="Search bookings">
             <SearchBar
               placeholder="Search Bookings"
               readOnly
@@ -453,8 +446,7 @@ export default function Bookings() {
             paddingTop: 5,
           },
           animatedCategoryList,
-        ]}
-      >
+        ]}>
         <Categories
           activeCategory={activeCategory}
           setActiveCategory={setActiveCategory}

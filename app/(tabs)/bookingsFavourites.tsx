@@ -84,7 +84,7 @@ export default function FavoritesScreen() {
         onToggleFavorite={() => toggleFavorite(item.id)} // will remove and immediately disappear
         onPress={() =>
           router.push({
-            pathname: "/Bookings/Booking",
+            pathname: "/(bookings)",
             params: { id: item.id },
           })
         }

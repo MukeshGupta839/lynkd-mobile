@@ -16,12 +16,12 @@ const StoreIconButton = ({
       onPress={() => {
         if (store?.id) {
           router.push({
-            pathname: "/Store/storeProfile",
+            pathname: "/(shop)",
             params: { store: store.id },
           });
         } else if (store?.slug) {
           router.push({
-            pathname: "/Store/storeProfile",
+            pathname: "/(shop)",
             params: { slug: store.slug },
           });
         } else {

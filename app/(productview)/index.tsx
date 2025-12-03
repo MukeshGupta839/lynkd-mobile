@@ -68,8 +68,7 @@ const CardWrap = ({
         borderColor: CARD_BORDER_COLOR,
       },
       style,
-    ]}
-  >
+    ]}>
     {children}
   </View>
 );
@@ -144,16 +143,14 @@ const PaginationDots = React.memo(function PaginationDots({
     <View
       style={{ width: visible * SLOT, overflow: "hidden", alignSelf: "center" }}
       renderToHardwareTextureAndroid
-      needsOffscreenAlphaCompositing
-    >
+      needsOffscreenAlphaCompositing>
       <Animated.View
         style={{
           flexDirection: "row",
           alignItems: "center",
           transform: [{ translateX: transX }],
           paddingHorizontal: GAP / 2,
-        }}
-      >
+        }}>
         {Array.from({ length: total }).map((_, i) => {
           const targetSize =
             leftEdgeSmall(i) || rightEdgeSmall(i) ? SMALL : SIZE;
@@ -181,13 +178,11 @@ const PaginationDots = React.memo(function PaginationDots({
                 alignItems: "center",
                 justifyContent: "center",
                 opacity: inWindow(i) ? 1 : 0,
-              }}
-            >
+              }}>
               {onPressDot ? (
                 <TouchableOpacity
                   activeOpacity={0.7}
-                  onPress={() => onPressDot(i)}
-                >
+                  onPress={() => onPressDot(i)}>
                   {dot}
                 </TouchableOpacity>
               ) : (
@@ -225,8 +220,7 @@ export default function ProductView() {
         </Text>
         <TouchableOpacity
           onPress={() => router.back()}
-          className="mt-4 p-2 bg-gray-100 rounded-lg"
-        >
+          className="mt-4 p-2 bg-gray-100 rounded-lg">
           <Text className="text-blue-600">Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -379,7 +373,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
       tapTimeoutRef.current = setTimeout(() => {
         const real = loopToRealIndex(index);
         router.push({
-          pathname: "/Product/media",
+          pathname: "/(productview)/media",
           params: {
             images: encodeURIComponent(JSON.stringify(galleryBase)),
             index: String(real),
@@ -443,8 +437,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
       <View
         className="w-full bg-[#C5F8CE]"
         style={{ zIndex: 10, paddingTop: insets.top - 10 }}
-        onLayout={(e) => setHeaderH(Math.round(e.nativeEvent.layout.height))}
-      >
+        onLayout={(e) => setHeaderH(Math.round(e.nativeEvent.layout.height))}>
         <View className="flex-row items-center justify-between px-3 py-2">
           <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
             <Ionicons name="arrow-back" size={20} color="black" />
@@ -497,8 +490,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
               renderItem={({ item, index }) => (
                 <Pressable
                   onPress={() => onImageTap(index)}
-                  style={{ width: sw, height: "100%" }}
-                >
+                  style={{ width: sw, height: "100%" }}>
                   <ExpoImage
                     source={item}
                     style={{
@@ -524,8 +516,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
             <View className="flex-row items-center">
               <TouchableOpacity
                 onPress={toggleLike}
-                className="p-2 bg-white rounded-full mr-2"
-              >
+                className="p-2 bg-white rounded-full mr-2">
                 <Ionicons
                   name={liked ? "heart" : "heart-outline"}
                   size={18}
@@ -534,8 +525,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setShareOpen(true)}
-                className="p-2 bg-white rounded-full"
-              >
+                className="p-2 bg-white rounded-full">
                 <Send width={18} height={18} stroke="#262626" />
               </TouchableOpacity>
             </View>
@@ -574,8 +564,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
               Inclusive of all taxes
             </Text>
             <Text
-              className={`mt-2 font-semibold ${currentStock <= 0 ? "text-red-600" : "text-green-600"}`}
-            >
+              className={`mt-2 font-semibold ${currentStock <= 0 ? "text-red-600" : "text-green-600"}`}>
               {currentStock <= 0
                 ? "Out of stock"
                 : currentStock < 10
@@ -744,8 +733,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
         <View className="absolute inset-x-0 bottom-[90px] z-50 items-center">
           <TouchableOpacity
             onPress={() => router.push("/(tabs)/cart")}
-            className="rounded-full px-3 py-2 flex-row gap-2 items-center bg-black shadow-lg max-w-[80%]"
-          >
+            className="rounded-full px-3 py-2 flex-row gap-2 items-center bg-black shadow-lg max-w-[80%]">
             <View className="w-14 h-14 rounded-full bg-white items-center justify-center">
               <ExpoImage
                 source={galleryBase[0]}
@@ -789,8 +777,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
           shadowRadius: 18,
           elevation: 14,
           height: BOTTOM_BAR_VISIBLE_HEIGHT,
-        }}
-      >
+        }}>
         {Platform.OS === "ios" ? (
           <BlurView
             intensity={30}
@@ -801,8 +788,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
               paddingBottom: insets.bottom,
               height: BOTTOM_BAR_VISIBLE_HEIGHT,
               justifyContent: "center",
-            }}
-          >
+            }}>
             <BottomBarContent
               offerPrice={currentPrice}
               mrp={currentMrp}
@@ -821,8 +807,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
               paddingBottom: insets.bottom,
               height: BOTTOM_BAR_VISIBLE_HEIGHT,
               justifyContent: "center",
-            }}
-          >
+            }}>
             <BottomBarContent
               offerPrice={currentPrice}
               mrp={currentMrp}
@@ -850,6 +835,7 @@ function ProductContent({ productData, kind }: ProductContentProps) {
           verified: false,
           thumb: galleryBase[0]?.uri,
         }}
+        shareUsers={[]}
       />
     </View>
   );
@@ -916,8 +902,7 @@ function BottomBarContent({
           }}
           accessibilityRole="button"
           accessibilityLabel="Add to cart"
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text className="text-white font-semibold text-lg">Add to cart</Text>
         </TouchableOpacity>
       ) : (
@@ -934,8 +919,7 @@ function BottomBarContent({
             shadowRadius: 8,
             elevation: 8,
           }}
-          accessibilityLabel="Quantity stepper"
-        >
+          accessibilityLabel="Quantity stepper">
           <TouchableOpacity
             onPress={dec}
             accessibilityLabel="Decrease quantity"
@@ -948,8 +932,7 @@ function BottomBarContent({
               backgroundColor: "rgba(255,255,255,0.08)",
               alignItems: "center",
               justifyContent: "center",
-            }}
-          >
+            }}>
             <Ionicons name="remove" size={20} color="#fff" />
           </TouchableOpacity>
 
@@ -967,8 +950,7 @@ function BottomBarContent({
               backgroundColor: "rgba(255,255,255,0.08)",
               alignItems: "center",
               justifyContent: "center",
-            }}
-          >
+            }}>
             <Ionicons name="add" size={20} color="#fff" />
           </TouchableOpacity>
         </View>

@@ -81,7 +81,7 @@ export default function BookingTable() {
       vehicle,
     };
     router.push({
-      pathname: "/Services/PersonalDetails",
+      pathname: "/(services)/PersonalDetails",
       params: { payload: JSON.stringify(payload) },
     });
   }, [id, title, address, selectedDateIdx, selectedTime, vehicle, router]);

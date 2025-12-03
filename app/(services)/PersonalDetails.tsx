@@ -229,7 +229,7 @@ export default function PersonalDetails() {
         <TouchableOpacity
           onPress={() =>
             router.push({
-              pathname: "/Product/payments",
+              pathname: "/(productview)/payments",
               params: { source: "service", total: "1999" },
             })
           }

@@ -118,7 +118,7 @@ export default function Services() {
   const handleServicePress = useCallback(
     (item: { id: string | number; title?: string }) => {
       router.push({
-        pathname: "/Services/serviceDetails",
+        pathname: "/(services)/index",
         params: {
           id: String(item.id),
           title: item.title ?? "",
@@ -285,13 +285,11 @@ export default function Services() {
             zIndex: 10,
           },
           animatedGradientWrapper,
-        ]}
-      >
+        ]}>
         {/* Gradient background */}
         <Animated.View
           style={[styles.headerBg, animatedGradientWrapper]}
-          pointerEvents="none"
-        >
+          pointerEvents="none">
           <AnimatedLinearGradient
             colors={["#E0DBFF", "#f9fafb"]} // bluish for services
             start={{ x: 0, y: 0 }}
@@ -311,8 +309,7 @@ export default function Services() {
               paddingTop: topInset,
             },
             animatedFadingPart,
-          ]}
-        >
+          ]}>
           <View className="flex px-3 gap-2">
             <QuickActions />
             {/* if HomeHeader supports count, pass it; otherwise remove prop */}
@@ -330,13 +327,11 @@ export default function Services() {
               right: 0,
             },
             animatedSearchBar,
-          ]}
-        >
+          ]}>
           <TouchableOpacity
             onPress={() => router.push("/Searchscreen?tab=service")}
             activeOpacity={0.8}
-            className="mt-3 px-3"
-          >
+            className="mt-3 px-3">
             <SearchBar
               placeholder="Search Services"
               readOnly
@@ -359,8 +354,7 @@ export default function Services() {
             paddingTop: 5,
           },
           animatedCategoryList,
-        ]}
-      >
+        ]}>
         <CategoryList
           orientation="horizontal"
           scrollOffset={scrollOffset}
