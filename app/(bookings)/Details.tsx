@@ -83,7 +83,7 @@ export default function Details() {
 
   const onContinue = useCallback(() => {
     router.push({
-      pathname: "/Bookings/Payments",
+      pathname: "/(bookings)/Payments",
       params: { id, qty: String(qty), type: selectedType },
     });
   }, [router, id, qty, selectedType]);

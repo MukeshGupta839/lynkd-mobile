@@ -147,8 +147,7 @@ const UsernameSetupContent = ({
                 color:
                   usernameError === "Username is available." ? "green" : "red",
                 marginTop: 4,
-              }}
-            >
+              }}>
               *{usernameError}
             </Text>
           )}
@@ -207,8 +206,7 @@ const UsernameSetupContent = ({
           <TouchableOpacity
             className="flex-row items-start"
             onPress={onToggleAgreement}
-            activeOpacity={0.7}
-          >
+            activeOpacity={0.7}>
             <FontAwesome5
               name={clearToMove ? "check-square" : "square"}
               size={20}
@@ -227,8 +225,7 @@ const UsernameSetupContent = ({
                         policyTitle: "End User License Agreement (EULA)",
                       },
                     })
-                  }
-                >
+                  }>
                   EULA
                 </RNText>
                 {", "}
@@ -241,8 +238,7 @@ const UsernameSetupContent = ({
                         policyTitle: "Terms of Use",
                       },
                     })
-                  }
-                >
+                  }>
                   Terms of Use
                 </RNText>{" "}
                 and{" "}
@@ -255,8 +251,7 @@ const UsernameSetupContent = ({
                         policyTitle: "Privacy Policy",
                       },
                     })
-                  }
-                >
+                  }>
                   Privacy Policy.
                 </RNText>
               </RNText>
@@ -280,8 +275,7 @@ const UsernameSetupContent = ({
               ? "bg-black"
               : "bg-gray-400"
           } shadow-sm`}
-          onPress={onSaveUsername}
-        >
+          onPress={onSaveUsername}>
           {disableButton ? (
             <PaperSpinner size="small" color="white" />
           ) : (
@@ -398,8 +392,7 @@ const FormContent = ({
 
       <TouchableOpacity
         className="my-3 self-end"
-        onPress={forgotPasswordHandler}
-      >
+        onPress={forgotPasswordHandler}>
         <RNText className="text-gray-400">Forgot Password?</RNText>
       </TouchableOpacity>
 
@@ -412,8 +405,7 @@ const FormContent = ({
               ? "bg-gray-400"
               : "bg-black"
           } shadow-sm`}
-          onPress={onEmailPasswordLogin}
-        >
+          onPress={onEmailPasswordLogin}>
           {disableButton ? (
             <PaperSpinner size="small" color="white" />
           ) : (
@@ -441,8 +433,7 @@ const FormContent = ({
                 {disableAppleButton ? (
                   <View
                     style={{ height: 44 }}
-                    className="bg-black justify-center items-center rounded-md"
-                  >
+                    className="bg-black justify-center items-center rounded-md">
                     <PaperSpinner size="small" color="#fff" />
                   </View>
                 ) : (
@@ -469,8 +460,7 @@ const FormContent = ({
                 onPress={onAppleSignIn}
                 disabled={
                   disableButton || disableAppleButton || disableGoogleButton
-                }
-              >
+                }>
                 {disableAppleButton ? (
                   <PaperSpinner size="small" color="#fff" />
                 ) : (
@@ -492,8 +482,7 @@ const FormContent = ({
                 onPress={onGoogleSignIn}
                 disabled={
                   disableButton || disableGoogleButton || disableAppleButton
-                }
-              >
+                }>
                 {disableGoogleButton ? (
                   <PaperSpinner size="small" color="#fff" />
                 ) : (
@@ -501,8 +490,7 @@ const FormContent = ({
                     <GoogleLogo width={14} height={14} />
                     <RNText
                       style={{ fontSize: 15 }}
-                      className="ml-2 text-white font-medium"
-                    >
+                      className="ml-2 text-white font-medium">
                       Sign in with Google
                     </RNText>
                   </>
@@ -515,8 +503,7 @@ const FormContent = ({
                 onPress={onGoogleSignIn}
                 disabled={
                   disableButton || disableGoogleButton || disableAppleButton
-                }
-              >
+                }>
                 {disableGoogleButton ? (
                   <PaperSpinner size="small" color="#fff" />
                 ) : (
@@ -1281,8 +1268,7 @@ export default function LoginScreen() {
 
   return (
     <View
-      className={`flex-1 bg-black ${Platform.OS === "ios" ? "px-3 pt-safe -pb-safe-offset-3" : "px-3 py-safe"}`}
-    >
+      className={`flex-1 bg-black ${Platform.OS === "ios" ? "px-3 pt-safe -pb-safe-offset-3" : "px-3 py-safe"}`}>
       <StatusBar style="light" />
       <TouchableOpacity className="border border-white px-3 py-1.5 rounded-2xl flex-row justify-center items-center gap-1.5 self-end">
         <RNText className="text-white font-poppins-regular text-sm">
@@ -1303,8 +1289,7 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         bottomOffset={10}
-        extraKeyboardSpace={-10}
-      >
+        extraKeyboardSpace={-10}>
         {showUsernameSetup && authEmailLocal === authContext?.user?.username ? (
           <UsernameSetupContent
             username={username}
